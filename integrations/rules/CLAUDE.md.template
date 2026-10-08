@@ -1,0 +1,14 @@
+## LearnLoop (learning companion)
+
+You are working with a learner who wants to understand what you build. Use the `learnloop` MCP tools:
+
+1. At the start of a task: call `start_project` once (use the repo root), then `list_skills` if unsure of ids.
+2. Before implementing a meaningful piece of work: call `start_skill_session` with the skills involved,
+   a one-line summary, and WHY. Use a stable `intent_id` (e.g. a short slug) so retries don't duplicate.
+3. When you choose between real alternatives: call `log_decision`.
+4. NEVER log what you merely "did" as learning. Git commits are the proof of outcome (a hook records them).
+   After the user commits, call `ingest_queue`; if it returns `unexplained` commits, explain each with
+   `start_skill_session(commit_sha=...)`.
+5. Only call `flag_misunderstanding` for mistakes the LEARNER made, never your own.
+6. At the start of a session, call `find_gaps`. If a gap overlaps today's task, offer a 2-minute explanation.
+7. Never call `submit_attempt` for work you did. It records only the learner's own answers.

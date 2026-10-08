@@ -1,0 +1,26 @@
+# Seed skill tree. Parent is implied by the dotted id (python.testing.mocking -> python.testing).
+skills:
+  - {id: python,                      name: Python}
+  - {id: python.functions,            name: Functions}
+  - {id: python.oop,                  name: Object-oriented programming}
+  - {id: python.async,                name: Async / await}
+  - {id: python.typing,               name: Type hints}
+  - {id: python.testing,              name: Testing}
+  - {id: python.testing.mocking,      name: Mocking and patching}
+  - {id: python.testing.fixtures,     name: Pytest fixtures}
+  - {id: python.packaging,            name: Packaging}
+  - {id: databases,                   name: Databases}
+  - {id: databases.sql,               name: SQL}
+  - {id: databases.migrations,        name: Schema migrations}
+  - {id: databases.caching,           name: Caching}
+  - {id: web,                         name: Web}
+  - {id: web.http,                    name: HTTP and REST}
+  - {id: web.auth,                    name: Authentication}
+  - {id: web.security,                name: Web security}
+  - {id: javascript,                  name: JavaScript}
+  - {id: javascript.async,            name: Promises and async}
+  - {id: typescript,                  name: TypeScript}
+  - {id: git,                         name: Git}
+  - {id: devops,                      name: DevOps}
+  - {id: devops.docker,               name: Docker}
+  - {id: devops.ci,                   name: Continuous integration}

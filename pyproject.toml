@@ -1,0 +1,41 @@
+[project]
+name = "learnloop"
+version = "0.1.0"
+description = "MCP server that turns what your AI coding agent builds into targeted practice."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  "mcp>=1.2,<2",        # v2 renamed FastMCP -> MCPServer; migrate deliberately (see docs/adr/0002)
+  "platformdirs>=4",
+  "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.5", "mypy>=1.10", "types-PyYAML"]
+
+[project.scripts]
+learnloop = "learnloop.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/learnloop"]
+
+[tool.ruff]
+line-length = 110
+src = ["src", "tests"]
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "T20"]   # T20 bans print(): stdout is the MCP channel
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E501", "E702"]
+
+[tool.mypy]
+strict = true
+files = ["src/learnloop/domain", "src/learnloop/services"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
