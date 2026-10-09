@@ -9,6 +9,9 @@ from pydantic import BaseModel, Field
 ShortText = Annotated[str, Field(min_length=1, max_length=300)]
 LongText = Annotated[str, Field(min_length=1, max_length=2000)]
 SkillId = Annotated[str, Field(min_length=1, max_length=80)]
+SkillProposalId = Annotated[
+    str, Field(min_length=3, max_length=80, pattern=r"^[a-z][a-z0-9_-]*(\.[a-z][a-z0-9_-]*){1,3}$")
+]
 FilePath = Annotated[str, Field(min_length=1, max_length=300)]
 Score = Annotated[float, Field(ge=0.0, le=1.0)]
 Limit = Annotated[int, Field(ge=1, le=50)]

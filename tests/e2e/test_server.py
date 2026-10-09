@@ -24,6 +24,7 @@ async def test_tools_are_registered(settings):
         "flag_misunderstanding",
         "log_decision",
         "list_skills",
+        "propose_skill",
     } <= names
 
 
@@ -112,3 +113,104 @@ async def test_lesson_over_the_protocol(settings, tmp_path):
         },
     )
     assert out["attempts"] == 1 and out["confidence"] == "low"
+
+
+async def test_grounded_quiz_e2e_against_temp_git_repo(settings, tmp_path):
+    repo = tmp_path / "quiz-repo"
+    repo.mkdir()
+    run = lambda *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True)  # noqa: E731
+    run("init", "-q")
+    run("config", "user.email", "learner@test.com")
+    run("config", "user.name", "Learner")
+
+    server = build_server(settings)
+    project = await call(server, "start_project", {"name": "e2e-demo", "repo_path": str(repo)})
+
+    # Propose a new skill and verify it is returned with source='proposed'
+    prop = await call(
+        server,
+        "propose_skill",
+        {
+            "id": "python.metaprogramming",
+            "name": "Metaprogramming",
+            "rationale": "Metaclasses, descriptors, and dynamic introspection",
+        },
+    )
+    assert prop["created"] is True
+    assert prop["source"] == "proposed"
+
+    # Start skill session with declared files
+    await call(
+        server,
+        "start_skill_session",
+        {
+            "project_id": project["id"],
+            "skills": ["python.metaprogramming"],
+            "summary": "implement pure functional transformers",
+            "rationale": "immutability and composability",
+            "files": ["src/pipeline.py"],
+        },
+    )
+
+    # Create file and commit
+    src_dir = repo / "src"
+    src_dir.mkdir()
+    (src_dir / "pipeline.py").write_text("def transform(xs): return [x * 2 for x in xs]\n")
+    run("add", ".")
+    run("commit", "-qm", "feat: pure transforms")
+
+    from learnloop.cli import cmd_record_commit
+
+    assert cmd_record_commit(repo) == 0
+    ingest_res = await call(server, "ingest_queue", {"project_id": project["id"]})
+    assert ingest_res["commits_verified"] == 1
+
+    # Get teaching context
+    ctx = await call(
+        server, "get_teaching_context", {"project_id": project["id"], "skill": "python.metaprogramming"}
+    )
+    assert ctx["skill"]["id"] == "python.metaprogramming"
+    assert len(ctx["evidence"]) == 1
+    assert ctx["evidence"][0]["declared_by_agent"] is True
+    assert "src/pipeline.py" in ctx["evidence"][0]["files"]
+
+    # Create grounded quiz citing src/pipeline.py
+    quiz = await call(
+        server,
+        "create_quiz",
+        {
+            "skill": "python.metaprogramming",
+            "project_id": project["id"],
+            "questions": [
+                {
+                    "kind": "explain",
+                    "prompt": "How does transform in pipeline.py ensure immutability?",
+                    "reference_answer": "It returns a new list comprehension without mutating xs",
+                    "rubric": ["mentions list comprehension", "mentions no mutation"],
+                    "source_file": "src/pipeline.py",
+                }
+            ],
+        },
+    )
+    assert quiz["grounded"] == 1
+    assert quiz["generic"] == 0
+
+    # Record learner result
+    res = await call(
+        server,
+        "record_quiz_result",
+        {
+            "quiz_id": quiz["quiz_id"],
+            "results": [
+                {
+                    "ordinal": 1,
+                    "learner_answer": "It builds a brand new list instead of mutating the input.",
+                    "score": 1.0,
+                }
+            ],
+        },
+    )
+    assert res["grounded"] == 1
+    assert res["generic"] == 0
+    assert res["attempts"] == 1
+    assert res["mastery"] > 0.0

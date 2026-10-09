@@ -9,8 +9,18 @@ skills:
   - {id: python.testing.mocking,      name: Mocking and patching}
   - {id: python.testing.fixtures,     name: Pytest fixtures}
   - {id: python.packaging,            name: Packaging}
+  - {id: python.dataclasses,          name: Dataclasses}
+  - {id: python.errors,               name: Error handling}
+  - {id: python.context-managers,     name: Context managers}
+  - {id: python.iterators-generators, name: Iterators and generators}
+  - {id: python.filesystem,           name: Filesystem and I/O}
+  - {id: python.subprocess,           name: Subprocess}
+  - {id: python.cli,                  name: Command-line interfaces}
+  - {id: python.logging,              name: Logging}
+  - {id: python.concurrency,          name: Concurrency}
   - {id: databases,                   name: Databases}
   - {id: databases.sql,               name: SQL}
+  - {id: databases.sqlite,            name: SQLite}
   - {id: databases.migrations,        name: Schema migrations}
   - {id: databases.caching,           name: Caching}
   - {id: web,                         name: Web}
@@ -21,6 +31,10 @@ skills:
   - {id: javascript.async,            name: Promises and async}
   - {id: typescript,                  name: TypeScript}
   - {id: git,                         name: Git}
+  - {id: git.hooks,                   name: Git hooks}
   - {id: devops,                      name: DevOps}
   - {id: devops.docker,               name: Docker}
   - {id: devops.ci,                   name: Continuous integration}
+  - {id: mcp,                         name: Model Context Protocol}
+  - {id: mcp.tools,                   name: Tools}
+  - {id: mcp.protocol,                name: Protocol}

@@ -7,7 +7,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from learnloop.mcp.schemas import Limit
+from learnloop.mcp.schemas import Limit, ShortText, SkillProposalId
 from learnloop.services import skill_service
 
 Db = Callable[[], AbstractContextManager[Connection]]
@@ -18,8 +18,16 @@ def register(mcp: FastMCP, db: Db) -> None:
     def list_skills(prefix: str = "") -> list[dict[str, str]]:
         """List valid skill ids (optionally filtered by prefix like 'python.testing')."""
         with db() as conn:
-            rows = conn.execute("SELECT id, name FROM skills WHERE id LIKE ? ORDER BY id", (prefix + "%",))
-            return [{"id": r["id"], "name": r["name"]} for r in rows]
+            rows = conn.execute(
+                "SELECT id, name, source FROM skills WHERE id LIKE ? ORDER BY id LIMIT 100", (prefix + "%",)
+            )
+            return [{"id": r["id"], "name": r["name"], "source": r["source"] or "seed"} for r in rows]
+
+    @mcp.tool()
+    def propose_skill(id: SkillProposalId, name: ShortText, rationale: ShortText) -> dict[str, Any]:
+        """Propose a new fine-grained skill. Id must extend an existing parent (e.g. 'python.dataclasses')."""
+        with db() as conn:
+            return skill_service.propose_skill(conn, id, name, rationale)
 
     @mcp.tool()
     def get_skill_map(project_id: str | None = None, limit: Limit = 10) -> dict[str, Any]:

@@ -29,9 +29,9 @@ Add to your IDE's MCP config:
 Then paste `integrations/rules/CLAUDE.md.template` into your `CLAUDE.md` / `.cursorrules` so the agent
 actually calls the tools.
 
-## Tools (v0.2)
+## Tools (v0.3)
 
-`start_project` · `list_skills` · `start_skill_session` · `log_decision` · `flag_misunderstanding` ·
+`start_project` · `list_skills` · `propose_skill` · `start_skill_session` · `log_decision` · `flag_misunderstanding` ·
 `ingest_queue` · `get_skill_map` · `find_gaps` · `submit_attempt` ·
 `get_teaching_context` · `create_quiz` · `record_quiz_result`
 
