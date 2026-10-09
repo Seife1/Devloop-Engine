@@ -1,6 +1,0 @@
-#!/bin/sh
-# learnloop-hook
-# Fast, non-blocking, never fails the commit.
-# Writes a redacted metadata record to .learn/queue/.
-( "python" -m learnloop record-commit --repo "$(git rev-parse --show-toplevel)" ) >/dev/null 2>&1 &
-exit 0

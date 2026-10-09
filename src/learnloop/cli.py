@@ -15,6 +15,16 @@ from learnloop.logging import setup_logging
 
 HOOK_MARKER = "# learnloop-hook"
 
+HOOK_TEMPLATE = (
+    "#!/bin/sh\n"
+    f"{HOOK_MARKER}\n"
+    "# Fast, non-blocking, never fails the commit.\n"
+    "# Writes a redacted metadata record to .learn/queue/.\n"
+    '( "{python}" -m learnloop record-commit '
+    '--repo "$(git rev-parse --show-toplevel)" ) >/dev/null 2>&1 &\n'
+    "exit 0\n"
+)
+
 
 def _hook_text(python: str | None = None) -> str:
     """Generate the post-commit hook body.
@@ -24,15 +34,7 @@ def _hook_text(python: str | None = None) -> str:
     Forward slashes and quoting for sh compatibility.
     """
     py = (python if python is not None else sys.executable).replace("\\", "/")
-    return (
-        "#!/bin/sh\n"
-        f"{HOOK_MARKER}\n"
-        "# Fast, non-blocking, never fails the commit.\n"
-        "# Writes a redacted metadata record to .learn/queue/.\n"
-        f'( "{py}" -m learnloop record-commit '
-        '--repo "$(git rev-parse --show-toplevel)" ) >/dev/null 2>&1 &\n'
-        "exit 0\n"
-    )
+    return HOOK_TEMPLATE.format(python=py)
 
 
 

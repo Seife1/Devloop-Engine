@@ -75,3 +75,24 @@ def test_cmd_init_non_git_repo(tmp_path: Path):
     rc = cmd_init(tmp_path)
     assert rc == 1
     assert (tmp_path / ".learn" / "queue").is_dir()
+
+
+def test_hook_template_constant():
+    from learnloop.cli import HOOK_TEMPLATE
+
+    assert HOOK_MARKER in HOOK_TEMPLATE
+    assert "{python}" in HOOK_TEMPLATE
+
+
+def test_hook_single_source_of_truth_and_no_stray_copies():
+    repo_root = Path(__file__).parents[2]
+
+    # Reference copy in integrations/hooks/post-commit must exactly match _hook_text("python")
+    integrations_hook = repo_root / "integrations" / "hooks" / "post-commit"
+    assert integrations_hook.is_file()
+    assert integrations_hook.read_text("utf-8") == _hook_text("python")
+
+    # Stray copy in src/learnloop/hooks must not exist
+    stray_hook = repo_root / "src" / "learnloop" / "hooks" / "post-commit"
+    assert not stray_hook.exists(), "src/learnloop/hooks/post-commit must be deleted"
+

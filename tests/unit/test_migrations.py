@@ -1,0 +1,326 @@
+from __future__ import annotations
+
+import sqlite3
+from pathlib import Path
+
+from learnloop.persistence.db import migrate
+
+INIT_V1 = """
+CREATE TABLE projects (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  repo_path TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE skills (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  parent_id TEXT REFERENCES skills(id)
+);
+
+CREATE TABLE intents (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  summary TEXT NOT NULL,
+  rationale TEXT NOT NULL,
+  commit_sha TEXT,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','verified','abandoned')),
+  created_at TEXT NOT NULL
+);
+CREATE TABLE intent_skills (
+  intent_id TEXT NOT NULL REFERENCES intents(id) ON DELETE CASCADE,
+  skill_id TEXT NOT NULL REFERENCES skills(id),
+  PRIMARY KEY (intent_id, skill_id)
+);
+
+CREATE TABLE commits (
+  sha TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  message TEXT NOT NULL,
+  files TEXT NOT NULL,
+  committed_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','verified','unexplained'))
+);
+
+CREATE TABLE events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  skill_id TEXT NOT NULL REFERENCES skills(id),
+  commit_sha TEXT NOT NULL REFERENCES commits(sha),
+  intent_id TEXT NOT NULL REFERENCES intents(id),
+  created_at TEXT NOT NULL,
+  UNIQUE (commit_sha, skill_id)
+);
+CREATE INDEX idx_events_skill ON events(skill_id);
+
+CREATE TABLE decisions (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  intent_id TEXT REFERENCES intents(id),
+  choice TEXT NOT NULL,
+  alternatives TEXT NOT NULL,
+  tradeoffs TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE attempts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  skill_id TEXT NOT NULL REFERENCES skills(id),
+  raw_score REAL NOT NULL CHECK (raw_score BETWEEN 0 AND 1),
+  hints_used INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE skill_mastery (
+  skill_id TEXT PRIMARY KEY REFERENCES skills(id),
+  mastery REAL NOT NULL,
+  attempts INTEGER NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE mistakes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  skill_id TEXT NOT NULL REFERENCES skills(id),
+  pattern TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 1,
+  confidence TEXT NOT NULL DEFAULT 'medium' CHECK (confidence IN ('low','medium','high')),
+  last_seen TEXT NOT NULL,
+  UNIQUE (skill_id, pattern)
+);
+"""
+
+QUIZZES_V2 = """
+CREATE TABLE quizzes (
+  id TEXT PRIMARY KEY,
+  skill_id TEXT NOT NULL REFERENCES skills(id),
+  project_id TEXT REFERENCES projects(id),
+  level TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','recorded')),
+  created_at TEXT NOT NULL
+);
+CREATE TABLE quiz_questions (
+  quiz_id TEXT NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+  ordinal INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  reference_answer TEXT NOT NULL,
+  rubric TEXT NOT NULL,
+  PRIMARY KEY (quiz_id, ordinal)
+);
+CREATE TABLE quiz_answers (
+  quiz_id TEXT NOT NULL,
+  ordinal INTEGER NOT NULL,
+  learner_answer TEXT NOT NULL,
+  score REAL NOT NULL CHECK (score BETWEEN 0 AND 1),
+  hints_used INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (quiz_id, ordinal),
+  FOREIGN KEY (quiz_id, ordinal) REFERENCES quiz_questions(quiz_id, ordinal)
+);
+ALTER TABLE attempts ADD COLUMN quiz_id TEXT REFERENCES quizzes(id);
+"""
+
+
+def _build_v2_database(conn: sqlite3.Connection) -> None:
+    conn.executescript(INIT_V1)
+    conn.executescript(QUIZZES_V2)
+    conn.execute("PRAGMA user_version=2")
+    conn.commit()
+
+
+def test_migration_from_v2_to_latest_preserves_all_data(tmp_path: Path):
+    db_path = tmp_path / "v2_migration.db"
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+
+    _build_v2_database(conn)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+
+    # Populate rows in EVERY table (13 tables)
+    conn.execute(
+        "INSERT INTO projects (id, name, repo_path, created_at) VALUES (?, ?, ?, ?)",
+        ("p1", "LearnLoop Project", "/workspace/repo", "2026-03-01T10:00:00Z"),
+    )
+    conn.execute(
+        "INSERT INTO skills (id, name, parent_id) VALUES (?, ?, ?)",
+        ("python.testing", "Python Testing", None),
+    )
+    conn.execute(
+        "INSERT INTO skills (id, name, parent_id) VALUES (?, ?, ?)",
+        ("python.testing.mocking", "Mocking", "python.testing"),
+    )
+    conn.execute(
+        "INSERT INTO intents (id, project_id, summary, rationale, commit_sha, status, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("i1", "p1", "Add unit tests", "Ensure regression coverage", None, "open", "2026-03-01T10:01:00Z"),
+    )
+    conn.execute(
+        "INSERT INTO intent_skills (intent_id, skill_id) VALUES (?, ?)",
+        ("i1", "python.testing"),
+    )
+    conn.execute(
+        "INSERT INTO commits (sha, project_id, message, files, committed_at, status) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        ("c1", "p1", "test: add unit tests", '["tests/test_x.py"]', "2026-03-01T10:02:00Z", "verified"),
+    )
+    conn.execute(
+        "INSERT INTO events (id, project_id, skill_id, commit_sha, intent_id, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (1, "p1", "python.testing", "c1", "i1", "2026-03-01T10:03:00Z"),
+    )
+    conn.execute(
+        "INSERT INTO decisions (id, project_id, intent_id, choice, alternatives, tradeoffs, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            "d1",
+            "p1",
+            "i1",
+            "pytest framework",
+            '["unittest", "nose"]',
+            "pytest has cleaner fixtures",
+            "2026-03-01T10:04:00Z",
+        ),
+    )
+    conn.execute(
+        "INSERT INTO attempts (id, skill_id, raw_score, hints_used, created_at, quiz_id) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (1, "python.testing", 0.85, 1, "2026-03-01T10:05:00Z", None),
+    )
+    conn.execute(
+        "INSERT INTO skill_mastery (skill_id, mastery, attempts, updated_at) VALUES (?, ?, ?, ?)",
+        ("python.testing", 0.65, 1, "2026-03-01T10:06:00Z"),
+    )
+    conn.execute(
+        "INSERT INTO mistakes (id, skill_id, pattern, count, confidence, last_seen) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (1, "python.testing", "forgot assert statement", 2, "medium", "2026-03-01T10:07:00Z"),
+    )
+    conn.execute(
+        "INSERT INTO quizzes (id, skill_id, project_id, level, status, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        ("q1", "python.testing", "p1", "intermediate", "open", "2026-03-01T10:08:00Z"),
+    )
+    conn.execute(
+        "INSERT INTO quiz_questions (quiz_id, ordinal, kind, prompt, reference_answer, rubric) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        ("q1", 1, "explain", "Explain mock return_value", "Sets return value", '["mock", "return"]'),
+    )
+    conn.execute(
+        "INSERT INTO quiz_answers (quiz_id, ordinal, learner_answer, score, hints_used, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        ("q1", 1, "return_value specifies what the mock returns when called", 1.0, 0, "2026-03-01T10:09:00Z"),
+    )
+    conn.commit()
+
+    # List of all 13 v2 tables
+    v2_tables = [
+        "projects",
+        "skills",
+        "intents",
+        "intent_skills",
+        "commits",
+        "events",
+        "decisions",
+        "attempts",
+        "skill_mastery",
+        "mistakes",
+        "quizzes",
+        "quiz_questions",
+        "quiz_answers",
+    ]
+
+    # Verify every table has at least one row before migration
+    for tbl in v2_tables:
+        count = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
+        assert count > 0, f"Table {tbl} had no rows before migration"
+
+    # Run migrations to latest version
+    migrate(conn, db_path)
+
+    # Assert latest user_version (5)
+    new_version = conn.execute("PRAGMA user_version").fetchone()[0]
+    assert new_version == 5
+
+    # 1. Assert no row is lost or altered
+    assert conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 1
+    proj = conn.execute("SELECT * FROM projects WHERE id='p1'").fetchone()
+    assert proj["name"] == "LearnLoop Project"
+    assert proj["repo_path"] == "/workspace/repo"
+    assert proj["created_at"] == "2026-03-01T10:00:00Z"
+
+    assert conn.execute("SELECT COUNT(*) FROM skills").fetchone()[0] == 2
+    sk = conn.execute("SELECT * FROM skills WHERE id='python.testing'").fetchone()
+    assert sk["name"] == "Python Testing"
+    assert sk["parent_id"] is None
+
+    assert conn.execute("SELECT COUNT(*) FROM intents").fetchone()[0] == 1
+    intent = conn.execute("SELECT * FROM intents WHERE id='i1'").fetchone()
+    assert intent["summary"] == "Add unit tests"
+    assert intent["rationale"] == "Ensure regression coverage"
+    assert intent["status"] == "open"
+
+    assert conn.execute("SELECT COUNT(*) FROM intent_skills").fetchone()[0] == 1
+    isk = conn.execute("SELECT * FROM intent_skills WHERE intent_id='i1'").fetchone()
+    assert isk["skill_id"] == "python.testing"
+
+    assert conn.execute("SELECT COUNT(*) FROM commits").fetchone()[0] == 1
+    cm = conn.execute("SELECT * FROM commits WHERE sha='c1'").fetchone()
+    assert cm["message"] == "test: add unit tests"
+    assert cm["status"] == "verified"
+
+    assert conn.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 1
+    ev = conn.execute("SELECT * FROM events WHERE id=1").fetchone()
+    assert ev["skill_id"] == "python.testing"
+    assert ev["commit_sha"] == "c1"
+
+    assert conn.execute("SELECT COUNT(*) FROM decisions").fetchone()[0] == 1
+    dec = conn.execute("SELECT * FROM decisions WHERE id='d1'").fetchone()
+    assert dec["choice"] == "pytest framework"
+
+    assert conn.execute("SELECT COUNT(*) FROM attempts").fetchone()[0] == 1
+    att = conn.execute("SELECT * FROM attempts WHERE id=1").fetchone()
+    assert att["raw_score"] == 0.85
+    assert att["hints_used"] == 1
+
+    assert conn.execute("SELECT COUNT(*) FROM skill_mastery").fetchone()[0] == 1
+    sm = conn.execute("SELECT * FROM skill_mastery WHERE skill_id='python.testing'").fetchone()
+    assert sm["mastery"] == 0.65
+
+    assert conn.execute("SELECT COUNT(*) FROM mistakes").fetchone()[0] == 1
+    mis = conn.execute("SELECT * FROM mistakes WHERE id=1").fetchone()
+    assert mis["pattern"] == "forgot assert statement"
+    assert mis["count"] == 2
+
+    assert conn.execute("SELECT COUNT(*) FROM quizzes").fetchone()[0] == 1
+    qz = conn.execute("SELECT * FROM quizzes WHERE id='q1'").fetchone()
+    assert qz["skill_id"] == "python.testing"
+    assert qz["level"] == "intermediate"
+
+    assert conn.execute("SELECT COUNT(*) FROM quiz_questions").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM quiz_answers").fetchone()[0] == 1
+
+    # 2. Assert old quiz_questions have grounding='unspecified' and source_file is None
+    qq = conn.execute("SELECT * FROM quiz_questions WHERE quiz_id='q1' AND ordinal=1").fetchone()
+    assert qq["prompt"] == "Explain mock return_value"
+    assert qq["reference_answer"] == "Sets return value"
+    assert qq["grounding"] == "unspecified"
+    assert qq["source_file"] is None
+
+    # 3. Assert old skills have source='seed' and proposed_at is None and rationale is None
+    sk1 = conn.execute("SELECT * FROM skills WHERE id='python.testing'").fetchone()
+    assert sk1["source"] == "seed"
+    assert sk1["proposed_at"] is None
+    assert sk1["rationale"] is None
+
+    sk2 = conn.execute("SELECT * FROM skills WHERE id='python.testing.mocking'").fetchone()
+    assert sk2["source"] == "seed"
+    assert sk2["proposed_at"] is None
+    assert sk2["rationale"] is None
+
+    # 4. Check new table intent_files exists
+    assert conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='intent_files'"
+    ).fetchone() is not None
+
+    conn.close()
