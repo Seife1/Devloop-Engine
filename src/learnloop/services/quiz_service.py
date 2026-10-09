@@ -7,6 +7,7 @@ not how many questions were asked in a single sitting."""
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 import uuid
 from datetime import datetime
@@ -14,6 +15,7 @@ from typing import Any
 
 from learnloop.domain import clock, mastery
 from learnloop.domain.errors import NotFoundError, ValidationError
+from learnloop.domain.path_utils import normalise_path
 from learnloop.domain.teaching import level_for
 from learnloop.services import capture_service, practice_service
 from learnloop.services.skill_service import standings
@@ -31,6 +33,54 @@ def create_quiz(
         capture_service.require_project(conn, project_id)
     if not 1 <= len(questions) <= 6:
         raise ValidationError("A quiz needs 1 to 6 questions.")
+
+    # Find verified candidate files for this skill (scoped to project_id if given)
+    query = (
+        "SELECT c.files FROM events e JOIN commits c ON c.sha = e.commit_sha WHERE e.skill_id = ?"
+    )
+    params: list[Any] = [skill]
+    if project_id:
+        query += " AND e.project_id = ?"
+        params.append(project_id)
+    rows = conn.execute(query, params).fetchall()
+    has_verified = len(rows) > 0
+    candidate_files: set[str] = set()
+    for r in rows:
+        candidate_files.update(json.loads(r["files"]))
+    sorted_candidates = sorted(candidate_files)
+
+    processed_questions = []
+    grounded_count = 0
+    generic_count = 0
+    for q in questions:
+        sf = q.get("source_file")
+        if sf is not None and str(sf).strip():
+            normalised_sf = normalise_path(str(sf))
+            if normalised_sf not in candidate_files:
+                candidates_preview = sorted_candidates[:8]
+                raise ValidationError(
+                    f"Question source_file {sf!r} does not appear in verified commits for {skill!r}. "
+                    f"Valid candidate files: {candidates_preview}"
+                )
+            grounding = "project"
+            grounded_count += 1
+            source_file_val: str | None = normalised_sf
+        else:
+            grounding = "generic"
+            generic_count += 1
+            source_file_val = None
+        processed_questions.append({**q, "source_file": source_file_val, "grounding": grounding})
+
+    if has_verified:
+        required_grounded = math.ceil(len(questions) / 2)
+        if grounded_count < required_grounded:
+            candidates_preview = sorted_candidates[:8]
+            raise ValidationError(
+                f"At least {required_grounded} of {len(questions)} questions must be grounded with "
+                f"source_file from the learner's code (got {grounded_count}). "
+                f"Pick files from: {candidates_preview}"
+            )
+
     s = next((x for x in standings(conn) if x.skill_id == skill), None)
     level = level_for(s.mastery, s.attempts) if s else "guided"
     qid = uuid.uuid4().hex[:12]
@@ -39,15 +89,31 @@ def create_quiz(
         (qid, skill, project_id, level, clock.iso(now or clock.utcnow())),
     )
     conn.executemany(
-        "INSERT INTO quiz_questions (quiz_id, ordinal, kind, prompt, reference_answer, rubric)"
-        " VALUES (?,?,?,?,?,?)",
+        "INSERT INTO quiz_questions "
+        "(quiz_id, ordinal, kind, prompt, reference_answer, rubric, source_file, grounding) "
+        "VALUES (?,?,?,?,?,?,?,?)",
         [
-            (qid, i, q["kind"], q["prompt"], q["reference_answer"], json.dumps(q["rubric"]))
-            for i, q in enumerate(questions, start=1)
+            (
+                qid,
+                i,
+                q["kind"],
+                q["prompt"],
+                q["reference_answer"],
+                json.dumps(q["rubric"]),
+                q["source_file"],
+                q["grounding"],
+            )
+            for i, q in enumerate(processed_questions, start=1)
         ],
     )
     conn.commit()
-    return {"quiz_id": qid, "questions": len(questions), "level": level}
+    return {
+        "quiz_id": qid,
+        "questions": len(questions),
+        "level": level,
+        "grounded": grounded_count,
+        "generic": generic_count,
+    }
 
 
 def record_quiz_result(
@@ -101,4 +167,16 @@ def record_quiz_result(
                     conn, quiz["skill_id"], r["mistake_pattern"], "medium", now
                 )
             )
-    return {**outcome, "quiz_score": round(raw, 2), "mistakes_recorded": len(flagged)}
+    grounded = conn.execute(
+        "SELECT COUNT(*) FROM quiz_questions WHERE quiz_id=? AND grounding='project'", (quiz_id,)
+    ).fetchone()[0]
+    generic = conn.execute(
+        "SELECT COUNT(*) FROM quiz_questions WHERE quiz_id=? AND grounding='generic'", (quiz_id,)
+    ).fetchone()[0]
+    return {
+        **outcome,
+        "quiz_score": round(raw, 2),
+        "mistakes_recorded": len(flagged),
+        "grounded": grounded,
+        "generic": generic,
+    }

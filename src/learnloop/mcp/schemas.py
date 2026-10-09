@@ -21,6 +21,7 @@ class QuizQuestion(BaseModel):
     rubric: Annotated[
         list[Annotated[str, Field(min_length=1, max_length=200)]], Field(min_length=1, max_length=5)
     ]
+    source_file: FilePath | None = None
 
 
 class QuestionResult(BaseModel):

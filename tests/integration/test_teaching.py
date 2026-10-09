@@ -11,6 +11,16 @@ T0 = datetime(2026, 3, 1, 10, 0, tzinfo=UTC)
 Q = [
     {"kind": "predict", "prompt": f"q{i}", "reference_answer": "a", "rubric": ["p1", "p2"]} for i in range(3)
 ]
+Q_GROUNDED = [
+    {
+        "kind": "predict",
+        "prompt": f"q{i}",
+        "reference_answer": "a",
+        "rubric": ["p1", "p2"],
+        "source_file": "tests/test_a.py",
+    }
+    for i in range(3)
+]
 
 
 @pytest.fixture
@@ -85,11 +95,12 @@ def test_context_is_bounded_with_heavy_history(conn, project):
 
 def test_quiz_moves_mastery_once_and_confidence_stays_honest(conn, project):
     add_verified(conn, project, "aaa111", "python.testing.mocking", 5)
-    quiz = quiz_service.create_quiz(conn, "python.testing.mocking", Q, project["id"], now=T0)
+    quiz = quiz_service.create_quiz(conn, "python.testing.mocking", Q_GROUNDED, project["id"], now=T0)
     out = quiz_service.record_quiz_result(conn, quiz["quiz_id"], good(3, 1.0), now=T0)
     assert out["attempts"] == 1  # 3 questions = 1 attempt
     assert out["confidence"] == "low"
     assert 0.5 < out["mastery"] < 1.0  # one quiz never maxes it out
+    assert out["grounded"] == 3 and out["generic"] == 0
 
 
 def test_cannot_record_same_quiz_twice(conn, project):
@@ -127,7 +138,7 @@ def test_hints_lower_the_effect_on_mastery(conn):
 def test_wrong_answers_create_mistake_memory_that_feeds_next_lesson(conn, project):
     add_verified(conn, project, "aaa111", "python.testing.mocking", 5)
     for _ in range(2):
-        quiz = quiz_service.create_quiz(conn, "python.testing.mocking", Q, project["id"], now=T0)
+        quiz = quiz_service.create_quiz(conn, "python.testing.mocking", Q_GROUNDED, project["id"], now=T0)
         res = good(3, 0.2, mistake_pattern="patches defining module")[:1] + good(3, 1.0)[1:]
         quiz_service.record_quiz_result(conn, quiz["quiz_id"], res, now=T0)
     ctx = lesson_service.get_teaching_context(conn, project["id"], skill="python.testing.mocking", now=T0)
@@ -141,7 +152,7 @@ def test_wrong_answers_create_mistake_memory_that_feeds_next_lesson(conn, projec
 
 def test_weak_result_keeps_skill_in_gaps(conn, project):
     add_verified(conn, project, "aaa111", "python.testing.mocking", 5)
-    quiz = quiz_service.create_quiz(conn, "python.testing.mocking", Q, project["id"], now=T0)
+    quiz = quiz_service.create_quiz(conn, "python.testing.mocking", Q_GROUNDED, project["id"], now=T0)
     quiz_service.record_quiz_result(conn, quiz["quiz_id"], good(3, 0.1), now=T0)
     gaps = skill_service.find_gaps(conn, project["id"], now=T0)["gaps"]
     assert gaps and gaps[0]["status"] == "gap"
