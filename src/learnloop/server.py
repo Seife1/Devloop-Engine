@@ -7,7 +7,8 @@ from contextlib import contextmanager
 from mcp.server.fastmcp import FastMCP
 
 from learnloop.config import Settings
-from learnloop.mcp.tools import capture, practice, skills
+from learnloop.mcp import prompts
+from learnloop.mcp.tools import capture, practice, skills, teaching
 from learnloop.persistence.db import connect
 
 
@@ -26,4 +27,6 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     capture.register(mcp, db, settings)
     skills.register(mcp, db)
     practice.register(mcp, db)
+    teaching.register(mcp, db)
+    prompts.register(mcp)
     return mcp

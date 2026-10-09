@@ -71,3 +71,44 @@ async def test_hook_never_fails_outside_a_repo(tmp_path):
     from learnloop.cli import cmd_record_commit
 
     assert cmd_record_commit(tmp_path) == 0
+
+
+async def test_teaching_tools_and_prompt_registered(settings):
+    server = build_server(settings)
+    names = {t.name for t in await server.list_tools()}
+    assert {"get_teaching_context", "create_quiz", "record_quiz_result"} <= names
+    prompts = {p.name for p in await server.list_prompts()}
+    assert "teach-me" in prompts
+
+
+async def test_teach_me_prompt_embeds_protocol(settings):
+    server = build_server(settings)
+    result = await server.get_prompt("teach-me", {"project_id": "p1"})
+    text = result.messages[0].content.text
+    assert "get_teaching_context(project_id='p1')" in text and "WAIT" in text
+
+
+async def test_lesson_over_the_protocol(settings, tmp_path):
+    server = build_server(settings)
+    project = await call(server, "start_project", {"name": "d", "repo_path": str(tmp_path)})
+    ctx = await call(server, "get_teaching_context", {"project_id": project["id"]})
+    assert ctx["skill"] is None
+    quiz = await call(
+        server,
+        "create_quiz",
+        {
+            "skill": "python",
+            "questions": [
+                {"kind": "explain", "prompt": "why?", "reference_answer": "because", "rubric": ["a"]}
+            ],
+        },
+    )
+    out = await call(
+        server,
+        "record_quiz_result",
+        {
+            "quiz_id": quiz["quiz_id"],
+            "results": [{"ordinal": 1, "learner_answer": "because it is", "score": 0.5}],
+        },
+    )
+    assert out["attempts"] == 1 and out["confidence"] == "low"

@@ -1,0 +1,5 @@
+* text=auto
+.env text eol=lf
+*.sql text eol=lf
+integrations/hooks/post-commit text eol=lf
+src/learnloop/hooks/post-commit text eol=lf

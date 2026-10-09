@@ -1,4 +1,4 @@
-# Devloop Engine
+# LearnLoop
 
 An MCP server that shows you where your AI coding agent did work you can't yet do alone, then gives you
 short, targeted practice to close the gap.
@@ -15,7 +15,6 @@ git post-commit --> .learn/queue --------/                                      
 ## Quick start
 
 ```bash
-.\venv\Scripts\activate
 pip install -e ".[dev]"
 learnloop doctor                  # creates the DB, seeds the skill taxonomy
 cd your-project && learnloop init # creates .learn/, installs the post-commit hook
@@ -30,19 +29,19 @@ Add to your IDE's MCP config:
 Then paste `integrations/rules/CLAUDE.md.template` into your `CLAUDE.md` / `.cursorrules` so the agent
 actually calls the tools.
 
-## Tools (v0.1)
+## Tools (v0.2)
 
 `start_project` · `list_skills` · `start_skill_session` · `log_decision` · `flag_misunderstanding` ·
-`ingest_queue` · `get_skill_map` · `find_gaps` · `submit_attempt`
+`ingest_queue` · `get_skill_map` · `find_gaps` · `submit_attempt` ·
+`get_teaching_context` · `create_quiz` · `record_quiz_result`
+
+Prompt: `teach-me`. (If your IDE doesn't surface MCP prompts, just say "teach me" — the tool result carries
+the same instructions.)
 
 ## Not built yet
 
-Resources (windowed, token-capped), prompts (`/teach-me`, `/milestone-review`), quiz generation and
-rubrics, spaced repetition, journal writer, week-summary compaction. See `docs/adr/`.
+Resources (windowed, token-capped), `/milestone-review`, spaced repetition, journal writer, week-summary compaction. See `docs/adr/`.
 
 ## Develop
 
-python -m venv venv
-. venv/Scripts/activate
-pip install -e "[dev]"
-pytest
+`make test` · `make lint` · `make inspect` (MCP Inspector). Logs go to stderr only; never `print()`.
