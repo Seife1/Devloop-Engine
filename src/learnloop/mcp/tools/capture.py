@@ -13,7 +13,7 @@ from pydantic import Field
 
 from learnloop.capture import queue
 from learnloop.config import Settings
-from learnloop.mcp.schemas import LongText, ShortText, SkillId
+from learnloop.mcp.schemas import FilePath, LongText, ShortText, SkillId
 from learnloop.services import capture_service, reconcile_service
 
 Db = Callable[[], AbstractContextManager[Connection]]
@@ -34,6 +34,7 @@ def register(mcp: FastMCP, db: Db, settings: Settings) -> None:
         rationale: LongText,
         intent_id: str | None = None,
         commit_sha: str | None = None,
+        files: Annotated[list[FilePath], Field(max_length=20)] | None = None,
     ) -> dict[str, Any]:
         """Declare what you are about to build and which skills it exercises (INTENT only).
         Does not count as learning exposure until a matching git commit verifies it.
@@ -41,7 +42,7 @@ def register(mcp: FastMCP, db: Db, settings: Settings) -> None:
         already-made 'unexplained' commit."""
         with db() as conn:
             result = capture_service.start_skill_session(
-                conn, project_id, skills, summary, rationale, intent_id, commit_sha
+                conn, project_id, skills, summary, rationale, intent_id, commit_sha, files
             )
             if commit_sha:
                 reconcile_service.reconcile(conn, project_id, settings.abandon_days)

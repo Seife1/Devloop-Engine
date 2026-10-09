@@ -107,3 +107,49 @@ def test_queue_ingest_dedupes_redacts_and_quarantines(conn, settings, project, t
     assert json.loads(row["files"]) == ["src/a.py"]
     queue.write_queue_entry(tmp_path, "s1", "again", ["src/a.py"], T0.isoformat())
     assert queue.ingest(conn, settings, project["id"], tmp_path)["duplicates"] == 1
+
+
+def test_declared_files_tracked_and_touched_flags(conn, project):
+    cap.start_skill_session(
+        conn,
+        project["id"],
+        ["python.testing"],
+        "tests",
+        "why",
+        intent_id="i1",
+        files=["src/a.py", "src/b.py"],
+        now=T0,
+    )
+    commit(conn, project, "sha1", ["src/a.py"], T0 + timedelta(minutes=10))
+    res = reconcile_service.reconcile(conn, project["id"], now=T0 + timedelta(hours=1))
+    assert res["commits_verified"] == 1
+    assert res["warnings"] == 0
+
+    rows = conn.execute(
+        "SELECT path, touched FROM intent_files WHERE intent_id='i1' ORDER BY path"
+    ).fetchall()
+    assert len(rows) == 2
+    assert rows[0]["path"] == "src/a.py" and rows[0]["touched"] == 1
+    assert rows[1]["path"] == "src/b.py" and rows[1]["touched"] == 0
+
+
+def test_declared_files_all_untouched_issues_warning(conn, project):
+    cap.start_skill_session(
+        conn,
+        project["id"],
+        ["python.testing"],
+        "tests",
+        "why",
+        intent_id="i2",
+        files=["src/c.py"],
+        now=T0,
+    )
+    commit(conn, project, "sha2", ["src/other.py"], T0 + timedelta(minutes=10))
+    res = reconcile_service.reconcile(conn, project["id"], now=T0 + timedelta(hours=1))
+    assert res["commits_verified"] == 1
+    assert res["warnings"] == 1
+    assert exposure(conn, "python.testing") == 1
+
+    row = conn.execute("SELECT path, touched FROM intent_files WHERE intent_id='i2'").fetchone()
+    assert row["path"] == "src/c.py" and row["touched"] == 0
+

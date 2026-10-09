@@ -145,3 +145,38 @@ def test_weak_result_keeps_skill_in_gaps(conn, project):
     quiz_service.record_quiz_result(conn, quiz["quiz_id"], good(3, 0.1), now=T0)
     gaps = skill_service.find_gaps(conn, project["id"], now=T0)["gaps"]
     assert gaps and gaps[0]["status"] == "gap"
+
+
+def test_teaching_context_ranks_files_and_flags_declared(conn, project):
+    at = T0 + timedelta(minutes=10)
+    cap.start_skill_session(
+        conn,
+        project["id"],
+        ["python.testing"],
+        "add unit tests for api",
+        "verify edge cases",
+        intent_id="i-ranked",
+        files=["tests/test_api.py", "src/api.py"],
+        now=at - timedelta(minutes=1),
+    )
+    conn.execute(
+        "INSERT INTO commits (sha, project_id, message, files, committed_at) VALUES (?,?,?,?,?)",
+        (
+            "ddd444",
+            project["id"],
+            "feat: api and tests",
+            json.dumps(["README.md", "src/api.py", "tests/test_api.py", "poetry.lock"]),
+            at.isoformat(timespec="seconds"),
+        ),
+    )
+    conn.commit()
+    reconcile_service.reconcile(conn, project["id"], now=at)
+
+    ctx = lesson_service.get_teaching_context(conn, project["id"], skill="python.testing", now=at)
+    assert len(ctx["evidence"]) == 1
+    ev = ctx["evidence"][0]
+    assert ev["declared_by_agent"] is True
+    assert ev["files"][0] in ("src/api.py", "tests/test_api.py")
+    assert "README.md" not in ev["files"]
+    assert "poetry.lock" not in ev["files"]
+

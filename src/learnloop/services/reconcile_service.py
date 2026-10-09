@@ -17,8 +17,15 @@ from learnloop.domain import clock
 
 
 def _verify(
-    conn: sqlite3.Connection, project_id: str, sha: str, intents: list[sqlite3.Row], now: str
-) -> None:
+    conn: sqlite3.Connection,
+    project_id: str,
+    sha: str,
+    intents: list[sqlite3.Row],
+    now: str,
+    commit_files: list[str],
+) -> int:
+    commit_file_set = set(commit_files)
+    warnings = 0
     for intent in intents:
         conn.execute("UPDATE intents SET status='verified', commit_sha=? WHERE id=?", (sha, intent["id"]))
         for r in conn.execute(
@@ -29,7 +36,24 @@ def _verify(
                 " VALUES (?,?,?,?,?)",
                 (project_id, r["skill_id"], sha, intent["id"], now),
             )
+        declared_rows = conn.execute(
+            "SELECT path FROM intent_files WHERE intent_id=?", (intent["id"],)
+        ).fetchall()
+        if declared_rows:
+            touched_any = False
+            for d in declared_rows:
+                p = d["path"]
+                is_touched = 1 if p in commit_file_set else 0
+                if is_touched:
+                    touched_any = True
+                conn.execute(
+                    "UPDATE intent_files SET touched=? WHERE intent_id=? AND path=?",
+                    (is_touched, intent["id"], p),
+                )
+            if not touched_any:
+                warnings += 1
     conn.execute("UPDATE commits SET status='verified' WHERE sha=?", (sha,))
+    return warnings
 
 
 def reconcile(
@@ -38,11 +62,13 @@ def reconcile(
     now_dt = now or clock.utcnow()
     now_s = clock.iso(now_dt)
     verified = 0
+    warnings = 0
     commits = conn.execute(
         "SELECT * FROM commits WHERE project_id=? AND status IN ('new','unexplained') ORDER BY committed_at",
         (project_id,),
     ).fetchall()
     for c in commits:
+        commit_files = json.loads(c["files"])
         # 1) explicit link: intent declared this commit_sha
         intents = conn.execute(
             "SELECT * FROM intents WHERE project_id=? AND status='open' AND commit_sha=?",
@@ -56,7 +82,7 @@ def reconcile(
                 (project_id, c["committed_at"]),
             ).fetchall()
         if intents:
-            _verify(conn, project_id, c["sha"], intents, now_s)
+            warnings += _verify(conn, project_id, c["sha"], intents, now_s, commit_files)
             verified += 1
         elif c["status"] == "new":
             conn.execute("UPDATE commits SET status='unexplained' WHERE sha=?", (c["sha"],))
@@ -79,4 +105,9 @@ def reconcile(
             (project_id,),
         )
     ]
-    return {"commits_verified": verified, "intents_abandoned": abandoned, "unexplained": unexplained}
+    return {
+        "commits_verified": verified,
+        "intents_abandoned": abandoned,
+        "unexplained": unexplained,
+        "warnings": warnings,
+    }

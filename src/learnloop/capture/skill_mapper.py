@@ -43,3 +43,9 @@ def suggest_skills(conn: sqlite3.Connection, files: list[str]) -> list[str]:
             if s in known and s not in found:
                 found.append(s)
     return found
+
+
+def get_file_skill_map(files: list[str]) -> dict[str, list[str]]:
+    """Map each file path to skills inferred by rule heuristics."""
+    return {f: _rules(f) for f in files}
+

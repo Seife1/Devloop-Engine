@@ -11,6 +11,7 @@ from typing import Any
 
 from learnloop.domain import clock
 from learnloop.domain.errors import NotFoundError, ValidationError
+from learnloop.domain.path_utils import normalise_path
 
 
 def _new_id() -> str:
@@ -56,6 +57,7 @@ def start_skill_session(
     rationale: str,
     intent_id: str | None = None,
     commit_sha: str | None = None,
+    files: list[str] | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Declare intent. Idempotent on intent_id so agent retries don't duplicate."""
@@ -63,6 +65,12 @@ def start_skill_session(
     if not skills:
         raise ValidationError("Provide at least one skill id.")
     validate_skills(conn, skills)
+    normalised_files: list[str] = []
+    if files:
+        if len(files) > 20:
+            raise ValidationError("Provide at most 20 files.")
+        normalised_files = list(dict.fromkeys(normalise_path(f) for f in files))
+
     iid = intent_id or _new_id()
     if conn.execute("SELECT 1 FROM intents WHERE id=?", (iid,)).fetchone():
         return {"intent_id": iid, "created": False}
@@ -75,6 +83,11 @@ def start_skill_session(
         "INSERT INTO intent_skills (intent_id, skill_id) VALUES (?,?)",
         [(iid, s) for s in dict.fromkeys(skills)],
     )
+    if normalised_files:
+        conn.executemany(
+            "INSERT INTO intent_files (intent_id, path, touched) VALUES (?,?,NULL)",
+            [(iid, f) for f in normalised_files],
+        )
     conn.commit()
     return {"intent_id": iid, "created": True, "status": "open"}
 

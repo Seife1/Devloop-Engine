@@ -7,8 +7,10 @@ import sqlite3
 from datetime import datetime
 from typing import Any
 
+from learnloop.capture.skill_mapper import get_file_skill_map
 from learnloop.domain import clock
 from learnloop.domain.errors import NotFoundError
+from learnloop.domain.evidence_ranking import rank_evidence_files
 from learnloop.domain.gap_analysis import rank_gaps
 from learnloop.domain.teaching import level_for
 from learnloop.services import capture_service
@@ -21,8 +23,8 @@ CLIP = 300
 
 TEACHING_PROTOCOL = """\
 Teach the learner ONE skill, using THEIR project's real code. Keep the whole session under ~10 minutes.
-1. Read the evidence files named below in the IDE. Teach from what the AI actually wrote,
-   not generic examples.
+1. Read the evidence files named below in the IDE (files are ranked most relevant first).
+   Teach from what the AI actually wrote, not generic examples.
 2. Follow `level`: guided = explain first with a worked example, hints allowed;
    standard = ask the learner to predict how it works BEFORE you reveal it;
    challenge = no hints; ask them to write or fix code unaided.
@@ -87,12 +89,31 @@ def get_teaching_context(
     intent_ids = []
     for r in conn.execute(sql, params):
         files = json.loads(r["files"])
+        declared_rows = conn.execute(
+            "SELECT path, touched FROM intent_files WHERE intent_id=?", (r["intent_id"],)
+        ).fetchall()
+        declared_by_agent = len(declared_rows) > 0
+        declared_touched = [row["path"] for row in declared_rows if row["touched"] == 1]
+
+        mapped_skills = get_file_skill_map(files)
+        intent_text = f"{r['summary']} {r['rationale']}"
+        ranked_files = rank_evidence_files(
+            skill_id=target.skill_id,
+            commit_files=files,
+            declared_touched=declared_touched,
+            intent_text=intent_text,
+            mapped_skills_by_file=mapped_skills,
+        )
+        if not ranked_files and files:
+            ranked_files = sorted(set(files))
+
         evidence.append(
             {
                 "commit": r["commit_sha"][:10],
                 "commit_message": _clip(r["message"], 120),
-                "files": files[:MAX_FILES],
-                "files_truncated": len(files) > MAX_FILES,
+                "files": ranked_files[:MAX_FILES],
+                "files_truncated": len(ranked_files) > MAX_FILES or len(files) > MAX_FILES,
+                "declared_by_agent": declared_by_agent,
                 "what_ai_said_it_did": _clip(r["summary"]),
                 "why": _clip(r["rationale"]),
             }
