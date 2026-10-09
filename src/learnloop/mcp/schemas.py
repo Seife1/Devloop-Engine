@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 ShortText = Annotated[str, Field(min_length=1, max_length=300)]
 LongText = Annotated[str, Field(min_length=1, max_length=2000)]
 SkillId = Annotated[str, Field(min_length=1, max_length=80)]
 Score = Annotated[float, Field(ge=0.0, le=1.0)]
 Limit = Annotated[int, Field(ge=1, le=50)]
-
-from typing import Literal  # noqa: E402
-
-from pydantic import BaseModel  # noqa: E402
 
 
 class QuizQuestion(BaseModel):

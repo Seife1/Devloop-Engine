@@ -7,6 +7,7 @@ number is reported together with how many attempts back it (confidence).
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
@@ -31,7 +32,8 @@ def effective_mastery(state: MasteryState, now: datetime) -> float:
     if state.attempts == 0 or state.updated_at is None:
         return PRIOR
     days = max(0.0, (now - state.updated_at).total_seconds() / 86400)
-    return PRIOR + (state.mastery - PRIOR) * 0.5 ** (days / HALF_LIFE_DAYS)
+    decay = math.pow(0.5, days / HALF_LIFE_DAYS)
+    return PRIOR + (state.mastery - PRIOR) * decay
 
 
 def adjust_for_hints(score: float, hints_used: int) -> float:

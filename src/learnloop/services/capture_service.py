@@ -19,7 +19,7 @@ def _new_id() -> str:
 
 def require_project(conn: sqlite3.Connection, project_id: str) -> sqlite3.Row:
     row = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
-    if row is None:
+    if not isinstance(row, sqlite3.Row):
         raise NotFoundError(f"Unknown project_id {project_id!r}. Call start_project first.")
     return row
 

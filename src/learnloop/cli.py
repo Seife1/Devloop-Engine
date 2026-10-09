@@ -9,12 +9,31 @@ import argparse
 import stat
 import subprocess
 import sys
-from importlib import resources
 from pathlib import Path
 
 from learnloop.logging import setup_logging
 
 HOOK_MARKER = "# learnloop-hook"
+
+
+def _hook_text(python: str | None = None) -> str:
+    """Generate the post-commit hook body.
+
+    Single source of truth for hook content. Uses the absolute interpreter path
+    so the hook works even when the venv is not on PATH (common on Windows).
+    Forward slashes and quoting for sh compatibility.
+    """
+    py = (python if python is not None else sys.executable).replace("\\", "/")
+    return (
+        "#!/bin/sh\n"
+        f"{HOOK_MARKER}\n"
+        "# Fast, non-blocking, never fails the commit.\n"
+        "# Writes a redacted metadata record to .learn/queue/.\n"
+        f'( "{py}" -m learnloop record-commit '
+        '--repo "$(git rev-parse --show-toplevel)" ) >/dev/null 2>&1 &\n'
+        "exit 0\n"
+    )
+
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -60,24 +79,52 @@ def cmd_init(repo: Path) -> int:
     if not (repo / ".git").is_dir():
         sys.stderr.write("Not a git repository root; created .learn/ only.\n")
         return 1
-    body = resources.files("learnloop").joinpath("hooks/post-commit").read_text("utf-8")
+    body = _hook_text()
     if hook.exists() and HOOK_MARKER not in hook.read_text("utf-8"):
         sys.stderr.write(f"{hook} already exists and isn't ours; add `learnloop record-commit` manually.\n")
         return 1
-    hook.write_text(body, encoding="utf-8")
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    hook.write_bytes(body.encode("utf-8"))
     hook.chmod(hook.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     sys.stderr.write(f"Initialised {learn} and installed post-commit hook.\n")
     return 0
 
 
 def cmd_doctor() -> int:
+    import re
+    import sqlite3 as _sqlite3
+
     from learnloop.config import Settings
     from learnloop.persistence.db import connect
 
+    sys.stderr.write(f"sqlite: {_sqlite3.sqlite_version}\n")
     s = Settings.load()
     conn = connect(s.db_path)
     n = conn.execute("SELECT COUNT(*) FROM skills").fetchone()[0]
-    sys.stderr.write(f"db: {s.db_path}\nskills seeded: {n}\nok\n")
+    sys.stderr.write(f"db: {s.db_path}\nskills seeded: {n}\n")
+
+    for row in conn.execute("SELECT repo_path FROM projects"):
+        repo = Path(row[0])
+        hook = repo / ".git" / "hooks" / "post-commit"
+        if not hook.exists():
+            continue
+        try:
+            text = hook.read_text("utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if HOOK_MARKER not in text:
+            continue
+        match = re.search(r'"([^"]+)"\s+-m\s+learnloop', text)
+        if match:
+            interp = Path(match.group(1))
+            if not interp.exists():
+                sys.stderr.write(
+                    f"WARNING: hook in {repo}: interpreter {interp} not found. "
+                    f'Re-run: learnloop init --repo "{repo}"\n'
+                )
+
+    conn.close()
+    sys.stderr.write("ok\n")
     return 0
 
 

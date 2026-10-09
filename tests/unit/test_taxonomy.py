@@ -1,4 +1,5 @@
 from unittest.mock import patch
+
 import pytest
 
 from learnloop.taxonomy.loader import load_skills
