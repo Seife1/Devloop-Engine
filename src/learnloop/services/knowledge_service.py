@@ -18,7 +18,7 @@ from learnloop.domain.path_utils import normalise_path
 from learnloop.domain.staleness import compute_item_staleness
 from learnloop.journal.concept_log import regenerate_concept_log
 from learnloop.services.capture_service import require_project
-from learnloop.services.profile_service import get_learner_profile
+from learnloop.services.profile_service import get_effective_profile
 
 VALID_KINDS = {"component", "decision", "concept", "bug-fix"}
 VALID_BANDS = {"basic", "intermediate", "advanced"}
@@ -133,7 +133,7 @@ def register_knowledge_item(
         depth = existing["depth"]
         created = False
     else:
-        profile = get_learner_profile(conn)
+        profile = get_effective_profile(conn, project_id)
         item_id = _new_id()
         depth = start_depth(profile["level"])
         status = "unexplained"
@@ -196,6 +196,7 @@ def record_explanation(
     audience: str | None = None,
     depth: int | None = None,
     explanation_id: int | None = None,
+    self_rating: int | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Grade and record learner explain-back.
@@ -213,6 +214,9 @@ def record_explanation(
     if not (0.0 <= score <= 1.0):
         raise ValidationError(f"Score must be between 0.0 and 1.0, got {score}")
 
+    if self_rating is not None and not (1 <= self_rating <= 5):
+        raise ValidationError(f"self_rating must be between 1 and 5, got {self_rating}")
+
     item = conn.execute(
         "SELECT * FROM knowledge_items WHERE project_id=? AND key=?", (project_id, key.strip())
     ).fetchone()
@@ -227,18 +231,24 @@ def record_explanation(
             "SELECT * FROM explanations WHERE id=?", (explanation_id,)
         ).fetchone()
         if existing_exp:
+            exp_rating = (
+                existing_exp["self_rating"]
+                if "self_rating" in existing_exp.keys()
+                else None
+            )
             return {
                 "explanation_id": existing_exp["id"],
                 "item_id": item_id,
                 "key": item["key"],
                 "score": existing_exp["score"],
+                "self_rating": exp_rating,
                 "status": item["status"],
                 "depth": item["depth"],
                 "created": False,
                 "concept_log_written": True,
             }
 
-    profile = get_learner_profile(conn)
+    profile = get_effective_profile(conn, project_id)
     now_s = clock.iso(now or clock.utcnow())
     redacted_text = redact(cleaned_text)
 
@@ -265,8 +275,9 @@ def record_explanation(
     chosen_audience = audience.strip().lower() if audience else profile["audience"]
     if explanation_id is not None:
         conn.execute(
-            "INSERT INTO explanations (id, item_id, audience, depth, learner_text, score, created_at)"
-            " VALUES (?,?,?,?,?,?,?)",
+            "INSERT INTO explanations "
+            "(id, item_id, audience, depth, learner_text, score, self_rating, created_at)"
+            " VALUES (?,?,?,?,?,?,?,?)",
             (
                 explanation_id,
                 item_id,
@@ -274,20 +285,23 @@ def record_explanation(
                 new_depth,
                 redacted_text,
                 score,
+                self_rating,
                 now_s,
             ),
         )
         rec_exp_id = explanation_id
     else:
         cur = conn.execute(
-            "INSERT INTO explanations (item_id, audience, depth, learner_text, score, created_at)"
-            " VALUES (?,?,?,?,?,?)",
+            "INSERT INTO explanations "
+            "(item_id, audience, depth, learner_text, score, self_rating, created_at)"
+            " VALUES (?,?,?,?,?,?,?)",
             (
                 item_id,
                 chosen_audience,
                 new_depth,
                 redacted_text,
                 score,
+                self_rating,
                 now_s,
             ),
         )
@@ -333,6 +347,7 @@ def record_explanation(
         "status": new_status,
         "depth": new_depth,
         "score": score,
+        "self_rating": self_rating,
         "baseline_commit": baseline_commit,
         "baseline_committed_at": baseline_committed_at,
         "created": True,
@@ -388,6 +403,15 @@ def list_items(
             ).fetchall()
         ]
         summary_short = r["summary"][:160]
+        latest_exp = conn.execute(
+            "SELECT self_rating FROM explanations WHERE item_id=? ORDER BY created_at DESC, id DESC LIMIT 1",
+            (item_id,),
+        ).fetchone()
+        self_rating = (
+            latest_exp["self_rating"]
+            if latest_exp and "self_rating" in latest_exp.keys()
+            else None
+        )
         items.append(
             {
                 "id": item_id,
@@ -400,6 +424,7 @@ def list_items(
                 "summary": summary_short,
                 "files": files,
                 "tags": tags,
+                "self_rating": self_rating,
                 "baseline_commit": r["baseline_commit"],
                 "baseline_committed_at": r["baseline_committed_at"],
             }

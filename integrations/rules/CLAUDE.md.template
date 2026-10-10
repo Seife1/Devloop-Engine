@@ -1,25 +1,11 @@
 ## LearnLoop (learning companion)
 
-You are working with a learner who wants to understand what you build. Use the `learnloop` MCP tools:
+You are working with a learner who builds projects with AI and must be confident explaining each project. Use the `learnloop` MCP tools:
 
-1. At the start of a task: call `start_project` once (use the repo root), then `list_skills` if unsure of ids.
-   When no listed skill fits, call `propose_skill` rather than using a coarse parent.
-2. Before implementing a meaningful piece of work: call `start_skill_session` with the skills involved,
-   the files you plan to touch (`files: [...]`), a one-line summary, and WHY. Use a stable `intent_id`
-   (e.g. a short slug) so retries don't duplicate.
-3. When you choose between real alternatives: call `log_decision`.
-4. NEVER log what you merely "did" as learning. Git commits are the proof of outcome (a hook records them).
-   After the user commits, call `ingest_queue`; if it returns `unexplained` commits, explain each with
-   `start_skill_session(commit_sha=...)`.
-5. Only call `flag_misunderstanding` for mistakes the LEARNER made, never your own.
-6. At the start of a session, call `find_gaps`. If a gap overlaps today's task, offer a 2-minute explanation.
-7. Never call `submit_attempt` for work you did. It records only the learner's own answers.
-8. When the learner says "teach me", "/teach-me", or asks to learn from their project: call
-   `get_teaching_context` and follow its `instructions` exactly. Ask ONE question at a time and wait for the
-   learner's own answer before grading. Paste their answer verbatim into `record_quiz_result`.
-9. At session start, call `get_session_briefing`. Present the calm ~60s briefing, offer the ONE
-   suggested next action, and honor "skip" or "not now". Overdue items are simply re-spaced.
-10. When creating a component, making an architectural choice, or fixing a subtle bug: call
-   `register_knowledge_item` with key, title, summary, and tracked files.
-11. When conducting spaced reviews or technical interviews: call `review_due`, ask ONE question at a time,
-   wait for learner's answer, and record outcomes with `record_review`.
+1. At session start: call `get_session_briefing`. Present the calm ~60s briefing, offer the ONE suggested next action, and honor "skip" or "not now". Overdue items are simply re-spaced.
+2. For an architecture walkthrough or when onboarding to a project: call `get_project_tour` to guide the learner through entry points and components from basic to advanced.
+3. Before implementing a meaningful piece of work: call `start_skill_session` with the files you plan to touch (`files: [...]`), a one-line summary, and WHY. Use a stable `intent_id` (e.g. a short slug) so retries don't duplicate.
+4. When you choose between real alternatives: call `log_decision`.
+5. NEVER log what you merely "did" as learning. Git commits are the proof of outcome (a hook records them). After the user commits, call `ingest_queue`.
+6. When creating a component, making an architectural choice, or fixing a subtle bug: offer `register_knowledge_item` with key, title, summary, and tracked files.
+7. When conducting spaced reviews or technical interviews: call `review_due`, ask ONE question at a time, wait for learner's answer, and record outcomes with `record_review`.

@@ -151,7 +151,7 @@ def generate_concept_markdown(conn: sqlite3.Connection, project_id: str) -> str:
 
             # Latest explanation
             exp_row = conn.execute(
-                "SELECT learner_text, score, depth, created_at FROM explanations"
+                "SELECT learner_text, score, depth, self_rating, created_at FROM explanations"
                 " WHERE item_id=? ORDER BY created_at DESC, id DESC LIMIT 1",
                 (item_id,),
             ).fetchone()
@@ -169,7 +169,14 @@ def generate_concept_markdown(conn: sqlite3.Connection, project_id: str) -> str:
                 exp_text = redact(exp_row["learner_text"])
                 if len(exp_text) > 500:
                     exp_text = exp_text[:497] + "..."
-                lines.append(f'- **Latest explanation** (score {exp_row["score"]:.1f}): "{exp_text}"')
+                rating_str = (
+                    f", self-rating: {exp_row['self_rating']}/5"
+                    if exp_row["self_rating"] is not None
+                    else ""
+                )
+                lines.append(
+                    f'- **Latest explanation** (score {exp_row["score"]:.1f}{rating_str}): "{exp_text}"'
+                )
 
             lines.append("")
 

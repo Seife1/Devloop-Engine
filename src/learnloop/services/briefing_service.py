@@ -19,7 +19,7 @@ from learnloop.domain import clock
 from learnloop.domain.staleness import compute_item_staleness
 from learnloop.services.capture_service import require_project
 from learnloop.services.knowledge_service import _auto_ingest
-from learnloop.services.profile_service import get_learner_profile
+from learnloop.services.profile_service import get_effective_profile
 from learnloop.services.review_service import review_due
 
 BRIEFING_PROTOCOL = """\
@@ -48,7 +48,7 @@ def get_session_briefing(
     """
     _auto_ingest(conn, project_id)
     project = require_project(conn, project_id)
-    profile = get_learner_profile(conn)
+    profile = get_effective_profile(conn, project_id)
 
     now_dt = now or clock.utcnow()
     now_s = clock.iso(now_dt)
@@ -145,6 +145,32 @@ def get_session_briefing(
     else:
         suggested_next = "nothing"
 
+    # Readiness counts
+    unexplained_items_count = sum(1 for it in item_rows if it["status"] == "unexplained")
+    shaky_items_count = sum(1 for it in item_rows if it["status"] == "shaky")
+    explained_items_count = sum(1 for it in item_rows if it["status"] == "explained")
+
+    base_headline = f"{explained_items_count} of {total_items} parts explained"
+    headline_parts: list[str] = []
+    if stale_count > 0:
+        headline_parts.append(f"{stale_count} stale")
+    if waiting_count > 0:
+        headline_parts.append(f"{waiting_count} due for review")
+    readiness_headline = (
+        f"{base_headline} ({', '.join(headline_parts)})"
+        if headline_parts
+        else base_headline
+    )
+
+    readiness = {
+        "headline": readiness_headline,
+        "unexplained": unexplained_items_count,
+        "shaky": shaky_items_count,
+        "explained": explained_items_count,
+        "stale": stale_count,
+        "due": waiting_count,
+    }
+
     # Update projects.last_briefing_at
     conn.execute(
         "UPDATE projects SET last_briefing_at=? WHERE id=?",
@@ -155,6 +181,7 @@ def get_session_briefing(
     briefing_payload: dict[str, Any] = {
         "project_id": project_id,
         "session_minutes": int(profile["session_minutes"]),
+        "readiness": readiness,
         "changes_since_briefing": {
             "last_briefing_at": last_briefing_at,
             "new_commits": new_commits_count,

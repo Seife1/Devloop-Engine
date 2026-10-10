@@ -25,12 +25,18 @@ def build_server(settings: Settings | None = None) -> FastMCP:
 
     mcp = FastMCP("learnloop")
     capture.register(mcp, db, settings)
-    skills.register(mcp, db)
-    practice.register(mcp, db)
-    teaching.register(mcp, db)
     profile.register(mcp, db)
     knowledge.register(mcp, db)
     tour.register(mcp, db)
     review.register(mcp, db)
+
+    # Legacy skill/quiz tools: register only when LEARNLOOP_LEGACY_TOOLS=1 (default off)
+    import os
+
+    if os.environ.get("LEARNLOOP_LEGACY_TOOLS") == "1":
+        skills.register(mcp, db)
+        practice.register(mcp, db)
+        teaching.register(mcp, db)
+
     prompts.register(mcp)
     return mcp

@@ -21,8 +21,9 @@ from learnloop.mcp.schemas import (
     LearnerAudience,
     Limit,
     Score,
+    SelfRating,
 )
-from learnloop.services import knowledge_service
+from learnloop.services import knowledge_service, readiness_service
 
 Db = Callable[[], AbstractContextManager[Connection]]
 
@@ -64,6 +65,7 @@ def register(mcp: FastMCP, db: Db) -> None:
         audience: LearnerAudience | None = None,
         depth: Annotated[int, Field(ge=1, le=5)] | None = None,
         explanation_id: int | None = None,
+        self_rating: SelfRating | None = None,
     ) -> dict[str, Any]:
         """Record the LEARNER's explain-back for a knowledge item and the agent's rubric score (0.0-1.0).
         Rejects empty learner_text. Score >= 0.8 marks item explained; updates baseline commit to HEAD."""
@@ -77,6 +79,7 @@ def register(mcp: FastMCP, db: Db) -> None:
                 audience=audience,
                 depth=depth,
                 explanation_id=explanation_id,
+                self_rating=self_rating,
             )
 
     @mcp.tool()
@@ -105,3 +108,10 @@ def register(mcp: FastMCP, db: Db) -> None:
         Returns changed commits so you can inspect diffs and re-explain."""
         with db() as conn:
             return knowledge_service.list_stale_items(conn, project_id=project_id)
+
+    @mcp.tool()
+    def get_project_readiness(project_id: str | None = None) -> dict[str, Any]:
+        """Get count-based confidence metrics for a project (explained, stale, due, by-band).
+        Resolves default project if omitted. Never computes scores or percentages."""
+        with db() as conn:
+            return readiness_service.get_project_readiness(conn, project_id=project_id)

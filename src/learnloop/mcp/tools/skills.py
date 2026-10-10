@@ -16,7 +16,8 @@ Db = Callable[[], AbstractContextManager[Connection]]
 def register(mcp: FastMCP, db: Db) -> None:
     @mcp.tool()
     def list_skills(prefix: str = "") -> list[dict[str, str]]:
-        """List valid skill ids (optionally filtered by prefix like 'python.testing')."""
+        """DEPRECATED: not used by the per-project flow.
+        List valid skill ids (optionally filtered by prefix like 'python.testing')."""
         with db() as conn:
             rows = conn.execute(
                 "SELECT id, name, source FROM skills WHERE id LIKE ? ORDER BY id LIMIT 100", (prefix + "%",)
@@ -25,19 +26,22 @@ def register(mcp: FastMCP, db: Db) -> None:
 
     @mcp.tool()
     def propose_skill(id: SkillProposalId, name: ShortText, rationale: ShortText) -> dict[str, Any]:
-        """Propose a new fine-grained skill. Id must extend an existing parent (e.g. 'python.dataclasses')."""
+        """DEPRECATED: not used by the per-project flow.
+        Propose a new fine-grained skill. Id must extend an existing parent (e.g. 'python.dataclasses')."""
         with db() as conn:
             return skill_service.propose_skill(conn, id, name, rationale)
 
     @mcp.tool()
     def get_skill_map(project_id: str | None = None, limit: Limit = 10) -> dict[str, Any]:
-        """Skills with VERIFIED exposure next to the learner's mastery, confidence and attempt
+        """DEPRECATED: not used by the per-project flow.
+        Skills with VERIFIED exposure next to the learner's mastery, confidence and attempt
         count. Top-N by exposure; check `truncated`. Mastery of 'untested' is not zero — it is unknown."""
         with db() as conn:
             return skill_service.get_skill_map(conn, project_id, limit)
 
     @mcp.tool()
     def find_gaps(project_id: str | None = None, limit: Limit = 5) -> dict[str, Any]:
-        """Skills the AI used a lot that the learner has not demonstrated. Highest priority first."""
+        """DEPRECATED: not used by the per-project flow.
+        Skills the AI used a lot that the learner has not demonstrated. Highest priority first."""
         with db() as conn:
             return skill_service.find_gaps(conn, project_id, limit)

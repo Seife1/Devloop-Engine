@@ -23,10 +23,16 @@ def register(mcp: FastMCP, db: Db) -> None:
         goal: LearnerGoal | None = None,
         session_minutes: Annotated[int, Field(ge=3, le=30)] | None = None,
         audience: LearnerAudience | None = None,
+        project_id: str | None = None,
     ) -> dict[str, Any]:
-        """Configure the learner profile preferences (level, goal, session minutes, target audience).
-        Partial update on the singleton profile; returns the updated profile."""
+        """Configure learner profile preferences (level, goal, session minutes, target audience).
+        If project_id is provided, overrides profile for that project; otherwise updates global profile."""
         with db() as conn:
             return profile_service.set_learner_profile(
-                conn, level=level, goal=goal, session_minutes=session_minutes, audience=audience
+                conn,
+                level=level,
+                goal=goal,
+                session_minutes=session_minutes,
+                audience=audience,
+                project_id=project_id,
             )

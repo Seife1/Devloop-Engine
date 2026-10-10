@@ -16,7 +16,8 @@ Db = Callable[[], AbstractContextManager[Connection]]
 def register(mcp: FastMCP, db: Db) -> None:
     @mcp.tool()
     def submit_attempt(skill: SkillId, score: Score, hints_used: int = 0) -> dict[str, Any]:
-        """Record the LEARNER's graded attempt (0.0-1.0) on a skill. Only the learner's own
+        """DEPRECATED: not used by the per-project flow.
+        Record the LEARNER's graded attempt (0.0-1.0) on a skill. Only the learner's own
         answers belong here — never score work the AI did. Updates mastery and returns
         mastery with attempt count and confidence."""
         with db() as conn:

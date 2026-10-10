@@ -29,14 +29,14 @@ def register(mcp: FastMCP, db: Db, settings: Settings) -> None:
     @mcp.tool()
     def start_skill_session(
         project_id: str,
-        skills: Annotated[list[SkillId], Field(min_length=1, max_length=8)],
         summary: LongText,
         rationale: LongText,
+        skills: Annotated[list[SkillId], Field(min_length=0, max_length=8)] = [],  # noqa: B006
         intent_id: str | None = None,
         commit_sha: str | None = None,
         files: Annotated[list[FilePath], Field(max_length=20)] | None = None,
     ) -> dict[str, Any]:
-        """Declare what you are about to build and which skills it exercises (INTENT only).
+        """Declare what you are about to build. Skills are optional — pass skills=[] for daily work.
         Does not count as learning exposure until a matching git commit verifies it.
         Pass a stable intent_id so retries are idempotent; pass commit_sha to explain an
         already-made 'unexplained' commit."""
@@ -66,7 +66,8 @@ def register(mcp: FastMCP, db: Db, settings: Settings) -> None:
         pattern: ShortText,
         confidence: Literal["low", "medium", "high"] = "medium",
     ) -> dict[str, Any]:
-        """Flag a recurring mistake the LEARNER made (not the AI), e.g. 'patches the defining
+        """DEPRECATED: not used by the per-project flow. See tour/review/interview instead.
+        Flag a recurring mistake the LEARNER made (not the AI), e.g. 'patches the defining
         module instead of the importing module'. Only flag what you actually observed."""
         with db() as conn:
             return capture_service.flag_misunderstanding(conn, skill, pattern, confidence)

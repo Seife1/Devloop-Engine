@@ -52,9 +52,9 @@ def start_project(
 def start_skill_session(
     conn: sqlite3.Connection,
     project_id: str,
-    skills: list[str],
-    summary: str,
-    rationale: str,
+    skills: list[str] | None = None,
+    summary: str = "",
+    rationale: str = "",
     intent_id: str | None = None,
     commit_sha: str | None = None,
     files: list[str] | None = None,
@@ -62,9 +62,9 @@ def start_skill_session(
 ) -> dict[str, Any]:
     """Declare intent. Idempotent on intent_id so agent retries don't duplicate."""
     require_project(conn, project_id)
-    if not skills:
-        raise ValidationError("Provide at least one skill id.")
-    validate_skills(conn, skills)
+    skills_list = skills or []
+    if skills_list:
+        validate_skills(conn, skills_list)
     normalised_files: list[str] = []
     if files:
         if len(files) > 20:
@@ -79,10 +79,11 @@ def start_skill_session(
         " VALUES (?,?,?,?,?,?)",
         (iid, project_id, summary, rationale, commit_sha, clock.iso(now or clock.utcnow())),
     )
-    conn.executemany(
-        "INSERT INTO intent_skills (intent_id, skill_id) VALUES (?,?)",
-        [(iid, s) for s in dict.fromkeys(skills)],
-    )
+    if skills_list:
+        conn.executemany(
+            "INSERT INTO intent_skills (intent_id, skill_id) VALUES (?,?)",
+            [(iid, s) for s in dict.fromkeys(skills_list)],
+        )
     if normalised_files:
         conn.executemany(
             "INSERT INTO intent_files (intent_id, path, touched) VALUES (?,?,NULL)",

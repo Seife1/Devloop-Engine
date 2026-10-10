@@ -43,18 +43,21 @@ Add to your IDE's MCP config:
 Then paste `integrations/rules/CLAUDE.md.template` into your `CLAUDE.md` / `.cursorrules` so the agent
 actually calls the tools.
 
-## Tools (v0.4.0)
+## Tools (v0.5.0)
 
-- **Knowledge Items & Memory:** `set_learner_profile` · `register_knowledge_item` · `record_explanation` · `list_items` · `list_stale_items`
-- **Tour:** `get_project_tour`
-- **Capture & Git Reconcile:** `start_project` · `start_skill_session` · `log_decision` · `flag_misunderstanding` · `ingest_queue`
-- **Skills & Gaps:** `list_skills` · `propose_skill` · `get_skill_map` · `find_gaps` · `submit_attempt`
-- **Lessons & Quizzes:** `get_teaching_context` · `create_quiz` · `record_quiz_result`
+- **Knowledge Items & Readiness:** `register_knowledge_item` · `record_explanation` (with optional `self_rating`) · `list_items` · `list_stale_items` · `get_project_readiness`
+- **Tour & Review:** `get_project_tour` · `review_due` · `record_review` · `snooze_review` · `get_session_briefing`
+- **Capture & Git Reconcile:** `start_project` · `start_skill_session` (skills optional) · `log_decision` · `ingest_queue`
+- **Profile:** `set_learner_profile` (supports optional `project_id` override)
+- **Legacy Tools (opt-in via `LEARNLOOP_LEGACY_TOOLS=1`):** `list_skills` · `propose_skill` · `get_skill_map` · `find_gaps` · `submit_attempt` · `get_teaching_context` · `create_quiz` · `record_quiz_result` · `flag_misunderstanding`
 
 ## Prompts
 
-- `teach-me`: Start an interactive lesson grounded in your repository's commits.
 - `tour`: Start an interactive codebase walkthrough from basic entry points to advanced components.
+- `catch-up`: Deliver a quick session-start briefing on what changed.
+- `review`: Run today's spaced repetition review of knowledge items.
+- `mock-interview`: Conduct an interview on the project.
+- `teach-me` *(deprecated)*: Prefer tour, review, or mock-interview for per-project confidence.
 
 ## Status
 
@@ -62,14 +65,15 @@ actually calls the tools.
 | :--- | :--- | :--- |
 | Git post-commit hook queue | **Built** | Metadata-only JSON in `.learn/queue/`, non-blocking |
 | Intent-commit reconciliation | **Built** | `exposure` verified against git commits |
-| Backfill & tracked file snapshots | **Built** | `learnloop backfill` seeds existing repos |
+| Backfill & tracked file snapshots | **Built** | `learnloop backfill` seeds existing repos (single snapshot row) |
 | Project-grounded knowledge items | **Built** | Anchored to real project paths, bands Basic/Intermediate/Advanced |
-| Learner profile | **Built** | Singleton preferences (`school` through `senior`, goals, audience) |
-| Deterministic concept log | **Built** | Safe atomic generation of `.learn/concepts.md` |
+| Learner profile & project overrides | **Built** | Global preferences + per-project overrides via `project_profile` |
+| Count-based project readiness | **Built** | `get_project_readiness` & briefing readiness (no percentages or scores) |
+| Deterministic concept log | **Built** | Safe atomic generation of `.learn/concepts.md` with self-ratings |
 | Project tour bundle | **Built** | Bounded evidence bundle (< 8 KB), entry points, manifests |
 | Derived staleness detection | **Built** | Detects newer commits touching explained files |
 | Spaced repetition scheduler | **Built** | SM-2 interval calculations and pull-based reviews |
-| Session-start briefing | **Built** | Quick catch-up briefing (< 3 KB) |
+| Session-start briefing | **Built** | Quick catch-up briefing (< 3 KB) with compact readiness counts |
 | Resources (windowed, token-capped)| *Planned* | See `docs/adr/` |
 
 ## Limits

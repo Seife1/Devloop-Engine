@@ -41,16 +41,41 @@ def get_learner_profile(conn: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
+def get_effective_profile(conn: sqlite3.Connection, project_id: str) -> dict[str, Any]:
+    """Retrieve effective learner profile for a project (override if present, else global)."""
+    global_profile = get_learner_profile(conn)
+    row = conn.execute("SELECT * FROM project_profile WHERE project_id=?", (project_id,)).fetchone()
+    if not row:
+        return global_profile
+    effective = dict(global_profile)
+    for k in ("level", "goal", "audience", "session_minutes"):
+        if row[k] is not None:
+            effective[k] = row[k]
+    effective["updated_at"] = row["updated_at"]
+    return effective
+
+
 def set_learner_profile(
     conn: sqlite3.Connection,
     level: str | None = None,
     goal: str | None = None,
     session_minutes: int | None = None,
     audience: str | None = None,
+    project_id: str | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    """Partially update learner profile with validation."""
-    current = get_learner_profile(conn)
+    """Partially update learner profile with validation.
+
+    If project_id is given, updates or creates a project-level override.
+    Otherwise updates global profile (id=1).
+    """
+    if project_id is not None:
+        from learnloop.services.capture_service import require_project
+
+        require_project(conn, project_id)
+        current = get_effective_profile(conn, project_id)
+    else:
+        current = get_learner_profile(conn)
 
     new_level = level.strip().lower() if level is not None else current["level"]
     if new_level not in VALID_LEVELS:
@@ -73,6 +98,31 @@ def set_learner_profile(
         )
 
     now_s = clock.iso(now or clock.utcnow())
+
+    if project_id is not None:
+        conn.execute(
+            """
+            INSERT INTO project_profile (project_id, level, goal, session_minutes, audience, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(project_id) DO UPDATE SET
+                level=excluded.level,
+                goal=excluded.goal,
+                session_minutes=excluded.session_minutes,
+                audience=excluded.audience,
+                updated_at=excluded.updated_at
+            """,
+            (project_id, new_level, new_goal, new_session_minutes, new_audience, now_s),
+        )
+        conn.commit()
+        return {
+            "project_id": project_id,
+            "level": new_level,
+            "goal": new_goal,
+            "session_minutes": new_session_minutes,
+            "audience": new_audience,
+            "updated_at": now_s,
+        }
+
     conn.execute(
         "UPDATE learner_profile SET level=?, goal=?, session_minutes=?, audience=?, updated_at=? WHERE id=1",
         (new_level, new_goal, new_session_minutes, new_audience, now_s),

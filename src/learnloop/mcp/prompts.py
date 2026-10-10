@@ -22,7 +22,10 @@ Mock Interview Protocol:
 
 
 def register(mcp: FastMCP) -> None:
-    @mcp.prompt(name="teach-me", description="Teach me my biggest gap, using my own project's code")
+    @mcp.prompt(
+        name="teach-me",
+        description="DEPRECATED: not used by per-project flow. Use tour, review, or interview instead.",
+    )
     def teach_me(project_id: str = "", skill: str = "") -> str:
         args = []
         if project_id:
@@ -31,6 +34,7 @@ def register(mcp: FastMCP) -> None:
             args.append(f"skill={skill!r}")
         call = f"get_teaching_context({', '.join(args)})"
         return (
+            f"DEPRECATED: Prefer tour, review, or mock-interview for per-project confidence.\n"
             f"Run a LearnLoop lesson. First call {call}, then follow its `instructions` exactly.\n\n"
             f"{TEACHING_PROTOCOL}"
         )

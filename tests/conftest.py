@@ -1,4 +1,9 @@
+import os
+
 import pytest
+
+# Existing tests exercise legacy tools; keep enabled during tests
+os.environ.setdefault("LEARNLOOP_LEGACY_TOOLS", "1")
 
 from learnloop.config import Settings
 from learnloop.persistence.db import connect

@@ -9,7 +9,7 @@ from typing import Any
 
 from learnloop.services.capture_service import require_project
 from learnloop.services.knowledge_service import get_all_known_paths
-from learnloop.services.profile_service import get_learner_profile
+from learnloop.services.profile_service import get_effective_profile
 
 TOUR_PROTOCOL = """\
 Project Tour Protocol:
@@ -68,7 +68,7 @@ def _matches_any(path: str, patterns: list[str]) -> bool:
 def get_project_tour(conn: sqlite3.Connection, project_id: str) -> dict[str, Any]:
     """Generate bounded project tour bundle (<8 KB)."""
     require_project(conn, project_id)
-    profile = get_learner_profile(conn)
+    profile = get_effective_profile(conn, project_id)
 
     known_paths = sorted(get_all_known_paths(conn, project_id))
 

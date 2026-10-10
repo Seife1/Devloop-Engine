@@ -20,7 +20,7 @@ from learnloop.domain.staleness import compute_item_staleness
 from learnloop.journal.concept_log import regenerate_concept_log
 from learnloop.services.capture_service import require_project
 from learnloop.services.knowledge_service import _auto_ingest
-from learnloop.services.profile_service import get_learner_profile
+from learnloop.services.profile_service import get_effective_profile
 
 REVIEW_PROTOCOL = """\
 Spaced Review Protocol:
@@ -72,7 +72,7 @@ def review_due(
     """
     _auto_ingest(conn, project_id)
     require_project(conn, project_id)
-    profile = get_learner_profile(conn)
+    profile = get_effective_profile(conn, project_id)
 
     now_dt = now or clock.utcnow()
     now_s = clock.iso(now_dt)
@@ -277,7 +277,7 @@ def record_review(
                 "concept_log_written": True,
             }
 
-    profile = get_learner_profile(conn)
+    profile = get_effective_profile(conn, project_id)
     now_dt = now or clock.utcnow()
     now_s = clock.iso(now_dt)
 
