@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import sqlite3
 import stat
 import subprocess
 import sys
@@ -129,6 +130,21 @@ def cmd_backfill(repo: Path, limit: int = 50) -> int:
         return 1
 
 
+def _find_project_id(conn: sqlite3.Connection, repo: Path) -> str | None:
+    repo_abs = str(repo.resolve())
+    row = conn.execute(
+        "SELECT id FROM projects WHERE repo_path=? COLLATE NOCASE"
+        " ORDER BY (SELECT COUNT(*) FROM knowledge_items WHERE project_id=projects.id) DESC,"
+        " created_at DESC LIMIT 1",
+        (repo_abs,),
+    ).fetchone()
+    if not row:
+        row = conn.execute(
+            "SELECT id FROM projects WHERE repo_path=? COLLATE NOCASE LIMIT 1", (str(repo),)
+        ).fetchone()
+    return row["id"] if row else None
+
+
 def cmd_concepts(repo: Path) -> int:
     try:
         from learnloop.config import Settings
@@ -138,21 +154,11 @@ def cmd_concepts(repo: Path) -> int:
         settings = Settings.load()
         conn = connect(settings.db_path)
         try:
-            repo_abs = str(repo.resolve())
-            row = conn.execute(
-                "SELECT id FROM projects WHERE repo_path=? COLLATE NOCASE"
-                " ORDER BY (SELECT COUNT(*) FROM knowledge_items WHERE project_id=projects.id) DESC,"
-                " created_at DESC LIMIT 1",
-                (repo_abs,),
-            ).fetchone()
-            if not row:
-                row = conn.execute(
-                    "SELECT id FROM projects WHERE repo_path=? COLLATE NOCASE LIMIT 1", (str(repo),)
-                ).fetchone()
-            if not row:
+            project_id = _find_project_id(conn, repo)
+            if not project_id:
                 sys.stderr.write(f"No project registered for {repo}.\n")
                 return 1
-            written = regenerate_concept_log(conn, row["id"], repo)
+            written = regenerate_concept_log(conn, project_id, repo)
             if written:
                 sys.stderr.write(f"Regenerated {repo / '.learn' / 'concepts.md'}\n")
             else:
@@ -162,6 +168,74 @@ def cmd_concepts(repo: Path) -> int:
             conn.close()
     except Exception as exc:  # noqa: BLE001
         sys.stderr.write(f"learnloop concepts failed: {exc}\n")
+        return 1
+
+
+def cmd_review(repo: Path) -> int:
+    try:
+        from learnloop.config import Settings
+        from learnloop.persistence.db import connect
+        from learnloop.services.review_service import review_due
+
+        settings = Settings.load()
+        conn = connect(settings.db_path)
+        try:
+            project_id = _find_project_id(conn, repo)
+            if not project_id:
+                sys.stderr.write(f"No project registered for {repo}.\n")
+                return 1
+            res = review_due(conn, project_id, limit=3)
+            items = res["items"]
+            waiting = res["waiting"]
+            if not items:
+                sys.stdout.write("No knowledge items due for review today.\n")
+                return 0
+            sys.stdout.write("Knowledge items due for review:\n")
+            for it in items:
+                stale_marker = " [STALE]" if it.get("is_stale") else ""
+                key, title, d = it["key"], it["title"], it["depth_to_ask"]
+                sys.stdout.write(f"  • {key}: {title} (depth {d}){stale_marker}\n")
+                if it.get("summary"):
+                    sys.stdout.write(f"    {it['summary']}\n")
+            if waiting > 0:
+                sys.stdout.write(f"\n{waiting} more items waiting for future sessions.\n")
+            return 0
+        finally:
+            conn.close()
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"learnloop review failed: {exc}\n")
+        return 1
+
+
+def cmd_briefing(repo: Path) -> int:
+    try:
+        from learnloop.config import Settings
+        from learnloop.persistence.db import connect
+        from learnloop.services.briefing_service import get_session_briefing
+
+        settings = Settings.load()
+        conn = connect(settings.db_path)
+        try:
+            project_id = _find_project_id(conn, repo)
+            if not project_id:
+                sys.stderr.write(f"No project registered for {repo}.\n")
+                return 1
+            b = get_session_briefing(conn, project_id)
+            changes = b["changes_since_briefing"]
+            sys.stdout.write("LearnLoop Session Briefing:\n")
+            sys.stdout.write(f"  New commits: {changes['new_commits']}\n")
+            sys.stdout.write(f"  Unexplained commits: {changes['unexplained_commits']}\n")
+            sys.stdout.write(f"  Stale items: {changes['stale_items_count']}\n")
+            sys.stdout.write(f"  Due for review: {len(b['due'])} (waiting: {b['waiting']})\n")
+            sys.stdout.write(f"  Suggested next action: {b['suggested_next']}\n")
+            sys.stdout.write(
+                "\nNote: Overdue items are simply re-spaced; there is never an urgent backlog or penalty.\n"
+            )
+            return 0
+        finally:
+            conn.close()
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"learnloop briefing failed: {exc}\n")
         return 1
 
 
@@ -246,7 +320,7 @@ def cmd_doctor() -> int:
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="learnloop")
     sub = p.add_subparsers(dest="cmd")
-    for name in ("init", "record-commit", "concepts"):
+    for name in ("init", "record-commit", "concepts", "review", "briefing"):
         sp = sub.add_parser(name)
         sp.add_argument("--repo", type=Path, default=Path.cwd())
     bf = sub.add_parser("backfill")
@@ -262,6 +336,10 @@ def main(argv: list[str] | None = None) -> None:
         code = cmd_backfill(args.repo, args.limit)
     elif args.cmd == "concepts":
         code = cmd_concepts(args.repo)
+    elif args.cmd == "review":
+        code = cmd_review(args.repo)
+    elif args.cmd == "briefing":
+        code = cmd_briefing(args.repo)
     elif args.cmd == "doctor":
         code = cmd_doctor()
     else:

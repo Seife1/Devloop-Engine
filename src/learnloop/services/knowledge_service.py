@@ -250,9 +250,10 @@ def record_explanation(
         raise ValidationError(f"Depth {target_depth} out of range (1..5).")
     new_depth = max(curr_depth, target_depth)
 
-    # Find newest ingested commit for project
+    # Find newest ingested git commit for project (exclude synthetic snapshot)
     newest_commit = conn.execute(
         "SELECT sha, committed_at FROM commits WHERE project_id=?"
+        " AND message != 'learnloop: tracked files snapshot'"
         " ORDER BY committed_at DESC, sha DESC LIMIT 1",
         (project_id,),
     ).fetchone()
@@ -298,6 +299,29 @@ def record_explanation(
         " updated_at=? WHERE id=?",
         (new_status, new_depth, baseline_commit, baseline_committed_at, now_s, item_id),
     )
+
+    # Initialize review schedule if item_reviews table exists
+    try:
+        from learnloop.domain.scheduling import initial_schedule
+
+        rev_exists = conn.execute("SELECT 1 FROM item_reviews WHERE item_id=?", (item_id,)).fetchone()
+        if not rev_exists:
+            init_st = initial_schedule(now=now, is_stale=False)
+            conn.execute(
+                "INSERT INTO item_reviews (item_id, interval_days, ease, reps, due_at, last_reviewed_at)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    item_id,
+                    init_st.interval_days,
+                    init_st.ease,
+                    init_st.reps,
+                    init_st.due_at,
+                    init_st.last_reviewed_at,
+                ),
+            )
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
 
     written = regenerate_concept_log(conn, project_id, project["repo_path"])
@@ -404,7 +428,8 @@ def list_stale_items(conn: sqlite3.Connection, project_id: str) -> dict[str, Any
     ).fetchall()
 
     commit_rows = conn.execute(
-        "SELECT sha, message, committed_at, files FROM commits WHERE project_id=? ORDER BY committed_at DESC",
+        "SELECT sha, message, committed_at, files FROM commits WHERE project_id=?"
+        " AND (origin IS NULL OR origin != 'backfill') ORDER BY committed_at DESC",
         (project_id,),
     ).fetchall()
 

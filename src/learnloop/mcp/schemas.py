@@ -26,6 +26,11 @@ ItemKind = Literal["component", "decision", "concept", "bug-fix"]
 ItemBand = Literal["basic", "intermediate", "advanced"]
 ItemStatus = Literal["unexplained", "shaky", "explained"]
 
+ReviewLimit = Annotated[int, Field(ge=1, le=3)]
+SnoozeDays = Annotated[int, Field(ge=1, le=30)]
+ReviewQuestionText = Annotated[str, Field(min_length=1, max_length=2000)]
+LearnerAnswerText = Annotated[str, Field(min_length=1, max_length=4000)]
+
 
 class QuizQuestion(BaseModel):
     kind: Literal["predict", "explain", "spot-the-bug", "write-code"] = "explain"

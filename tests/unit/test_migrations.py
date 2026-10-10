@@ -238,9 +238,9 @@ def test_migration_from_v2_to_latest_preserves_all_data(tmp_path: Path):
     # Run migrations to latest version
     migrate(conn, db_path)
 
-    # Assert latest user_version (7 for Phase A)
+    # Assert latest user_version (8 for Phase B)
     new_version = conn.execute("PRAGMA user_version").fetchone()[0]
-    assert new_version == 7
+    assert new_version == 8
 
     # 1. Assert no row is lost or altered
     assert conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 1
@@ -365,9 +365,9 @@ def test_migration_005_to_006(tmp_path: Path):
     )
     conn.commit()
 
-    # Apply migration 006 (migrate will also apply 007)
+    # Apply migration 006 (migrate will also apply 007 and 008)
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
 
     row = conn.execute("SELECT origin FROM commits WHERE sha='c1'").fetchone()
     assert row["origin"] == "hook"
@@ -403,7 +403,7 @@ def test_migration_006_to_007(tmp_path: Path):
     conn.commit()
 
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
 
     # Verify learner_profile initialized
     prof = conn.execute("SELECT * FROM learner_profile WHERE id=1").fetchone()
@@ -432,4 +432,125 @@ def test_migration_006_to_007(tmp_path: Path):
     assert conn.execute("SELECT COUNT(*) FROM item_files").fetchone()[0] == 1
     assert conn.execute("SELECT COUNT(*) FROM item_tags").fetchone()[0] == 1
     assert conn.execute("SELECT COUNT(*) FROM explanations").fetchone()[0] == 1
+    conn.close()
+
+
+def test_migration_007_to_008(tmp_path: Path):
+    db_path = tmp_path / "v7_to_v8.db"
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+
+    _build_v2_database(conn)
+    conn.execute(
+        "CREATE TABLE intent_files (intent_id TEXT NOT NULL REFERENCES intents(id) ON DELETE CASCADE, path TEXT NOT NULL, touched INTEGER, PRIMARY KEY (intent_id, path));"
+    )
+    conn.execute("ALTER TABLE quiz_questions ADD COLUMN source_file TEXT;")
+    conn.execute(
+        "ALTER TABLE quiz_questions ADD COLUMN grounding TEXT NOT NULL DEFAULT 'unspecified' CHECK (grounding IN ('project','generic','unspecified'));"
+    )
+    conn.execute("ALTER TABLE skills ADD COLUMN source TEXT NOT NULL DEFAULT 'seed' CHECK (source IN ('seed','proposed'));")
+    conn.execute("ALTER TABLE skills ADD COLUMN proposed_at TEXT;")
+    conn.execute("ALTER TABLE skills ADD COLUMN rationale TEXT;")
+    conn.execute("ALTER TABLE commits ADD COLUMN origin TEXT NOT NULL DEFAULT 'hook' CHECK (origin IN ('hook','backfill'));")
+
+    # 007 tables
+    conn.execute("""
+    CREATE TABLE learner_profile (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      level TEXT NOT NULL DEFAULT 'beginner' CHECK (level IN ('school', 'beginner', 'junior', 'mid', 'senior')),
+      goal TEXT NOT NULL DEFAULT 'both' CHECK (goal IN ('learn', 'interview', 'both')),
+      session_minutes INTEGER NOT NULL DEFAULT 5 CHECK (session_minutes BETWEEN 3 AND 30),
+      audience TEXT NOT NULL DEFAULT 'self' CHECK (audience IN ('self', 'classmate', 'recruiter', 'tech-lead')),
+      updated_at TEXT NOT NULL
+    );
+    """)
+    conn.execute(
+        "INSERT INTO learner_profile (id, level, goal, session_minutes, audience, updated_at)"
+        " VALUES (1, 'beginner', 'both', 5, 'self', '2026-01-01T00:00:00Z')"
+    )
+    conn.execute("""
+    CREATE TABLE knowledge_items (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('component', 'decision', 'concept', 'bug-fix')),
+      band TEXT NOT NULL CHECK (band IN ('basic', 'intermediate', 'advanced')),
+      summary TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'unexplained' CHECK (status IN ('unexplained', 'shaky', 'explained')),
+      depth INTEGER NOT NULL DEFAULT 1 CHECK (depth BETWEEN 1 AND 5),
+      baseline_commit TEXT NULL REFERENCES commits(sha),
+      baseline_committed_at TEXT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE (project_id, key)
+    );
+    """)
+    conn.execute("""
+    CREATE TABLE item_files (
+      item_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+      path TEXT NOT NULL,
+      PRIMARY KEY (item_id, path)
+    );
+    """)
+    conn.execute("""
+    CREATE TABLE item_tags (
+      item_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+      tag TEXT NOT NULL,
+      PRIMARY KEY (item_id, tag)
+    );
+    """)
+    conn.execute("""
+    CREATE TABLE explanations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+      audience TEXT NOT NULL CHECK (audience IN ('self', 'classmate', 'recruiter', 'tech-lead')),
+      depth INTEGER NOT NULL CHECK (depth BETWEEN 1 AND 5),
+      learner_text TEXT NOT NULL,
+      score REAL NOT NULL CHECK (score BETWEEN 0.0 AND 1.0),
+      created_at TEXT NOT NULL
+    );
+    """)
+    conn.execute("PRAGMA user_version=7")
+    conn.commit()
+
+    conn.execute(
+        "INSERT INTO projects (id, name, repo_path, created_at) VALUES ('p1', 'P1', '/repo', '2026-01-01T00:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO knowledge_items (id, project_id, key, title, kind, band, summary, status, depth, created_at, updated_at)"
+        " VALUES ('k1', 'p1', 'core', 'Core Title', 'component', 'basic', 'Summary', 'unexplained', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+    )
+    conn.commit()
+
+    migrate(conn, db_path)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
+
+    # Verify last_briefing_at column exists
+    p = conn.execute("SELECT * FROM projects WHERE id='p1'").fetchone()
+    assert "last_briefing_at" in p.keys()
+    assert p["last_briefing_at"] is None
+
+    # Test item_reviews insertion
+    conn.execute(
+        "INSERT INTO item_reviews (item_id, interval_days, ease, reps, due_at, last_reviewed_at)"
+        " VALUES ('k1', 1, 2.3, 0, '2026-01-02T00:00:00Z', '2026-01-01T00:00:00Z')"
+    )
+    # Test item_questions insertion
+    conn.execute(
+        "INSERT INTO item_questions (item_id, question, depth, created_at)"
+        " VALUES ('k1', 'Why did you choose this architecture?', 1, '2026-01-01T00:00:00Z')"
+    )
+    conn.commit()
+
+    rev = conn.execute("SELECT * FROM item_reviews WHERE item_id='k1'").fetchone()
+    assert rev["interval_days"] == 1
+    assert rev["ease"] == 2.3
+    assert rev["reps"] == 0
+
+    q = conn.execute("SELECT * FROM item_questions WHERE item_id='k1'").fetchone()
+    assert q["question"] == "Why did you choose this architecture?"
+    assert q["depth"] == 1
+
     conn.close()
