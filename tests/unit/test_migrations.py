@@ -238,9 +238,9 @@ def test_migration_from_v2_to_latest_preserves_all_data(tmp_path: Path):
     # Run migrations to latest version
     migrate(conn, db_path)
 
-    # Assert latest user_version (5)
+    # Assert latest user_version (7 for Phase A)
     new_version = conn.execute("PRAGMA user_version").fetchone()[0]
-    assert new_version == 5
+    assert new_version == 7
 
     # 1. Assert no row is lost or altered
     assert conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 1
@@ -268,6 +268,7 @@ def test_migration_from_v2_to_latest_preserves_all_data(tmp_path: Path):
     cm = conn.execute("SELECT * FROM commits WHERE sha='c1'").fetchone()
     assert cm["message"] == "test: add unit tests"
     assert cm["status"] == "verified"
+    assert cm["origin"] == "hook"
 
     assert conn.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 1
     ev = conn.execute("SELECT * FROM events WHERE id=1").fetchone()
@@ -323,4 +324,112 @@ def test_migration_from_v2_to_latest_preserves_all_data(tmp_path: Path):
         "SELECT name FROM sqlite_master WHERE type='table' AND name='intent_files'"
     ).fetchone() is not None
 
+    # 5. Check migration 007 tables exist and learner_profile has default row
+    for tbl in ("learner_profile", "knowledge_items", "item_files", "item_tags", "explanations"):
+        assert conn.execute(
+            f"SELECT name FROM sqlite_master WHERE type='table' AND name='{tbl}'"
+        ).fetchone() is not None
+    prof = conn.execute("SELECT * FROM learner_profile WHERE id=1").fetchone()
+    assert prof is not None
+    assert prof["level"] == "beginner"
+
+    conn.close()
+
+
+def test_migration_005_to_006(tmp_path: Path):
+    db_path = tmp_path / "v5_to_v6.db"
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+
+    _build_v2_database(conn)
+    # Apply 003, 004, 005 manually
+    conn.execute(
+        "CREATE TABLE intent_files (intent_id TEXT NOT NULL REFERENCES intents(id) ON DELETE CASCADE, path TEXT NOT NULL, touched INTEGER, PRIMARY KEY (intent_id, path));"
+    )
+    conn.execute("ALTER TABLE quiz_questions ADD COLUMN source_file TEXT;")
+    conn.execute(
+        "ALTER TABLE quiz_questions ADD COLUMN grounding TEXT NOT NULL DEFAULT 'unspecified' CHECK (grounding IN ('project','generic','unspecified'));"
+    )
+    conn.execute("ALTER TABLE skills ADD COLUMN source TEXT NOT NULL DEFAULT 'seed' CHECK (source IN ('seed','proposed'));")
+    conn.execute("ALTER TABLE skills ADD COLUMN proposed_at TEXT;")
+    conn.execute("ALTER TABLE skills ADD COLUMN rationale TEXT;")
+    conn.execute("PRAGMA user_version=5")
+    conn.commit()
+
+    conn.execute(
+        "INSERT INTO projects (id, name, repo_path, created_at) VALUES ('p1', 'P1', '/repo', '2026-01-01T00:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO commits (sha, project_id, message, files, committed_at, status) VALUES ('c1', 'p1', 'msg', '[]', '2026-01-01T00:00:00Z', 'verified')"
+    )
+    conn.commit()
+
+    # Apply migration 006 (migrate will also apply 007)
+    migrate(conn, db_path)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
+
+    row = conn.execute("SELECT origin FROM commits WHERE sha='c1'").fetchone()
+    assert row["origin"] == "hook"
+
+    # Insert commit with origin backfill
+    conn.execute(
+        "INSERT INTO commits (sha, project_id, message, files, committed_at, status, origin) VALUES ('c2', 'p1', 'backfill msg', '[]', '2026-01-01T00:00:00Z', 'new', 'backfill')"
+    )
+    conn.commit()
+    assert conn.execute("SELECT origin FROM commits WHERE sha='c2'").fetchone()[0] == "backfill"
+    conn.close()
+
+
+def test_migration_006_to_007(tmp_path: Path):
+    db_path = tmp_path / "v6_to_v7.db"
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+
+    _build_v2_database(conn)
+    conn.execute(
+        "CREATE TABLE intent_files (intent_id TEXT NOT NULL REFERENCES intents(id) ON DELETE CASCADE, path TEXT NOT NULL, touched INTEGER, PRIMARY KEY (intent_id, path));"
+    )
+    conn.execute("ALTER TABLE quiz_questions ADD COLUMN source_file TEXT;")
+    conn.execute(
+        "ALTER TABLE quiz_questions ADD COLUMN grounding TEXT NOT NULL DEFAULT 'unspecified' CHECK (grounding IN ('project','generic','unspecified'));"
+    )
+    conn.execute("ALTER TABLE skills ADD COLUMN source TEXT NOT NULL DEFAULT 'seed' CHECK (source IN ('seed','proposed'));")
+    conn.execute("ALTER TABLE skills ADD COLUMN proposed_at TEXT;")
+    conn.execute("ALTER TABLE skills ADD COLUMN rationale TEXT;")
+    conn.execute("ALTER TABLE commits ADD COLUMN origin TEXT NOT NULL DEFAULT 'hook' CHECK (origin IN ('hook','backfill'));")
+    conn.execute("PRAGMA user_version=6")
+    conn.commit()
+
+    migrate(conn, db_path)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
+
+    # Verify learner_profile initialized
+    prof = conn.execute("SELECT * FROM learner_profile WHERE id=1").fetchone()
+    assert prof["level"] == "beginner"
+    assert prof["goal"] == "both"
+    assert prof["session_minutes"] == 5
+    assert prof["audience"] == "self"
+
+    # Verify tables work
+    conn.execute(
+        "INSERT INTO projects (id, name, repo_path, created_at) VALUES ('p1', 'P1', '/repo', '2026-01-01T00:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO knowledge_items (id, project_id, key, title, kind, band, summary, status, depth, created_at, updated_at)"
+        " VALUES ('k1', 'p1', 'core', 'Core Title', 'component', 'basic', 'Summary', 'unexplained', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+    )
+    conn.execute("INSERT INTO item_files (item_id, path) VALUES ('k1', 'src/main.py')")
+    conn.execute("INSERT INTO item_tags (item_id, tag) VALUES ('k1', 'core')")
+    conn.execute(
+        "INSERT INTO explanations (id, item_id, audience, depth, learner_text, score, created_at)"
+        " VALUES (1, 'k1', 'self', 1, 'Learner explanation', 0.9, '2026-01-01T00:00:00Z')"
+    )
+    conn.commit()
+
+    assert conn.execute("SELECT COUNT(*) FROM knowledge_items").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM item_files").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM item_tags").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM explanations").fetchone()[0] == 1
     conn.close()

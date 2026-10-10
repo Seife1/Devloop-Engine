@@ -37,7 +37,6 @@ def _hook_text(python: str | None = None) -> str:
     return HOOK_TEMPLATE.format(python=py)
 
 
-
 def _git(repo: Path, *args: str) -> str:
     return subprocess.run(
         ["git", "-C", str(repo), *args], capture_output=True, text=True, check=True, timeout=10
@@ -73,13 +72,111 @@ def cmd_record_commit(repo: Path) -> int:
     return 0
 
 
+def cmd_backfill(repo: Path, limit: int = 50) -> int:
+    try:
+        import hashlib
+
+        from learnloop.capture.queue import MAX_FILES_BACKFILL, write_queue_entry
+        from learnloop.capture.redaction import is_ignored
+        from learnloop.domain import clock
+
+        if not (repo / ".git").is_dir():
+            sys.stderr.write("Not a git repository root; backfill skipped.\n")
+            return 1
+
+        head_sha = _git(repo, "rev-parse", "HEAD").strip()
+        if not head_sha:
+            sys.stderr.write("Empty git repository; backfill skipped.\n")
+            return 0
+
+        commit_shas = [
+            s.strip()
+            for s in _git(repo, "log", f"-{limit}", "--format=%H").splitlines()
+            if s.strip()
+        ]
+        written = 0
+        for sha in commit_shas:
+            message = _git(repo, "log", "-1", "--format=%s", sha).strip()
+            raw_committed = _git(repo, "log", "-1", "--format=%cI", sha).strip()
+            committed = clock.iso(clock.parse(raw_committed))
+            files = [
+                f
+                for f in _git(
+                    repo, "diff-tree", "--no-commit-id", "--name-only", "-r", "--root", sha
+                ).splitlines()
+                if f
+            ]
+            write_queue_entry(repo, sha, message, files, committed, origin="backfill")
+            written += 1
+
+        raw_tracked = [f for f in _git(repo, "ls-files").splitlines() if f]
+        tracked = [f for f in raw_tracked if not is_ignored(f)][:MAX_FILES_BACKFILL]
+        snapshot_sha = hashlib.sha1(f"learnloop:backfill:snapshot:{head_sha}".encode()).hexdigest()
+        head_committed = clock.iso(clock.parse(_git(repo, "log", "-1", "--format=%cI", head_sha).strip()))
+        write_queue_entry(
+            repo,
+            snapshot_sha,
+            "learnloop: tracked files snapshot",
+            tracked,
+            head_committed,
+            origin="backfill",
+            max_files=MAX_FILES_BACKFILL,
+        )
+        sys.stderr.write(f"Backfilled {written} commits + tracked snapshot to .learn/queue/\n")
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"learnloop backfill failed: {exc}\n")
+        return 1
+
+
+def cmd_concepts(repo: Path) -> int:
+    try:
+        from learnloop.config import Settings
+        from learnloop.journal.concept_log import regenerate_concept_log
+        from learnloop.persistence.db import connect
+
+        settings = Settings.load()
+        conn = connect(settings.db_path)
+        try:
+            repo_abs = str(repo.resolve())
+            row = conn.execute(
+                "SELECT id FROM projects WHERE repo_path=? COLLATE NOCASE"
+                " ORDER BY (SELECT COUNT(*) FROM knowledge_items WHERE project_id=projects.id) DESC,"
+                " created_at DESC LIMIT 1",
+                (repo_abs,),
+            ).fetchone()
+            if not row:
+                row = conn.execute(
+                    "SELECT id FROM projects WHERE repo_path=? COLLATE NOCASE LIMIT 1", (str(repo),)
+                ).fetchone()
+            if not row:
+                sys.stderr.write(f"No project registered for {repo}.\n")
+                return 1
+            written = regenerate_concept_log(conn, row["id"], repo)
+            if written:
+                sys.stderr.write(f"Regenerated {repo / '.learn' / 'concepts.md'}\n")
+            else:
+                sys.stderr.write(f"Skipped regenerating concepts.md for {repo}\n")
+            return 0
+        finally:
+            conn.close()
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"learnloop concepts failed: {exc}\n")
+        return 1
+
+
 def cmd_init(repo: Path) -> int:
+    from learnloop.journal.concept_log import init_concept_log
+
     learn = repo / ".learn"
     (learn / "queue").mkdir(parents=True, exist_ok=True)
     (learn / ".gitignore").write_text("queue/\n", encoding="utf-8")
+    init_concept_log(repo)
+
     hook = repo / ".git" / "hooks" / "post-commit"
     if not (repo / ".git").is_dir():
-        sys.stderr.write("Not a git repository root; created .learn/ only.\n")
+        sys.stderr.write("Notice: Not a git repository root; created .learn/concepts.md only.\n")
+        sys.stderr.write("Tip: Run `git init` and make your first commit to activate LearnLoop tracking.\n")
         return 1
     body = _hook_text()
     if hook.exists() and HOOK_MARKER not in hook.read_text("utf-8"):
@@ -89,6 +186,7 @@ def cmd_init(repo: Path) -> int:
     hook.write_bytes(body.encode("utf-8"))
     hook.chmod(hook.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     sys.stderr.write(f"Initialised {learn} and installed post-commit hook.\n")
+    sys.stderr.write("Tip: Run `git commit` as you work so LearnLoop can track what your AI builds!\n")
     return 0
 
 
@@ -103,7 +201,22 @@ def cmd_doctor() -> int:
     s = Settings.load()
     conn = connect(s.db_path)
     n = conn.execute("SELECT COUNT(*) FROM skills").fetchone()[0]
-    sys.stderr.write(f"db: {s.db_path}\nskills seeded: {n}\n")
+    n_items = conn.execute("SELECT COUNT(*) FROM knowledge_items").fetchone()[0]
+    has_reviews = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='item_reviews'"
+    ).fetchone()
+    n_due = 0
+    if has_reviews:
+        from learnloop.domain import clock
+
+        now_s = clock.iso(clock.utcnow())
+        n_due = conn.execute(
+            "SELECT COUNT(*) FROM item_reviews WHERE due_at <= ?"
+            " AND (snoozed_until IS NULL OR snoozed_until <= ?)",
+            (now_s, now_s),
+        ).fetchone()[0]
+
+    sys.stderr.write(f"db: {s.db_path}\nskills seeded: {n}\nknowledge items: {n_items}\nitems due: {n_due}\n")
 
     for row in conn.execute("SELECT repo_path FROM projects"):
         repo = Path(row[0])
@@ -133,15 +246,22 @@ def cmd_doctor() -> int:
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="learnloop")
     sub = p.add_subparsers(dest="cmd")
-    for name in ("init", "record-commit"):
+    for name in ("init", "record-commit", "concepts"):
         sp = sub.add_parser(name)
         sp.add_argument("--repo", type=Path, default=Path.cwd())
+    bf = sub.add_parser("backfill")
+    bf.add_argument("--repo", type=Path, default=Path.cwd())
+    bf.add_argument("--limit", type=int, default=50)
     sub.add_parser("doctor")
     args = p.parse_args(argv)
     if args.cmd == "init":
         code = cmd_init(args.repo)
     elif args.cmd == "record-commit":
         code = cmd_record_commit(args.repo)
+    elif args.cmd == "backfill":
+        code = cmd_backfill(args.repo, args.limit)
+    elif args.cmd == "concepts":
+        code = cmd_concepts(args.repo)
     elif args.cmd == "doctor":
         code = cmd_doctor()
     else:

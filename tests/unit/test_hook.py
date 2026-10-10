@@ -38,9 +38,11 @@ def test_cmd_init_in_git_repo(tmp_path: Path):
         mode = hook_file.stat().st_mode
         assert mode & stat.S_IXUSR
 
-    # Check queue and gitignore
+    # Check queue, gitignore, and starter concepts guide
     assert (tmp_path / ".learn" / "queue").is_dir()
     assert (tmp_path / ".learn" / ".gitignore").read_text("utf-8") == "queue/\n"
+    assert (tmp_path / ".learn" / "concepts.md").is_file()
+    assert "AI Illusion of Competence" in (tmp_path / ".learn" / "concepts.md").read_text("utf-8")
 
 
 def test_cmd_init_idempotent(tmp_path: Path):

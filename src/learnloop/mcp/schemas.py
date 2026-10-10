@@ -16,6 +16,16 @@ FilePath = Annotated[str, Field(min_length=1, max_length=300)]
 Score = Annotated[float, Field(ge=0.0, le=1.0)]
 Limit = Annotated[int, Field(ge=1, le=50)]
 
+ItemKey = Annotated[str, Field(min_length=1, max_length=120)]
+ItemTitle = Annotated[str, Field(min_length=1, max_length=200)]
+ItemSummary = Annotated[str, Field(min_length=1, max_length=600)]
+LearnerProfileLevel = Literal["school", "beginner", "junior", "mid", "senior"]
+LearnerGoal = Literal["learn", "interview", "both"]
+LearnerAudience = Literal["self", "classmate", "recruiter", "tech-lead"]
+ItemKind = Literal["component", "decision", "concept", "bug-fix"]
+ItemBand = Literal["basic", "intermediate", "advanced"]
+ItemStatus = Literal["unexplained", "shaky", "explained"]
+
 
 class QuizQuestion(BaseModel):
     kind: Literal["predict", "explain", "spot-the-bug", "write-code"] = "explain"

@@ -18,19 +18,29 @@ from learnloop.domain import clock
 
 log = logging.getLogger(__name__)
 MAX_FILES_PER_COMMIT = 500
+MAX_FILES_BACKFILL = 5000
 
 
 def queue_dir(repo: Path) -> Path:
     return repo / ".learn" / "queue"
 
 
-def write_queue_entry(repo: Path, sha: str, message: str, files: list[str], committed_at: str) -> Path:
-    """Hook side. Redacts first, writes atomically."""
+def write_queue_entry(
+    repo: Path,
+    sha: str,
+    message: str,
+    files: list[str],
+    committed_at: str,
+    origin: str = "hook",
+    max_files: int = MAX_FILES_PER_COMMIT,
+) -> Path:
+    """Hook side / backfill side. Redacts first, writes atomically."""
     entry = {
         "sha": sha,
         "message": redact(message)[:500],
-        "files": [f for f in files if not is_ignored(f)][:MAX_FILES_PER_COMMIT],
+        "files": [f for f in files if not is_ignored(f)][:max_files],
         "committed_at": committed_at,
+        "origin": origin,
     }
     d = queue_dir(repo)
     d.mkdir(parents=True, exist_ok=True)
@@ -54,10 +64,13 @@ def ingest(conn: sqlite3.Connection, settings: Settings, project_id: str, repo: 
             e = json.loads(path.read_text("utf-8"))
             sha, committed_at = str(e["sha"]), clock.iso(clock.parse(e["committed_at"]))
             files = [f for f in e["files"] if isinstance(f, str) and not is_ignored(f)]
+            origin = str(e.get("origin", "hook"))
+            if origin not in ("hook", "backfill"):
+                origin = "hook"
             cur = conn.execute(
-                "INSERT OR IGNORE INTO commits (sha, project_id, message, files, committed_at)"
-                " VALUES (?,?,?,?,?)",
-                (sha, project_id, redact(str(e["message"]))[:500], json.dumps(files), committed_at),
+                "INSERT OR IGNORE INTO commits (sha, project_id, message, files, committed_at, origin)"
+                " VALUES (?,?,?,?,?,?)",
+                (sha, project_id, redact(str(e["message"]))[:500], json.dumps(files), committed_at, origin),
             )
             stats["ingested" if cur.rowcount else "duplicates"] += 1
             conn.commit()

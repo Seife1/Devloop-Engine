@@ -64,7 +64,8 @@ def reconcile(
     verified = 0
     warnings = 0
     commits = conn.execute(
-        "SELECT * FROM commits WHERE project_id=? AND status IN ('new','unexplained') ORDER BY committed_at",
+        "SELECT * FROM commits WHERE project_id=? AND status IN ('new','unexplained')"
+        " AND origin != 'backfill' ORDER BY committed_at",
         (project_id,),
     ).fetchall()
     for c in commits:
@@ -101,7 +102,8 @@ def reconcile(
             "suggested_skills": suggest_skills(conn, json.loads(r["files"])),
         }
         for r in conn.execute(
-            "SELECT * FROM commits WHERE project_id=? AND status='unexplained' ORDER BY committed_at",
+            "SELECT * FROM commits WHERE project_id=? AND status='unexplained'"
+            " AND origin != 'backfill' ORDER BY committed_at",
             (project_id,),
         )
     ]
