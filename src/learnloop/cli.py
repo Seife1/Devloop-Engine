@@ -121,6 +121,7 @@ def cmd_backfill(repo: Path, limit: int = 50) -> int:
             tracked,
             head_committed,
             origin="backfill",
+            kind="snapshot",
             max_files=MAX_FILES_BACKFILL,
         )
         sys.stderr.write(f"Backfilled {written} commits + tracked snapshot to .learn/queue/\n")

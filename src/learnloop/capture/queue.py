@@ -32,15 +32,18 @@ def write_queue_entry(
     files: list[str],
     committed_at: str,
     origin: str = "hook",
+    kind: str = "commit",
     max_files: int = MAX_FILES_PER_COMMIT,
 ) -> Path:
     """Hook side / backfill side. Redacts first, writes atomically."""
+    clean_kind = kind if kind in ("commit", "snapshot") else "commit"
     entry = {
         "sha": sha,
         "message": redact(message)[:500],
         "files": [f for f in files if not is_ignored(f)][:max_files],
         "committed_at": committed_at,
         "origin": origin,
+        "kind": clean_kind,
     }
     d = queue_dir(repo)
     d.mkdir(parents=True, exist_ok=True)
@@ -67,11 +70,29 @@ def ingest(conn: sqlite3.Connection, settings: Settings, project_id: str, repo: 
             origin = str(e.get("origin", "hook"))
             if origin not in ("hook", "backfill"):
                 origin = "hook"
+            kind = str(e.get("kind", "commit"))
+            if kind not in ("commit", "snapshot"):
+                kind = "commit"
+
+            # One snapshot per project: new snapshot replaces previous snapshot row
+            verb = "REPLACE" if kind == "snapshot" else "IGNORE"
+            if kind == "snapshot":
+                conn.execute("DELETE FROM commits WHERE project_id=? AND kind='snapshot'", (project_id,))
             cur = conn.execute(
-                "INSERT OR IGNORE INTO commits (sha, project_id, message, files, committed_at, origin)"
-                " VALUES (?,?,?,?,?,?)",
-                (sha, project_id, redact(str(e["message"]))[:500], json.dumps(files), committed_at, origin),
+                f"INSERT OR {verb} INTO commits "
+                "(sha, project_id, message, files, committed_at, origin, kind) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (
+                    sha,
+                    project_id,
+                    redact(str(e["message"]))[:500],
+                    json.dumps(files),
+                    committed_at,
+                    origin,
+                    kind,
+                ),
             )
+
             stats["ingested" if cur.rowcount else "duplicates"] += 1
             conn.commit()
             path.unlink()

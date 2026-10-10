@@ -238,9 +238,9 @@ def test_migration_from_v2_to_latest_preserves_all_data(tmp_path: Path):
     # Run migrations to latest version
     migrate(conn, db_path)
 
-    # Assert latest user_version (8 for Phase B)
+    # Assert latest user_version (9 for v0.4.1)
     new_version = conn.execute("PRAGMA user_version").fetchone()[0]
-    assert new_version == 8
+    assert new_version == 9
 
     # 1. Assert no row is lost or altered
     assert conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 1
@@ -269,6 +269,7 @@ def test_migration_from_v2_to_latest_preserves_all_data(tmp_path: Path):
     assert cm["message"] == "test: add unit tests"
     assert cm["status"] == "verified"
     assert cm["origin"] == "hook"
+    assert cm["kind"] == "commit"
 
     assert conn.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 1
     ev = conn.execute("SELECT * FROM events WHERE id=1").fetchone()
@@ -333,6 +334,12 @@ def test_migration_from_v2_to_latest_preserves_all_data(tmp_path: Path):
     assert prof is not None
     assert prof["level"] == "beginner"
 
+    # 6. Check migration 009 kind column and snapshot index
+    assert "kind" in cm.keys()
+    assert conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_commits_project_snapshot'"
+    ).fetchone() is not None
+
     conn.close()
 
 
@@ -365,9 +372,9 @@ def test_migration_005_to_006(tmp_path: Path):
     )
     conn.commit()
 
-    # Apply migration 006 (migrate will also apply 007 and 008)
+    # Apply migration 006 (migrate will also apply 007, 008, 009)
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
 
     row = conn.execute("SELECT origin FROM commits WHERE sha='c1'").fetchone()
     assert row["origin"] == "hook"
@@ -403,7 +410,7 @@ def test_migration_006_to_007(tmp_path: Path):
     conn.commit()
 
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
 
     # Verify learner_profile initialized
     prof = conn.execute("SELECT * FROM learner_profile WHERE id=1").fetchone()
@@ -525,7 +532,7 @@ def test_migration_007_to_008(tmp_path: Path):
     conn.commit()
 
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
 
     # Verify last_briefing_at column exists
     p = conn.execute("SELECT * FROM projects WHERE id='p1'").fetchone()
@@ -552,5 +559,247 @@ def test_migration_007_to_008(tmp_path: Path):
     q = conn.execute("SELECT * FROM item_questions WHERE item_id='k1'").fetchone()
     assert q["question"] == "Why did you choose this architecture?"
     assert q["depth"] == 1
+
+    conn.close()
+
+
+def test_migration_008_to_009(tmp_path: Path):
+    db_path = tmp_path / "v8_to_v9.db"
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+
+    _build_v2_database(conn)
+    # Apply 003, 004, 005, 006
+    conn.execute(
+        "CREATE TABLE intent_files (intent_id TEXT NOT NULL REFERENCES intents(id) ON DELETE CASCADE, path TEXT NOT NULL, touched INTEGER, PRIMARY KEY (intent_id, path));"
+    )
+    conn.execute("ALTER TABLE quiz_questions ADD COLUMN source_file TEXT;")
+    conn.execute(
+        "ALTER TABLE quiz_questions ADD COLUMN grounding TEXT NOT NULL DEFAULT 'unspecified' CHECK (grounding IN ('project','generic','unspecified'));"
+    )
+    conn.execute("ALTER TABLE skills ADD COLUMN source TEXT NOT NULL DEFAULT 'seed' CHECK (source IN ('seed','proposed'));")
+    conn.execute("ALTER TABLE skills ADD COLUMN proposed_at TEXT;")
+    conn.execute("ALTER TABLE skills ADD COLUMN rationale TEXT;")
+    conn.execute("ALTER TABLE commits ADD COLUMN origin TEXT NOT NULL DEFAULT 'hook' CHECK (origin IN ('hook','backfill'));")
+
+    # Apply 007
+    conn.execute("""
+    CREATE TABLE learner_profile (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      level TEXT NOT NULL DEFAULT 'beginner' CHECK (level IN ('school', 'beginner', 'junior', 'mid', 'senior')),
+      goal TEXT NOT NULL DEFAULT 'both' CHECK (goal IN ('learn', 'interview', 'both')),
+      session_minutes INTEGER NOT NULL DEFAULT 5 CHECK (session_minutes BETWEEN 3 AND 30),
+      audience TEXT NOT NULL DEFAULT 'self' CHECK (audience IN ('self', 'classmate', 'recruiter', 'tech-lead')),
+      updated_at TEXT NOT NULL
+    );
+    """)
+    conn.execute("""
+    CREATE TABLE knowledge_items (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('component', 'decision', 'concept', 'bug-fix')),
+      band TEXT NOT NULL CHECK (band IN ('basic', 'intermediate', 'advanced')),
+      summary TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'unexplained' CHECK (status IN ('unexplained', 'shaky', 'explained')),
+      depth INTEGER NOT NULL DEFAULT 1 CHECK (depth BETWEEN 1 AND 5),
+      baseline_commit TEXT NULL REFERENCES commits(sha),
+      baseline_committed_at TEXT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE (project_id, key)
+    );
+    """)
+    conn.execute("""
+    CREATE TABLE item_files (
+      item_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+      path TEXT NOT NULL,
+      PRIMARY KEY (item_id, path)
+    );
+    """)
+    conn.execute("""
+    CREATE TABLE item_tags (
+      item_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+      tag TEXT NOT NULL,
+      PRIMARY KEY (item_id, tag)
+    );
+    """)
+    conn.execute("""
+    CREATE TABLE explanations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+      audience TEXT NOT NULL CHECK (audience IN ('self', 'classmate', 'recruiter', 'tech-lead')),
+      depth INTEGER NOT NULL CHECK (depth BETWEEN 1 AND 5),
+      learner_text TEXT NOT NULL,
+      score REAL NOT NULL CHECK (score BETWEEN 0.0 AND 1.0),
+      created_at TEXT NOT NULL
+    );
+    """)
+
+    # Apply 008
+    conn.execute("""
+    CREATE TABLE item_reviews (
+      item_id TEXT PRIMARY KEY REFERENCES knowledge_items(id) ON DELETE CASCADE,
+      interval_days INTEGER NOT NULL DEFAULT 1 CHECK (interval_days >= 1),
+      ease REAL NOT NULL DEFAULT 2.3 CHECK (ease BETWEEN 1.3 AND 3.0),
+      reps INTEGER NOT NULL DEFAULT 0 CHECK (reps >= 0),
+      due_at TEXT NOT NULL,
+      snoozed_until TEXT NULL,
+      last_reviewed_at TEXT NULL
+    );
+    """)
+    conn.execute("""
+    CREATE TABLE item_questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+      question TEXT NOT NULL,
+      depth INTEGER NOT NULL CHECK (depth BETWEEN 1 AND 5),
+      created_at TEXT NOT NULL
+    );
+    """)
+    conn.execute("ALTER TABLE projects ADD COLUMN last_briefing_at TEXT NULL;")
+    conn.execute("PRAGMA user_version=8")
+    conn.commit()
+
+    # Populate rows in EVERY table (all 21 v8 tables)
+    conn.execute(
+        "INSERT INTO projects (id, name, repo_path, created_at, last_briefing_at)"
+        " VALUES ('p1', 'P1', '/repo', '2026-03-01T00:00:00Z', NULL)"
+    )
+    conn.execute(
+        "INSERT INTO skills (id, name, parent_id, source, proposed_at, rationale)"
+        " VALUES ('python.testing', 'Testing', NULL, 'seed', NULL, NULL)"
+    )
+    conn.execute(
+        "INSERT INTO intents (id, project_id, summary, rationale, commit_sha, status, created_at)"
+        " VALUES ('i1', 'p1', 'Intent summary', 'Rationale', NULL, 'open', '2026-03-01T00:00:00Z')"
+    )
+    conn.execute("INSERT INTO intent_skills (intent_id, skill_id) VALUES ('i1', 'python.testing')")
+    conn.execute(
+        "INSERT INTO commits (sha, project_id, message, files, committed_at, status, origin)"
+        " VALUES ('c1', 'p1', 'initial commit', '[\"src/main.py\"]', '2026-03-01T00:00:00Z', 'verified', 'hook')"
+    )
+    conn.execute(
+        "INSERT INTO events (id, project_id, skill_id, commit_sha, intent_id, created_at)"
+        " VALUES (1, 'p1', 'python.testing', 'c1', 'i1', '2026-03-01T00:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO decisions (id, project_id, intent_id, choice, alternatives, tradeoffs, created_at)"
+        " VALUES ('d1', 'p1', 'i1', 'choice', '[]', 'tradeoffs', '2026-03-01T00:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO attempts (id, skill_id, raw_score, hints_used, created_at, quiz_id)"
+        " VALUES (1, 'python.testing', 1.0, 0, '2026-03-01T00:00:00Z', NULL)"
+    )
+    conn.execute(
+        "INSERT INTO skill_mastery (skill_id, mastery, attempts, updated_at)"
+        " VALUES ('python.testing', 1.0, 1, '2026-03-01T00:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO mistakes (id, skill_id, pattern, count, confidence, last_seen)"
+        " VALUES (1, 'python.testing', 'pattern', 1, 'medium', '2026-03-01T00:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO quizzes (id, skill_id, project_id, level, status, created_at)"
+        " VALUES ('q1', 'python.testing', 'p1', 'intermediate', 'open', '2026-03-01T00:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO quiz_questions (quiz_id, ordinal, kind, prompt, reference_answer, rubric, source_file, grounding)"
+        " VALUES ('q1', 1, 'explain', 'prompt', 'ref', '[]', NULL, 'unspecified')"
+    )
+    conn.execute(
+        "INSERT INTO quiz_answers (quiz_id, ordinal, learner_answer, score, hints_used, created_at)"
+        " VALUES ('q1', 1, 'answer', 1.0, 0, '2026-03-01T00:00:00Z')"
+    )
+    conn.execute("INSERT INTO intent_files (intent_id, path, touched) VALUES ('i1', 'src/main.py', 1)")
+    conn.execute(
+        "INSERT INTO learner_profile (id, level, goal, session_minutes, audience, updated_at)"
+        " VALUES (1, 'beginner', 'both', 5, 'self', '2026-03-01T00:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO knowledge_items (id, project_id, key, title, kind, band, summary, status, depth, baseline_commit, baseline_committed_at, created_at, updated_at)"
+        " VALUES ('k1', 'p1', 'core', 'Core', 'component', 'basic', 'Summary', 'explained', 1, 'c1', '2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z')"
+    )
+    conn.execute("INSERT INTO item_files (item_id, path) VALUES ('k1', 'src/main.py')")
+    conn.execute("INSERT INTO item_tags (item_id, tag) VALUES ('k1', 'core')")
+    conn.execute(
+        "INSERT INTO explanations (id, item_id, audience, depth, learner_text, score, created_at)"
+        " VALUES (1, 'k1', 'self', 1, 'Learner explanation', 1.0, '2026-03-01T00:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO item_reviews (item_id, interval_days, ease, reps, due_at, snoozed_until, last_reviewed_at)"
+        " VALUES ('k1', 1, 2.3, 0, '2026-03-02T00:00:00Z', NULL, '2026-03-01T00:00:00Z')"
+    )
+    conn.execute(
+        "INSERT INTO item_questions (id, item_id, question, depth, created_at)"
+        " VALUES (1, 'k1', 'Question?', 1, '2026-03-01T00:00:00Z')"
+    )
+    conn.commit()
+
+    all_21_tables = [
+        "projects",
+        "skills",
+        "intents",
+        "intent_skills",
+        "commits",
+        "events",
+        "decisions",
+        "attempts",
+        "skill_mastery",
+        "mistakes",
+        "quizzes",
+        "quiz_questions",
+        "quiz_answers",
+        "intent_files",
+        "learner_profile",
+        "knowledge_items",
+        "item_files",
+        "item_tags",
+        "explanations",
+        "item_reviews",
+        "item_questions",
+    ]
+    for tbl in all_21_tables:
+        count = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
+        assert count > 0, f"Table {tbl} had no rows in v8 DB"
+
+    # Migrate v8 -> v9
+    migrate(conn, db_path)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
+
+    # Verify all 21 tables still have rows
+    for tbl in all_21_tables:
+        count = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
+        assert count > 0, f"Table {tbl} lost data during v8->v9 migration"
+
+    # Verify commits.kind defaults to 'commit'
+    c1 = conn.execute("SELECT * FROM commits WHERE sha='c1'").fetchone()
+    assert c1["kind"] == "commit"
+
+    # Test inserting a snapshot commit
+    conn.execute(
+        "INSERT INTO commits (sha, project_id, message, files, committed_at, status, origin, kind)"
+        " VALUES ('snap1', 'p1', 'snapshot 1', '[]', '2026-03-01T00:00:00Z', 'new', 'backfill', 'snapshot')"
+    )
+    conn.commit()
+    snap = conn.execute("SELECT * FROM commits WHERE sha='snap1'").fetchone()
+    assert snap["kind"] == "snapshot"
+
+    # Test inserting a second snapshot commit for same project triggers unique constraint
+    import pytest
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO commits (sha, project_id, message, files, committed_at, status, origin, kind)"
+            " VALUES ('snap2', 'p1', 'snapshot 2', '[]', '2026-03-01T00:00:00Z', 'new', 'backfill', 'snapshot')"
+        )
+
+    # Test CHECK constraint on kind
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO commits (sha, project_id, message, files, committed_at, status, origin, kind)"
+            " VALUES ('c_invalid', 'p1', 'invalid kind', '[]', '2026-03-01T00:00:00Z', 'new', 'hook', 'invalid_kind')"
+        )
 
     conn.close()

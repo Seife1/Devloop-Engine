@@ -68,9 +68,16 @@ actually calls the tools.
 | Deterministic concept log | **Built** | Safe atomic generation of `.learn/concepts.md` |
 | Project tour bundle | **Built** | Bounded evidence bundle (< 8 KB), entry points, manifests |
 | Derived staleness detection | **Built** | Detects newer commits touching explained files |
-| Spaced repetition scheduler | *Planned (Phase B)* | SM-2 interval calculations and pull-based reviews |
-| Session-start briefing | *Planned (Phase B)* | Quick catch-up briefing (< 3 KB) |
+| Spaced repetition scheduler | **Built** | SM-2 interval calculations and pull-based reviews |
+| Session-start briefing | **Built** | Quick catch-up briefing (< 3 KB) |
 | Resources (windowed, token-capped)| *Planned* | See `docs/adr/` |
+
+## Limits
+
+- **Redaction is best-effort regex:** Free-text sanitization relies on regular expressions for secrets, credentials, and sensitive patterns. It cannot guarantee catch-all detection for all proprietary formats.
+- **Staleness sees committed changes only:** Staleness detection evaluates git commits ingested into the database; uncommitted file edits or git stash changes are invisible to staleness.
+- **One-second timestamp resolution:** Commit ordering and staleness comparisons use ISO timestamps with one-second resolution. Ties (commits within the same second) are not strictly greater than baseline.
+- **The server cannot verify who wrote an answer:** LearnLoop evaluates and logs explanations and quiz answers submitted to its tools; the MCP server cannot verify whether the learner or the AI authored an answer.
 
 ## Develop
 

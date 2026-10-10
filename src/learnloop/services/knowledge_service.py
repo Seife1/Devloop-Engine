@@ -253,7 +253,7 @@ def record_explanation(
     # Find newest ingested git commit for project (exclude synthetic snapshot)
     newest_commit = conn.execute(
         "SELECT sha, committed_at FROM commits WHERE project_id=?"
-        " AND message != 'learnloop: tracked files snapshot'"
+        " AND kind = 'commit'"
         " ORDER BY committed_at DESC, sha DESC LIMIT 1",
         (project_id,),
     ).fetchone()
@@ -429,7 +429,7 @@ def list_stale_items(conn: sqlite3.Connection, project_id: str) -> dict[str, Any
 
     commit_rows = conn.execute(
         "SELECT sha, message, committed_at, files FROM commits WHERE project_id=?"
-        " AND (origin IS NULL OR origin != 'backfill') ORDER BY committed_at DESC",
+        " AND kind = 'commit' ORDER BY committed_at DESC",
         (project_id,),
     ).fetchall()
 

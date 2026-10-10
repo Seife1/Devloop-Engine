@@ -225,3 +225,51 @@ def test_briefing_updates_last_briefing_at(db_conn: sqlite3.Connection):
 
     row = db_conn.execute("SELECT last_briefing_at FROM projects WHERE id='p1'").fetchone()
     assert row["last_briefing_at"] == "2026-03-01T10:00:00+00:00"
+
+
+def test_briefing_auto_ingests_queue_before_computing(db_conn: sqlite3.Connection, tmp_path: Path):
+    """Prove get_session_briefing ingests the queue first: test commit -> briefing without ingest_queue."""
+    from learnloop.capture.queue import write_queue_entry
+
+    repo = tmp_path / "autoingest_repo"
+    repo.mkdir()
+
+    # Register project pointing to repo
+    db_conn.execute(
+        "INSERT INTO projects (id, name, repo_path, created_at, last_briefing_at)"
+        " VALUES ('p_auto', 'Auto Ingest Repo', ?, '2026-03-01T08:00:00+00:00', NULL)",
+        (str(repo),),
+    )
+    db_conn.commit()
+
+    # Write commit to queue on disk (simulating post-commit hook)
+    sha = "c0ffee1234567890abcdef"
+    qfile = write_queue_entry(
+        repo=repo,
+        sha=sha,
+        message="feat: auto ingest commit",
+        files=["src/auto.py"],
+        committed_at="2026-03-01T09:30:00+00:00",
+        origin="hook",
+        kind="commit",
+    )
+    assert qfile.exists()
+
+    # Verify DB does NOT have the commit yet
+    assert db_conn.execute("SELECT COUNT(*) FROM commits WHERE sha=?", (sha,)).fetchone()[0] == 0
+
+    # Call get_session_briefing WITHOUT calling ingest_queue
+    b = get_session_briefing(db_conn, "p_auto", now=NOW)
+
+    # Prove queue file was ingested and unlinked
+    assert not qfile.exists()
+
+    # Prove commit now exists in DB commits table
+    commit_row = db_conn.execute("SELECT * FROM commits WHERE sha=?", (sha,)).fetchone()
+    assert commit_row is not None
+    assert commit_row["message"] == "feat: auto ingest commit"
+    assert commit_row["origin"] == "hook"
+    assert commit_row["kind"] == "commit"
+
+    # Prove briefing captured it
+    assert b["changes_since_briefing"]["new_commits"] == 1

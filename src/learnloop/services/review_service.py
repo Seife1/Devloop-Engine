@@ -89,9 +89,10 @@ def review_due(
     rows = conn.execute(query, (project_id,)).fetchall()
 
     # Pre-fetch project commits for staleness check
+    # (exclude synthetic snapshot, include real backfilled commits)
     commit_rows = conn.execute(
         "SELECT sha, message, committed_at, files FROM commits WHERE project_id=?"
-        " AND (origin IS NULL OR origin != 'backfill') ORDER BY committed_at DESC",
+        " AND kind = 'commit' ORDER BY committed_at DESC",
         (project_id,),
     ).fetchall()
     commits = []

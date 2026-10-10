@@ -57,14 +57,15 @@ def get_session_briefing(
     # 1. New commits since last briefing (ignoring backfill)
     if last_briefing_at:
         new_commits_row = conn.execute(
-            "SELECT COUNT(*) FROM commits WHERE project_id=? AND (origin IS NULL OR origin != 'backfill')"
-            " AND committed_at > ?",
+            "SELECT COUNT(*) FROM commits WHERE project_id=? AND (origin IS NULL OR origin != 'backfill') "
+            "AND kind = 'commit' AND committed_at > ?",
             (project_id, last_briefing_at),
         ).fetchone()
         new_commits_count = int(new_commits_row[0]) if new_commits_row else 0
     else:
         new_commits_row = conn.execute(
-            "SELECT COUNT(*) FROM commits WHERE project_id=? AND (origin IS NULL OR origin != 'backfill')",
+            "SELECT COUNT(*) FROM commits WHERE project_id=? AND (origin IS NULL OR origin != 'backfill') "
+            "AND kind = 'commit'",
             (project_id,),
         ).fetchone()
         new_commits_count = int(new_commits_row[0]) if new_commits_row else 0
@@ -72,7 +73,7 @@ def get_session_briefing(
     # 2. Unexplained commits (ignoring backfill)
     unexplained_rows = conn.execute(
         "SELECT sha, message, files FROM commits WHERE project_id=? AND status='unexplained'"
-        " AND (origin IS NULL OR origin != 'backfill') ORDER BY committed_at DESC",
+        " AND (origin IS NULL OR origin != 'backfill') AND kind = 'commit' ORDER BY committed_at DESC",
         (project_id,),
     ).fetchall()
     unexplained_count = len(unexplained_rows)
@@ -93,10 +94,10 @@ def get_session_briefing(
     ).fetchall()
     total_items = len(item_rows)
 
-    # Pre-fetch non-backfill commits for staleness check
+    # Pre-fetch commits for staleness check (exclude synthetic snapshot, include real backfilled commits)
     commit_rows = conn.execute(
         "SELECT sha, message, committed_at, files FROM commits WHERE project_id=?"
-        " AND (origin IS NULL OR origin != 'backfill') ORDER BY committed_at DESC",
+        " AND kind = 'commit' ORDER BY committed_at DESC",
         (project_id,),
     ).fetchall()
     commits_data = [
