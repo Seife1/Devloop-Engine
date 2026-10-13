@@ -64,13 +64,15 @@ def review_due(
     project_id: str,
     limit: int = 3,
     now: datetime | None = None,
+    ingest: bool = True,
 ) -> dict[str, Any]:
     """Return at most `limit` due items, ordered with stale items and most overdue first.
 
-    Auto-ingests the project's commit queue before querying.
+    Auto-ingests the project's commit queue before querying if ingest=True.
     `waiting` is returned as a plain integer count with no guilt-inducing wording.
     """
-    _auto_ingest(conn, project_id)
+    if ingest:
+        _auto_ingest(conn, project_id)
     require_project(conn, project_id)
     profile = get_effective_profile(conn, project_id)
 

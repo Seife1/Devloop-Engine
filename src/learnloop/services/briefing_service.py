@@ -38,15 +38,17 @@ def get_session_briefing(
     conn: sqlite3.Connection,
     project_id: str,
     now: datetime | None = None,
+    ingest: bool = True,
 ) -> dict[str, Any]:
     """Generate a compact (< 3 KB) session-start briefing.
 
-    - Ingests queue before computing.
+    - Ingests queue before computing if ingest=True.
     - Ignores origin='backfill' commits when counting new or unexplained commits.
     - Never outputs an "overdue" count or backlog number.
     - Updates projects.last_briefing_at to now.
     """
-    _auto_ingest(conn, project_id)
+    if ingest:
+        _auto_ingest(conn, project_id)
     project = require_project(conn, project_id)
     profile = get_effective_profile(conn, project_id)
 
@@ -131,7 +133,7 @@ def get_session_briefing(
     top_stale = stale_items[:3]
 
     # 4. Due reviews (max 3 items) and waiting count
-    due_res = review_due(conn, project_id, limit=3, now=now_dt)
+    due_res = review_due(conn, project_id, limit=3, now=now_dt, ingest=ingest)
     due_items = [{"key": it["key"], "title": it["title"]} for it in due_res["items"]]
     waiting_count = due_res["waiting"]
 

@@ -439,12 +439,17 @@ def list_items(
     }
 
 
-def list_stale_items(conn: sqlite3.Connection, project_id: str) -> dict[str, Any]:
+def list_stale_items(
+    conn: sqlite3.Connection,
+    project_id: str,
+    ingest: bool = True,
+) -> dict[str, Any]:
     """Find and return all stale knowledge items for the project.
 
-    Auto-ingests queue first so findings reflect current git state.
+    Auto-ingests queue first if ingest=True so findings reflect current git state.
     """
-    _auto_ingest(conn, project_id)
+    if ingest:
+        _auto_ingest(conn, project_id)
     require_project(conn, project_id)
 
     items = conn.execute(

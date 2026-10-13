@@ -18,6 +18,7 @@ def get_project_readiness(
     conn: sqlite3.Connection,
     project_id: str | None = None,
     now: datetime | None = None,
+    ingest: bool = True,
 ) -> dict[str, Any]:
     """Calculate count-based project readiness metrics without scores or percentages.
 
@@ -30,7 +31,8 @@ def get_project_readiness(
         project_id = str(row["id"])
 
     require_project(conn, project_id)
-    _auto_ingest(conn, project_id)
+    if ingest:
+        _auto_ingest(conn, project_id)
 
     now_dt = now or clock.utcnow()
     now_s = clock.iso(now_dt)

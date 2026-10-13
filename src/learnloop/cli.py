@@ -52,6 +52,12 @@ def cmd_serve() -> int:
     return 0
 
 
+def cmd_dashboard(port: int = 8765) -> int:
+    from learnloop.dashboard.server import run_dashboard_server
+
+    return run_dashboard_server(port=port)
+
+
 def cmd_record_commit(repo: Path) -> int:
     try:
         from learnloop.capture.queue import write_queue_entry
@@ -328,6 +334,8 @@ def main(argv: list[str] | None = None) -> None:
     bf.add_argument("--repo", type=Path, default=Path.cwd())
     bf.add_argument("--limit", type=int, default=50)
     sub.add_parser("doctor")
+    dash = sub.add_parser("dashboard")
+    dash.add_argument("--port", type=int, default=8765)
     args = p.parse_args(argv)
     if args.cmd == "init":
         code = cmd_init(args.repo)
@@ -343,6 +351,8 @@ def main(argv: list[str] | None = None) -> None:
         code = cmd_briefing(args.repo)
     elif args.cmd == "doctor":
         code = cmd_doctor()
+    elif args.cmd == "dashboard":
+        code = cmd_dashboard(args.port)
     else:
         code = cmd_serve()
     raise SystemExit(code)

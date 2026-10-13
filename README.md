@@ -43,7 +43,19 @@ Add to your IDE's MCP config:
 Then paste `integrations/rules/CLAUDE.md.template` into your `CLAUDE.md` / `.cursorrules` so the agent
 actually calls the tools.
 
-## Tools (v0.5.0)
+## CLI Commands
+
+- `learnloop`: Start the MCP server over stdio.
+- `learnloop init [--repo .]`: Initialize `.learn/` and install the post-commit git hook.
+- `learnloop record-commit [--repo .]`: Record recent commit metadata to `.learn/queue/` (called by git hook).
+- `learnloop backfill [--repo .] [--limit 50]`: Ingest existing commit history into the queue.
+- `learnloop concepts [--repo .]`: Regenerate `.learn/concepts.md` from registered items.
+- `learnloop review [--repo .]`: Conduct an interactive command-line spaced review session.
+- `learnloop briefing [--repo .]`: Output today's session-start briefing in the terminal.
+- `learnloop doctor`: Verify database migrations, taxonomy seeds, and git hooks.
+- `learnloop dashboard [--port 8765]`: Start the local read-only web dashboard on `127.0.0.1:8765`.
+
+## Tools (v0.5.1)
 
 - **Knowledge Items & Readiness:** `register_knowledge_item` · `record_explanation` (with optional `self_rating`) · `list_items` · `list_stale_items` · `get_project_readiness`
 - **Tour & Review:** `get_project_tour` · `review_due` · `record_review` · `snooze_review` · `get_session_briefing`
@@ -70,10 +82,13 @@ actually calls the tools.
 | Learner profile & project overrides | **Built** | Global preferences + per-project overrides via `project_profile` |
 | Count-based project readiness | **Built** | `get_project_readiness` & briefing readiness (no percentages or scores) |
 | Deterministic concept log | **Built** | Safe atomic generation of `.learn/concepts.md` with self-ratings |
+| Local read-only dashboard | **Built** | `learnloop dashboard` on 127.0.0.1, mode=ro, custom Markdown renderer, no JS |
 | Project tour bundle | **Built** | Bounded evidence bundle (< 8 KB), entry points, manifests |
 | Derived staleness detection | **Built** | Detects newer commits touching explained files |
 | Spaced repetition scheduler | **Built** | SM-2 interval calculations and pull-based reviews |
 | Session-start briefing | **Built** | Quick catch-up briefing (< 3 KB) with compact readiness counts |
+| Technologies & references scan | *Planned* | Deterministic dependency and language detection (Step 3) |
+| Sourced "Did you know" | *Planned* | Verified web-sourced technical facts with mandatory links (Step 4) |
 | Resources (windowed, token-capped)| *Planned* | See `docs/adr/` |
 
 ## Limits
