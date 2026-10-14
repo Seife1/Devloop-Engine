@@ -693,7 +693,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             </div>
             """
 
-        # Did you know facts panel
+        # Did you know facts panel (Option B: Compact Micro-Insight Banner)
         fact_rows = conn.execute(
             "SELECT id, topic, fact, source_url, source_title, retrieved_at, technology "
             "FROM project_facts WHERE project_id=? "
@@ -705,8 +705,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         if fact_rows:
             num_facts = len(fact_rows)
             radio_inputs: list[str] = []
-            tab_pills: list[str] = []
-            fact_cards: list[str] = []
+            slide_items: list[str] = []
 
             for idx, fr in enumerate(fact_rows):
                 safe_topic = html.escape(fr["topic"])
@@ -716,7 +715,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 retrieved_date = fr["retrieved_at"][:10]
                 escaped_tech = html.escape(fr["technology"]) if fr["technology"] else ""
                 tech_badge = (
-                    f'<span class="badge badge-tech-pill">{escaped_tech}</span>'
+                    f'<span class="badge" style="background-color: var(--surface-raised); '
+                    f'border: 1px solid var(--border); font-size: 0.75rem;">{escaped_tech}</span>'
                     if fr["technology"]
                     else ""
                 )
@@ -727,48 +727,32 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                     f'class="fact-radio fact-radio-{idx}" {checked}>'
                 )
 
-                tab_pills.append(
-                    f'<label for="fact-tab-{pid}-{idx}" class="fact-tab-pill fact-tab-pill-{idx}">'
-                    f'<span class="pill-num">{idx + 1}</span> {safe_topic}</label>'
-                )
-
                 prev_idx = (idx - 1) % num_facts
                 next_idx = (idx + 1) % num_facts
 
                 flip_nav = ""
                 if num_facts > 1:
-                    dots = "".join(
-                        f'<label for="fact-tab-{pid}-{d}" class="fact-dot dot-{d}"></label>'
-                        for d in range(num_facts)
-                    )
                     flip_nav = f"""
-                    <div class="fact-nav-controls">
-                      <label for="fact-tab-{pid}-{prev_idx}" class="fact-nav-btn prev-btn"
-                        title="Previous Insight">❮ Prev</label>
-                      <span class="fact-indicator-dots">{dots}</span>
-                      <label for="fact-tab-{pid}-{next_idx}" class="fact-nav-btn next-btn"
-                        title="Next Insight">Next Insight ❯</label>
+                    <div class="fact-banner-nav">
+                      <label for="fact-tab-{pid}-{prev_idx}" class="fact-banner-nav-btn"
+                        title="Previous Insight">❮</label>
+                      <span class="fact-banner-counter">{idx + 1}/{num_facts}</span>
+                      <label for="fact-tab-{pid}-{next_idx}" class="fact-banner-nav-btn"
+                        title="Next Insight">❯</label>
                     </div>
                     """
 
-                counter_label = f"Insight {idx + 1} of {num_facts}"
-
-                fact_cards.append(f"""
-                <div class="fact-card fact-card-{idx}">
-                  <div class="fact-card-header">
-                    <div class="fact-badges-left">
-                      <span class="badge badge-topic">{safe_topic}</span>
-                      {tech_badge}
-                      <span class="fact-counter-badge">{counter_label}</span>
-                    </div>
-                    <span class="badge badge-agent-reported">Agent-reported: check the source</span>
-                  </div>
-                  <div class="fact-body">
-                    <span class="fact-quote-mark">“</span>
+                slide_items.append(f"""
+                <div class="fact-banner-slide slide-{idx}">
+                  <div class="fact-banner-main">
+                    <span class="fact-banner-heading">💡 Did You Know?</span>
+                    <span class="badge badge-topic">{safe_topic}</span>
+                    {tech_badge}
                     <p class="fact-text">{safe_fact}</p>
                   </div>
-                  <div class="fact-footer">
-                    <div class="fact-source-info">
+                  <div class="fact-banner-meta">
+                    <span class="badge badge-agent-reported">Agent-reported: check the source</span>
+                    <div class="fact-source-line">
                       <span>Source: <a href="{safe_url}" target="_blank"
                         rel="noopener noreferrer">{safe_title}</a></span>
                       <span class="fact-retrieved">(Retrieved: {retrieved_date})</span>
@@ -778,52 +762,19 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 </div>
                 """)
 
-            tabs_bar = ""
-            if num_facts > 1:
-                tabs_bar = f'<div class="fact-tabs-bar">{"".join(tab_pills)}</div>'
-
             radios_str = "".join(radio_inputs)
-            cards_str = "".join(fact_cards)
+            slides_str = "".join(slide_items)
 
             facts_html = f"""
-            <div class="panel panel-facts">
+            <div class="panel panel-fact-banner">
               {radios_str}
-              <div class="panel-facts-top">
-                <div class="panel-facts-title-group">
-                  <h2 class="panel-title" style="margin-bottom: 0;">💡 Did You Know?</h2>
-                  <span class="badge badge-flashcard-cue">Flashcard Deck ({num_facts} insights)</span>
-                </div>
-                {tabs_bar}
-              </div>
-              <div class="facts-deck">
-                {cards_str}
+              <div class="fact-banner-deck">
+                {slides_str}
               </div>
             </div>
             """
 
         safe_headline = html.escape(readiness["headline"])
-        if facts_html:
-            top_section = f"""
-            <div class="overview-top-grid">
-              <div class="overview-top-main">
-                {queue_hint}
-                {stale_html}
-                {due_html}
-                {tech_html}
-              </div>
-              <div class="overview-top-aside">
-                {facts_html}
-              </div>
-            </div>
-            """
-        else:
-            top_section = f"""
-            {queue_hint}
-            {stale_html}
-            {due_html}
-            {tech_html}
-            """
-
         content = f"""
         <div class="section-header">
           <h1 class="section-title">{pname}</h1>
@@ -834,7 +785,11 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
           <a href="/p/{pid}/concepts">Concept Log</a>
           <a href="/p/{pid}/docs">Docs</a>
         </nav>
-        {top_section}
+        {facts_html}
+        {queue_hint}
+        {stale_html}
+        {due_html}
+        {tech_html}
         {''.join(bands_html)}
         """
         body = self._wrap_layout(
