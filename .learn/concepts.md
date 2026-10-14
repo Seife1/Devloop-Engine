@@ -16,9 +16,10 @@
 ## Basic
 
 ### Architecture & Intent Reconcile Loop (`architecture.overview`)
-- **Kind**: concept | **Status**: unexplained | **Depth**: 1/5 (what)
+- **Kind**: concept | **Status**: explained | **Depth**: 1/5 (what)
 - **Files**: `README.md`, `pyproject.toml`
 - **Summary**: LearnLoop is an MCP companion server that separates AI code exposure from human developer mastery, reconciling IDE intents against git commits.
+- **Latest explanation** (score 1.0): "git hook is source of thruth"
 
 ### Git Hook & Offline Commit Queue (`capture.hook_queue`)
 - **Kind**: component | **Status**: unexplained | **Depth**: 1/5 (what)
@@ -34,6 +35,11 @@
 - **Kind**: component | **Status**: unexplained | **Depth**: 1/5 (what)
 - **Files**: `src/learnloop/server.py`
 - **Summary**: Assembles and runs the FastMCP stdio server, exposing capture, knowledge items, tour, and teaching tools.
+
+### <script>alert(1)</script> (`test.xss`)
+- **Kind**: concept | **Status**: unexplained | **Depth**: 1/5 (what)
+- **Files**: `pyproject.toml`
+- **Summary**: Testing XSS protection in dashboard rendering
 
 ## Intermediate
 

@@ -4,6 +4,8 @@ import http.client
 import http.server
 import os
 import sqlite3
+import subprocess
+import sys
 import threading
 from pathlib import Path
 
@@ -333,4 +335,127 @@ def test_dashboard_outdated_version_prints_doctor_and_exits(tmp_path: Path, caps
     assert code == 1
     captured = capsys.readouterr()
     assert "run: learnloop doctor" in captured.err
+
+
+def test_dashboard_security_headers_on_error_responses(dashboard_env):
+    port = dashboard_env["port"]
+
+    # 403 Forbidden (bad host)
+    status_403, headers_403, _ = _request(port, "GET", "/", headers={"Host": "attacker.com"})
+    assert status_403 == 403
+    assert "default-src 'none'" in headers_403.get("Content-Security-Policy", "")
+    assert headers_403.get("X-Content-Type-Options") == "nosniff"
+    assert headers_403.get("X-Frame-Options") == "DENY"
+
+    # 404 Not Found (unknown project)
+    status_404, headers_404, _ = _request(port, "GET", "/p/000000000000/")
+    assert status_404 == 404
+    assert "default-src 'none'" in headers_404.get("Content-Security-Policy", "")
+    assert headers_404.get("X-Content-Type-Options") == "nosniff"
+    assert headers_404.get("X-Frame-Options") == "DENY"
+
+    # 405 Method Not Allowed (POST)
+    status_405, headers_405, _ = _request(port, "POST", "/")
+    assert status_405 == 405
+    assert "default-src 'none'" in headers_405.get("Content-Security-Policy", "")
+    assert headers_405.get("X-Content-Type-Options") == "nosniff"
+    assert headers_405.get("X-Frame-Options") == "DENY"
+
+
+def test_dashboard_queue_commits_waiting_hint(dashboard_env):
+    port = dashboard_env["port"]
+    id_a = dashboard_env["id_a"]
+    id_b = dashboard_env["id_b"]
+
+    status_a, _, body_a = _request(port, "GET", f"/p/{id_a}/")
+    assert status_a == 200
+    assert "2" in body_a
+    assert "commits waiting in queue to be ingested" in body_a
+
+    status_b, _, body_b = _request(port, "GET", f"/p/{id_b}/")
+    assert status_b == 200
+    assert "commits waiting in queue" not in body_b
+
+
+def test_dashboard_junction_reparse_point_returns_404(dashboard_env, tmp_path: Path):
+    if sys.platform != "win32":
+        pytest.skip("Windows NTFS junctions are only supported on Windows")
+
+    port = dashboard_env["port"]
+
+    real_learn = tmp_path / "real_learn_junc"
+    real_learn.mkdir()
+    (real_learn / "junc_doc.md").write_text("# Junction Doc", encoding="utf-8")
+
+    repo_junc = tmp_path / "repo_junc"
+    repo_junc.mkdir()
+    link_learn = repo_junc / ".learn"
+
+    # Create directory junction via mklink /J
+    cmd = ["cmd.exe", "/c", "mklink", "/J", str(link_learn), str(real_learn)]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        pytest.skip(f"mklink /J creation failed: {proc.stderr or proc.stdout}")
+
+    try:
+        conn = sqlite3.connect(dashboard_env["db_path"])
+        conn.row_factory = sqlite3.Row
+        p_junc = capture_service.start_project(conn, "Junction Project", str(repo_junc))
+        conn.close()
+
+        status, _, _ = _request(port, "GET", f"/p/{p_junc['id']}/docs/junc_doc.md")
+        assert status == 404
+    finally:
+        # Clean up junction with rmdir so we don't delete real_learn contents
+        subprocess.run(["cmd.exe", "/c", "rmdir", str(link_learn)], capture_output=True)
+
+
+def test_dashboard_concurrent_mcp_write_and_dashboard_read(dashboard_env):
+    port = dashboard_env["port"]
+    db_path = dashboard_env["db_path"]
+    id_a = dashboard_env["id_a"]
+
+    stop_event = threading.Event()
+    write_errors: list[Exception] = []
+    read_errors: list[Exception] = []
+
+    def writer_thread():
+        # Open write connection like FastMCP server does
+        try:
+            write_conn = sqlite3.connect(db_path, timeout=10.0)
+            write_conn.row_factory = sqlite3.Row
+            write_conn.execute("PRAGMA journal_mode=WAL")
+            write_conn.execute("PRAGMA foreign_keys=ON")
+
+            i = 0
+            while not stop_event.is_set() and i < 25:
+                write_conn.execute(
+                    "INSERT INTO commits (sha, project_id, message, files, committed_at, status, origin, kind)"
+                    " VALUES (?, ?, ?, '[\"test.py\"]', '2026-03-01T00:00:00Z', 'verified', 'hook', 'commit')",
+                    (f"sha_conc_{i}", id_a, f"concurrent commit {i}"),
+                )
+                write_conn.commit()
+                i += 1
+            write_conn.close()
+        except Exception as e:
+            write_errors.append(e)
+
+    writer = threading.Thread(target=writer_thread, daemon=True)
+    writer.start()
+
+    # Issue multiple concurrent GET requests while writes happen
+    for _ in range(30):
+        try:
+            status, _, body = _request(port, "GET", f"/p/{id_a}/")
+            assert status == 200
+            assert "key_a1" in body
+        except Exception as e:
+            read_errors.append(e)
+
+    stop_event.set()
+    writer.join(timeout=5.0)
+
+    assert not write_errors, f"Write errors occurred during concurrent read/write: {write_errors}"
+    assert not read_errors, f"Read errors occurred during concurrent read/write: {read_errors}"
+
 

@@ -16,14 +16,23 @@ _CODE_TOKEN_PATTERN = re.compile(r"\x00CODE_(\d+)\x00")
 
 
 def _is_safe_http_url(url: str) -> bool:
-    """Validate that a URL strictly uses http or https scheme."""
+    """Validate that a URL strictly uses http or https scheme and contains no dangerous characters."""
     cleaned = url.strip()
-    if not (cleaned.lower().startswith("http://") or cleaned.lower().startswith("https://")):
+    for ch in cleaned:
+        if ch in ("<", ">", '"', "'", " ", "\t", "\r", "\n") or ord(ch) < 32 or ord(ch) >= 127:
+            return False
+    lower = cleaned.lower()
+    if not (lower.startswith("http://") or lower.startswith("https://")):
         return False
-    parsed = urllib.parse.urlparse(cleaned)
+    try:
+        parsed = urllib.parse.urlparse(cleaned)
+    except Exception:
+        return False
     if parsed.scheme.lower() not in ("http", "https"):
         return False
     if not parsed.netloc:
+        return False
+    if any(c in parsed.netloc for c in ("<", ">", '"', "'", "@")):
         return False
     return True
 
@@ -46,28 +55,26 @@ def _render_inline(text: str) -> str:
     def _replace_link(match: re.Match[str]) -> str:
         label = match.group(1)
         url = match.group(2).strip()
-        # Unescape quotes in url that might have been escaped by html.escape
         unescaped_url = html.unescape(url)
         if _is_safe_http_url(unescaped_url):
             safe_href = html.escape(unescaped_url, quote=True)
             return f'<a href="{safe_href}" rel="noopener noreferrer">{label}</a>'
-        # Unsafe link (javascript:, data:, file:, relative): strip the link and return label
         return label
 
     text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", _replace_link, text)
 
-    # 4. Bold: **text** or __text__
-    text = re.sub(r"\*\*([^*\n]+)\*\*", r"<strong>\1</strong>", text)
-    text = re.sub(r"__([^_\n]+)__", r"<strong>\1</strong>", text)
+    # 4. Bold and Italic (with nested emphasis support)
+    text = re.sub(r"\*\*([^\n]+?)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"__([^\n]+?)__", r"<strong>\1</strong>", text)
+    text = re.sub(r"\*([^\n]+?)\*", r"<em>\1</em>", text)
+    text = re.sub(r"(?<!\w)_([^\n]+?)_(?!\w)", r"<em>\1</em>", text)
 
-    # 5. Italic: *text* or _text_
-    text = re.sub(r"\*([^*\n]+)\*", r"<em>\1</em>", text)
-    text = re.sub(r"(?<!\w)_([^_\n]+)_(?!\w)", r"<em>\1</em>", text)
-
-    # 6. Restore inline code
+    # 5. Restore inline code
     def _restore_code(match: re.Match[str]) -> str:
         idx = int(match.group(1))
-        return code_snippets[idx]
+        if 0 <= idx < len(code_snippets):
+            return code_snippets[idx]
+        return match.group(0)
 
     return _CODE_TOKEN_PATTERN.sub(_restore_code, text)
 
@@ -83,6 +90,19 @@ def _is_table_divider(line: str) -> bool:
         return False
     cells = [c.strip() for c in stripped[1:-1].split("|")]
     return all(re.match(r"^:?-+:?$", c) for c in cells if c)
+
+
+def _is_list_continuation_line(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    if re.match(r"^#{1,6}\s+", stripped):
+        return False
+    if stripped.startswith(("```", "&gt;")):
+        return False
+    if re.match(r"^[-*]\s+", stripped) or re.match(r"^\d+\.\s+", stripped):
+        return False
+    return True
 
 
 def render_markdown(text: str) -> str:
@@ -189,7 +209,7 @@ def render_markdown(text: str) -> str:
                 if item_match:
                     items.append(_render_inline(item_match.group(1).strip()))
                     i += 1
-                elif lines[i].strip() and not lines[i].strip().startswith(("#", "```", "&gt;")):
+                elif _is_list_continuation_line(lines[i]):
                     # Continuation line for list item
                     if items:
                         items[-1] += " " + _render_inline(lines[i].strip())
@@ -209,7 +229,7 @@ def render_markdown(text: str) -> str:
                 if item_match:
                     items.append(_render_inline(item_match.group(1).strip()))
                     i += 1
-                elif lines[i].strip() and not lines[i].strip().startswith(("#", "```", "&gt;")):
+                elif _is_list_continuation_line(lines[i]):
                     if items:
                         items[-1] += " " + _render_inline(lines[i].strip())
                     i += 1
@@ -224,14 +244,19 @@ def render_markdown(text: str) -> str:
         while (
             i < n
             and lines[i].strip()
-            and not lines[i].strip().startswith(("#", "```", "&gt;"))
+            and not re.match(r"^#{1,6}\s+", lines[i].strip())
+            and not lines[i].strip().startswith(("```", "&gt;"))
             and not re.match(r"^[-*]\s+", lines[i].strip())
             and not re.match(r"^\d+\.\s+", lines[i].strip())
             and not (_is_table_row(lines[i]) and i + 1 < n and _is_table_divider(lines[i + 1]))
         ):
             para_lines.append(lines[i].strip())
             i += 1
-        para_text = " ".join(para_lines)
-        output.append(f"<p>{_render_inline(para_text)}</p>")
+        if para_lines:
+            para_text = " ".join(para_lines)
+            output.append(f"<p>{_render_inline(para_text)}</p>")
+        elif i < n:
+            output.append(f"<p>{_render_inline(lines[i].strip())}</p>")
+            i += 1
 
     return "\n".join(output)

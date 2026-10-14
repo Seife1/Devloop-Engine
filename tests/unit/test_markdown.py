@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import random
+import re
+import string
+
 from learnloop.dashboard.markdown import render_markdown
 
 
@@ -56,7 +60,10 @@ def test_markdown_lists():
 def test_markdown_tables():
     raw = "| Col 1 | Col 2 |\n| --- | --- |\n| Val 1 | Val 2 |"
     rendered = render_markdown(raw)
-    assert "<table><thead><tr><th>Col 1</th><th>Col 2</th></tr></thead><tbody><tr><td>Val 1</td><td>Val 2</td></tr></tbody></table>" in rendered
+    assert (
+        "<table><thead><tr><th>Col 1</th><th>Col 2</th></tr></thead>"
+        "<tbody><tr><td>Val 1</td><td>Val 2</td></tr></tbody></table>"
+    ) in rendered
 
 
 def test_markdown_blockquotes():
@@ -64,3 +71,122 @@ def test_markdown_blockquotes():
     rendered = render_markdown(raw)
     assert "<blockquote>" in rendered
     assert "This is a quote" in rendered
+
+
+def test_markdown_adversarial_schemes_and_obfuscation():
+    cases = [
+        "[x](javascript:alert(1))",
+        "[x](JaVaScRiPt:alert(1))",
+        "[x](java\tscript:alert(1))",
+        "[x](java\nscript:alert(1))",
+        "[x](java\rscript:alert(1))",
+        "[x](&#106;avascript:alert(1))",
+        "[x](&#74;avascript:alert(1))",
+        "[x](data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)",
+        "[x](vbscript:msgbox(1))",
+        "[x](file:///etc/passwd)",
+    ]
+    for c in cases:
+        out = render_markdown(c)
+        assert "<a href=" not in out, f"Unsafe scheme permitted in {c}: got {out}"
+        assert "x" in out
+
+
+def test_markdown_links_with_quotes_and_angle_brackets():
+    cases = [
+        '[x](https://example.com" onclick="alert(1))',
+        "[x](https://example.com' onfocus='alert(1))",
+        "[x](https://example.com/<script>alert(1)</script>)",
+        "[x](https://example.com/>)",
+        "[x](https://example.com/<)",
+        '[<script>alert("text")</script>](https://example.com)',
+        '[<img src=x onerror=alert(1)>](https://example.com)',
+    ]
+    for c in cases:
+        out = render_markdown(c)
+        # Any raw script or event handler must never survive unescaped
+        assert "<script>" not in out
+        assert "<img" not in out
+        assert "onclick=" not in out
+        assert "onfocus=" not in out
+
+
+def test_markdown_nested_emphasis():
+    raw1 = "**bold *italic* bold**"
+    out1 = render_markdown(raw1)
+    assert "<strong>bold <em>italic</em> bold</strong>" in out1
+
+    raw2 = "*italic **bold** italic*"
+    out2 = render_markdown(raw2)
+    assert "<em>italic <strong>bold</strong> italic</em>" in out2
+
+
+def test_markdown_unclosed_code_fence():
+    raw = "```python\ndef broken():\n    pass\n# unclosed"
+    out = render_markdown(raw)
+    assert '<pre><code class="language-python">' in out
+    assert "def broken():" in out
+    assert "</code></pre>" in out
+
+
+def test_markdown_raw_img_and_svg_payloads():
+    raw = '<img src=x onerror="alert(1)">\n<svg onload="alert(1)">'
+    out = render_markdown(raw)
+    assert "<img" not in out
+    assert "<svg" not in out
+    assert "&lt;img" in out
+    assert "&lt;svg" in out
+
+
+def test_markdown_100kb_input():
+    # 100 KB text with diverse markdown constructs
+    chunk = "# Section\n\nParagraph with **bold** and `code` and [link](https://safe.org).\n\n"
+    large_input = chunk * (100_000 // len(chunk) + 1)
+    assert len(large_input) >= 100_000
+    out = render_markdown(large_input)
+    assert len(out) > 0
+    assert "<h1>Section</h1>" in out
+    assert '<a href="https://safe.org"' in out
+
+
+def test_markdown_randomized_fuzz_allowed_tags_only():
+    allowed_tags = {
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "p",
+        "code",
+        "pre",
+        "strong",
+        "em",
+        "ul",
+        "ol",
+        "li",
+        "blockquote",
+        "table",
+        "thead",
+        "tbody",
+        "tr",
+        "th",
+        "td",
+        "a",
+    }
+
+    alphabet = string.ascii_letters + string.digits + "<>/\"'`;:=[]()#*-_\n\t\\ "
+    rng = random.Random(42)
+
+    for _ in range(50):
+        length = rng.randint(5, 500)
+        random_str = "".join(rng.choice(alphabet) for _ in range(length))
+        out = render_markdown(random_str)
+
+        # Extract all HTML tag names
+        found_tags = re.findall(r"<([a-zA-Z0-9]+)[^>]*>", out)
+        for t in found_tags:
+            tag_lower = t.lower()
+            assert tag_lower in allowed_tags, (
+                f"Disallowed tag <{tag_lower}> generated from input {random_str!r}: output {out!r}"
+            )

@@ -22,6 +22,7 @@ import importlib.resources
 import os
 import re
 import sqlite3
+import stat
 import sys
 import urllib.parse
 from http import HTTPStatus
@@ -51,18 +52,38 @@ def get_required_migration_version() -> int:
     return max(int(f.name.split("_", 1)[0]) for f in files)
 
 
+def is_reparse_point_or_link(path: Path | str) -> bool:
+    """Return True if path is a symlink, Windows junction, or reparse point."""
+    try:
+        p = Path(path)
+        if p.is_symlink() or os.path.islink(p):
+            return True
+        st = p.lstat()
+        reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+        attrs = getattr(st, "st_file_attributes", 0)
+        if bool(attrs & reparse_flag):
+            return True
+        return False
+    except (OSError, ValueError):
+        return True
+
+
 def count_queue_commits(repo_path: Path | str) -> int:
     """Safely count waiting commit entries in <repo>/.learn/queue (directory listing only)."""
     try:
         repo = Path(repo_path).resolve()
         learn_path = repo / ".learn"
-        if not learn_path.is_dir() or learn_path.is_symlink() or os.path.islink(learn_path):
+        if not learn_path.is_dir() or is_reparse_point_or_link(learn_path):
+            return 0
+        if learn_path.resolve() != repo.resolve() / ".learn":
             return 0
         q_path = learn_path / "queue"
-        if not q_path.is_dir() or q_path.is_symlink() or os.path.islink(q_path):
+        if not q_path.is_dir() or is_reparse_point_or_link(q_path):
+            return 0
+        if q_path.resolve() != repo.resolve() / ".learn" / "queue":
             return 0
         return sum(
-            1 for p in q_path.iterdir() if p.is_file() and not p.is_symlink() and not os.path.islink(p)
+            1 for p in q_path.iterdir() if p.is_file() and not is_reparse_point_or_link(p)
         )
     except Exception:
         return 0
@@ -73,11 +94,15 @@ def list_safe_learn_docs(repo_path: Path | str) -> list[str]:
     try:
         repo = Path(repo_path).resolve()
         learn_path = repo / ".learn"
-        if not learn_path.is_dir() or learn_path.is_symlink() or os.path.islink(learn_path):
+        if not learn_path.is_dir() or is_reparse_point_or_link(learn_path):
+            return []
+        if learn_path.resolve() != repo.resolve() / ".learn":
             return []
         docs = []
         for p in learn_path.iterdir():
-            if p.is_file() and not p.is_symlink() and not os.path.islink(p) and p.name.endswith(".md"):
+            if p.is_file() and not is_reparse_point_or_link(p) and p.name.endswith(".md"):
+                if p.resolve().parent != learn_path.resolve():
+                    continue
                 if p.stat().st_size <= MAX_DOC_SIZE_BYTES:
                     docs.append(p.name)
         return sorted(docs)
@@ -90,18 +115,20 @@ def read_safe_learn_doc(repo_path: Path | str, doc_name: str) -> str | None:
     try:
         repo = Path(repo_path).resolve()
         learn_path = repo / ".learn"
-        if not learn_path.is_dir() or learn_path.is_symlink() or os.path.islink(learn_path):
+        if not learn_path.is_dir() or is_reparse_point_or_link(learn_path):
+            return None
+        if learn_path.resolve() != repo.resolve() / ".learn":
             return None
 
         clean_name = doc_name if doc_name.endswith(".md") else f"{doc_name}.md"
         target = learn_path / clean_name
-        if target.is_symlink() or os.path.islink(target):
+        if is_reparse_point_or_link(target):
             return None
         resolved = target.resolve()
         learn_resolved = learn_path.resolve()
         if resolved.parent != learn_resolved:
             return None
-        if not resolved.is_file() or resolved.is_symlink() or os.path.islink(resolved):
+        if not resolved.is_file() or is_reparse_point_or_link(resolved):
             return None
         if resolved.stat().st_size > MAX_DOC_SIZE_BYTES:
             return None
