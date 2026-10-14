@@ -238,9 +238,9 @@ def test_migration_from_v2_to_latest_preserves_all_data(tmp_path: Path):
     # Run migrations to latest version
     migrate(conn, db_path)
 
-    # Assert latest user_version (12 for v0.5.2)
+    # Assert latest user_version (13 for v0.5.3)
     new_version = conn.execute("PRAGMA user_version").fetchone()[0]
-    assert new_version == 12
+    assert new_version == 13
 
     # 1. Assert no row is lost or altered
     assert conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 1
@@ -372,9 +372,9 @@ def test_migration_005_to_006(tmp_path: Path):
     )
     conn.commit()
 
-    # Apply migration 006 (migrate will also apply 007-012)
+    # Apply migration 006 (migrate will also apply 007-013)
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
 
     row = conn.execute("SELECT origin FROM commits WHERE sha='c1'").fetchone()
     assert row["origin"] == "hook"
@@ -410,7 +410,7 @@ def test_migration_006_to_007(tmp_path: Path):
     conn.commit()
 
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
 
     # Verify learner_profile initialized
     prof = conn.execute("SELECT * FROM learner_profile WHERE id=1").fetchone()
@@ -532,7 +532,7 @@ def test_migration_007_to_008(tmp_path: Path):
     conn.commit()
 
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
 
     # Verify last_briefing_at column exists
     p = conn.execute("SELECT * FROM projects WHERE id='p1'").fetchone()
@@ -767,7 +767,7 @@ def test_migration_008_to_009(tmp_path: Path):
 
     # Migrate v8 -> v9
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
 
     # Verify all 21 tables still have rows
     for tbl in all_21_tables:
@@ -846,7 +846,7 @@ def test_migration_009_to_010_cleans_legacy_snapshots(tmp_path: Path):
 
     # Migrate to v10+
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
 
     # Check foreign keys pass
     fk_errors = conn.execute("PRAGMA foreign_key_check").fetchall()
@@ -907,7 +907,7 @@ def test_migration_010_to_011_project_scoping_and_ratings(tmp_path: Path):
     conn.commit()
 
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
 
     # Verify project_profile table exists and works
     conn.execute(
@@ -970,7 +970,7 @@ def test_migration_011_to_012_project_technologies(tmp_path: Path):
     conn.commit()
 
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
 
     # Verify project_technologies table exists and works
     conn.execute(
@@ -986,5 +986,68 @@ def test_migration_011_to_012_project_technologies(tmp_path: Path):
     conn.execute("DELETE FROM projects WHERE id='p1'")
     conn.commit()
     assert conn.execute("SELECT COUNT(*) FROM project_technologies").fetchone()[0] == 0
+
+    conn.close()
+
+
+def test_migration_012_to_013_project_facts(tmp_path: Path):
+    db_path = tmp_path / "v12_to_v13.db"
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+
+    _build_v2_database(conn)
+    conn.execute("CREATE TABLE intent_files (intent_id TEXT NOT NULL REFERENCES intents(id) ON DELETE CASCADE, path TEXT NOT NULL, touched INTEGER, PRIMARY KEY (intent_id, path));")
+    conn.execute("ALTER TABLE quiz_questions ADD COLUMN source_file TEXT;")
+    conn.execute("ALTER TABLE quiz_questions ADD COLUMN grounding TEXT NOT NULL DEFAULT 'unspecified' CHECK (grounding IN ('project','generic','unspecified'));")
+    conn.execute("ALTER TABLE skills ADD COLUMN source TEXT NOT NULL DEFAULT 'seed' CHECK (source IN ('seed','proposed'));")
+    conn.execute("ALTER TABLE skills ADD COLUMN proposed_at TEXT;")
+    conn.execute("ALTER TABLE skills ADD COLUMN rationale TEXT;")
+    conn.execute("ALTER TABLE commits ADD COLUMN origin TEXT NOT NULL DEFAULT 'hook' CHECK (origin IN ('hook','backfill'));")
+    conn.execute("CREATE TABLE learner_profile (id INTEGER PRIMARY KEY CHECK (id = 1), level TEXT NOT NULL CHECK (level IN ('school', 'beginner', 'junior', 'mid', 'senior')), goal TEXT NOT NULL CHECK (goal IN ('learn', 'interview', 'both')), session_minutes INTEGER NOT NULL CHECK (session_minutes >= 3 AND session_minutes <= 30), audience TEXT NOT NULL CHECK (audience IN ('self', 'classmate', 'recruiter', 'tech-lead')), updated_at TEXT NOT NULL);")
+    conn.execute("CREATE TABLE knowledge_items (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, key TEXT NOT NULL, title TEXT NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('component', 'decision', 'concept', 'bug-fix')), band TEXT NOT NULL CHECK (band IN ('basic', 'intermediate', 'advanced')), summary TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'unexplained' CHECK (status IN ('unexplained', 'shaky', 'explained')), depth INTEGER NOT NULL DEFAULT 1 CHECK (depth >= 1 AND depth <= 5), baseline_commit TEXT REFERENCES commits(sha) ON DELETE SET NULL, baseline_committed_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE (project_id, key));")
+    conn.execute("CREATE TABLE item_files (item_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE, path TEXT NOT NULL, PRIMARY KEY (item_id, path));")
+    conn.execute("CREATE TABLE item_tags (item_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE, tag TEXT NOT NULL, PRIMARY KEY (item_id, tag));")
+    conn.execute("CREATE TABLE explanations (id INTEGER PRIMARY KEY AUTOINCREMENT, item_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE, audience TEXT NOT NULL CHECK (audience IN ('self', 'classmate', 'recruiter', 'tech-lead')), depth INTEGER NOT NULL CHECK (depth >= 1 AND depth <= 5), learner_text TEXT NOT NULL, score REAL NOT NULL CHECK (score >= 0.0 AND score <= 1.0), self_rating INTEGER NULL CHECK (self_rating BETWEEN 1 AND 5), created_at TEXT NOT NULL);")
+    conn.execute("ALTER TABLE projects ADD COLUMN last_briefing_at TEXT;")
+    conn.execute("CREATE TABLE item_reviews (item_id TEXT PRIMARY KEY REFERENCES knowledge_items(id) ON DELETE CASCADE, interval_days INTEGER NOT NULL CHECK (interval_days >= 1), ease REAL NOT NULL CHECK (ease >= 1.3), reps INTEGER NOT NULL CHECK (reps >= 0), due_at TEXT NOT NULL, snoozed_until TEXT, last_reviewed_at TEXT);")
+    conn.execute("CREATE TABLE item_questions (id INTEGER PRIMARY KEY AUTOINCREMENT, item_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE, question TEXT NOT NULL, format TEXT NOT NULL CHECK (format IN ('explain', 'predict', 'spot-the-bug', 'defend', 'what-if')), created_at TEXT NOT NULL);")
+    conn.execute("ALTER TABLE commits ADD COLUMN kind TEXT NOT NULL DEFAULT 'commit' CHECK (kind IN ('commit','snapshot'));")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_commits_project_snapshot ON commits(project_id) WHERE kind = 'snapshot';")
+    conn.execute("CREATE TABLE project_profile (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, level TEXT NULL, goal TEXT NULL, session_minutes INTEGER NULL, audience TEXT NULL, updated_at TEXT NOT NULL);")
+    conn.execute("CREATE TABLE project_technologies (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, ecosystem TEXT NOT NULL CHECK (ecosystem IN ('python', 'npm', 'go', 'cargo', 'docker')), name TEXT NOT NULL, version_spec TEXT, source_file TEXT NOT NULL, detected_at TEXT NOT NULL, UNIQUE (project_id, ecosystem, name));")
+    conn.execute("CREATE INDEX idx_project_technologies_proj ON project_technologies(project_id);")
+    conn.execute("PRAGMA user_version=12")
+    conn.commit()
+
+    conn.execute("INSERT INTO projects (id, name, repo_path, created_at) VALUES ('p1', 'P1', '/repo1', '2026-03-01T00:00:00Z')")
+    conn.commit()
+
+    migrate(conn, db_path)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+
+    # Verify project_facts table exists and works
+    conn.execute(
+        "INSERT INTO project_facts (id, project_id, topic, fact, source_url, source_title, retrieved_at, technology, fact_hash, created_at)"
+        " VALUES ('f1', 'p1', 'Testing', 'Pytest rocks', 'https://docs.pytest.org/en/stable/', 'Pytest Docs', '2026-03-01T00:00:00Z', 'pytest', 'abc123hash', '2026-03-01T00:00:00Z')"
+    )
+    fact = conn.execute("SELECT * FROM project_facts WHERE id='f1'").fetchone()
+    assert fact["topic"] == "Testing"
+    assert fact["fact"] == "Pytest rocks"
+    assert fact["source_url"] == "https://docs.pytest.org/en/stable/"
+    assert fact["technology"] == "pytest"
+
+    # Verify UNIQUE(project_id, source_url, fact_hash) constraint
+    import pytest
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO project_facts (id, project_id, topic, fact, source_url, source_title, retrieved_at, technology, fact_hash, created_at)"
+            " VALUES ('f2', 'p1', 'Testing', 'Pytest rocks duplicate', 'https://docs.pytest.org/en/stable/', 'Pytest Docs', '2026-03-01T00:00:00Z', 'pytest', 'abc123hash', '2026-03-01T00:00:00Z')"
+        )
+
+    # Verify foreign key cascade delete
+    conn.execute("DELETE FROM projects WHERE id='p1'")
+    conn.commit()
+    assert conn.execute("SELECT COUNT(*) FROM project_facts").fetchone()[0] == 0
 
     conn.close()

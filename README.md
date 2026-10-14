@@ -56,9 +56,9 @@ actually calls the tools.
 - `learnloop dashboard [--port 8765]`: Start the local read-only web dashboard on `127.0.0.1:8765`.
 - `learnloop techscan [--repo .]`: Deterministically scan repository dependencies and technologies.
 
-## Tools (v0.5.2)
+## Tools (v0.5.3)
 
-- **Technologies:** `refresh_technologies`
+- **Technologies & Facts:** `refresh_technologies` · `add_did_you_know`
 - **Knowledge Items & Readiness:** `register_knowledge_item` · `record_explanation` (with optional `self_rating`) · `list_items` · `list_stale_items` · `get_project_readiness`
 - **Tour & Review:** `get_project_tour` · `review_due` · `record_review` · `snooze_review` · `get_session_briefing`
 - **Capture & Git Reconcile:** `start_project` · `start_skill_session` (skills optional) · `log_decision` · `ingest_queue`
@@ -71,6 +71,7 @@ actually calls the tools.
 - `catch-up`: Deliver a quick session-start briefing on what changed.
 - `review`: Run today's spaced repetition review of knowledge items.
 - `mock-interview`: Conduct an interview on the project.
+- `did-you-know`: Find and suggest verified technical facts related to project technologies.
 - `teach-me` *(deprecated)*: Prefer tour, review, or mock-interview for per-project confidence.
 
 ## Status
@@ -90,7 +91,7 @@ actually calls the tools.
 | Spaced repetition scheduler | **Built** | SM-2 interval calculations and pull-based reviews |
 | Session-start briefing | **Built** | Quick catch-up briefing (< 3 KB) with compact readiness counts |
 | Technologies & references scan | **Built** | Deterministic dependency and language detection (Step 3) |
-| Sourced "Did you know" | *Planned* | Verified web-sourced technical facts with mandatory links (Step 4) |
+| Sourced "Did you know" | **Built** | Verified web-sourced technical facts with mandatory links (Step 4) |
 | Resources (windowed, token-capped)| *Planned* | See `docs/adr/` |
 
 ## Limits

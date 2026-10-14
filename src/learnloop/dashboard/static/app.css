@@ -587,3 +587,57 @@ pre code {
   color: var(--text-muted);
 }
 
+/* Did You Know Facts Panel */
+.panel-facts {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+
+.facts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.fact-card {
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+.fact-text {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0.5rem 0;
+}
+
+.fact-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.badge-topic {
+  background-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.badge-agent-reported {
+  background-color: var(--surface);
+  border: 1px dashed var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+

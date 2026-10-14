@@ -693,6 +693,56 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             </div>
             """
 
+        # Did you know facts panel
+        fact_rows = conn.execute(
+            "SELECT id, topic, fact, source_url, source_title, retrieved_at, technology "
+            "FROM project_facts WHERE project_id=? "
+            "ORDER BY created_at DESC, id DESC LIMIT 3",
+            (pid,),
+        ).fetchall()
+
+        facts_html = ""
+        if fact_rows:
+            fact_cards = []
+            for fr in fact_rows:
+                safe_topic = html.escape(fr["topic"])
+                safe_fact = html.escape(fr["fact"])
+                safe_title = html.escape(fr["source_title"])
+                safe_url = html.escape(fr["source_url"], quote=True)
+                retrieved_date = fr["retrieved_at"][:10]
+                escaped_tech = html.escape(fr["technology"]) if fr["technology"] else ""
+                tech_badge = (
+                    f'<span class="badge" style="background-color: var(--surface-raised); '
+                    f'border: 1px solid var(--border); font-size: 0.8rem;">{escaped_tech}</span> '
+                    if fr["technology"]
+                    else ""
+                )
+                fact_cards.append(f"""
+                <div class="fact-card">
+                  <div style="display: flex; justify-content: space-between; align-items: center;
+                    margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <div>
+                      <span class="badge badge-topic">{safe_topic}</span>
+                      {tech_badge}
+                    </div>
+                    <span class="badge badge-agent-reported">Agent-reported: check the source</span>
+                  </div>
+                  <p class="fact-text">{safe_fact}</p>
+                  <div class="fact-footer">
+                    <span>Source: <a href="{safe_url}" target="_blank"
+                      rel="noopener noreferrer">{safe_title}</a></span>
+                    <span style="color: var(--text-muted); font-size: 0.8rem;">
+                      (Retrieved: {retrieved_date})</span>
+                  </div>
+                </div>
+                """)
+            facts_html = f"""
+            <div class="panel panel-facts">
+              <h2 class="panel-title">💡 Did You Know?</h2>
+              <div class="facts-list">{''.join(fact_cards)}</div>
+            </div>
+            """
+
         safe_headline = html.escape(readiness["headline"])
         content = f"""
         <div class="section-header">
@@ -705,6 +755,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
           <a href="/p/{pid}/docs">Docs</a>
         </nav>
         {queue_hint}
+        {facts_html}
         {stale_html}
         {due_html}
         {tech_html}

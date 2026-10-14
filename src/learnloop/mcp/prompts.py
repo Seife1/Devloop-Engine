@@ -21,6 +21,30 @@ Mock Interview Protocol:
 """
 
 
+DID_YOU_KNOW_PROTOCOL = """\
+Did You Know Fact Protocol:
+1. Identify a technology, library, or architectural concept used in this project
+   (e.g. from refresh_technologies or list_items).
+2. Using your OWN web tools, retrieve and read an official source (documentation, RFC,
+   release notes, or project specification).
+3. Verify that the webpage explicitly states the fact. If the page does not substantiate
+   the claim, discard it.
+4. If you lack web access or web tools, state so clearly and add NOTHING. Never invent or guess a URL.
+5. Formulate the fact in your own words (maximum 300 characters). Do not copy copyrighted text verbatim.
+6. Record the fact using add_did_you_know(
+     project_id=...,
+     topic=...,
+     fact=...,
+     source_url=...,
+     source_title=...,
+     retrieved_at=...,
+     technology=...
+   ).
+   The source_url must strictly use HTTPS with a valid domain host (no userinfo,
+   not localhost or IP literals).\
+"""
+
+
 def register(mcp: FastMCP) -> None:
     @mcp.prompt(
         name="teach-me",
@@ -72,4 +96,13 @@ def register(mcp: FastMCP) -> None:
             f"Conduct a mock technical interview based on project knowledge items.\n"
             f"First call get_learner_profile() and review_due({args}) or list_knowledge_items({args}).\n\n"
             f"{INTERVIEW_PROTOCOL}"
+        )
+
+    @mcp.prompt(name="did-you-know", description="Discover and record a sourced, verified technical fact")
+    def did_you_know(project_id: str = "") -> str:
+        call = f"refresh_technologies(project_id={project_id!r})" if project_id else "refresh_technologies()"
+        return (
+            f"Discover and record an interesting, verified technical fact connected to this project.\n"
+            f"First check project technologies with {call} or list_items().\n\n"
+            f"{DID_YOU_KNOW_PROTOCOL}"
         )

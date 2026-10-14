@@ -10,6 +10,7 @@ from learnloop.config import Settings
 from learnloop.mcp import prompts
 from learnloop.mcp.tools import (
     capture,
+    facts,
     knowledge,
     practice,
     profile,
@@ -38,6 +39,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     profile.register(mcp, db)
     knowledge.register(mcp, db)
     technologies.register(mcp, db)
+    facts.register(mcp, db)
     tour.register(mcp, db)
     review.register(mcp, db)
 
