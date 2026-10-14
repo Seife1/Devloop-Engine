@@ -54,9 +54,11 @@ actually calls the tools.
 - `learnloop briefing [--repo .]`: Output today's session-start briefing in the terminal.
 - `learnloop doctor`: Verify database migrations, taxonomy seeds, and git hooks.
 - `learnloop dashboard [--port 8765]`: Start the local read-only web dashboard on `127.0.0.1:8765`.
+- `learnloop techscan [--repo .]`: Deterministically scan repository dependencies and technologies.
 
-## Tools (v0.5.1)
+## Tools (v0.5.2)
 
+- **Technologies:** `refresh_technologies`
 - **Knowledge Items & Readiness:** `register_knowledge_item` · `record_explanation` (with optional `self_rating`) · `list_items` · `list_stale_items` · `get_project_readiness`
 - **Tour & Review:** `get_project_tour` · `review_due` · `record_review` · `snooze_review` · `get_session_briefing`
 - **Capture & Git Reconcile:** `start_project` · `start_skill_session` (skills optional) · `log_decision` · `ingest_queue`
@@ -87,7 +89,7 @@ actually calls the tools.
 | Derived staleness detection | **Built** | Detects newer commits touching explained files |
 | Spaced repetition scheduler | **Built** | SM-2 interval calculations and pull-based reviews |
 | Session-start briefing | **Built** | Quick catch-up briefing (< 3 KB) with compact readiness counts |
-| Technologies & references scan | *Planned* | Deterministic dependency and language detection (Step 3) |
+| Technologies & references scan | **Built** | Deterministic dependency and language detection (Step 3) |
 | Sourced "Did you know" | *Planned* | Verified web-sourced technical facts with mandatory links (Step 4) |
 | Resources (windowed, token-capped)| *Planned* | See `docs/adr/` |
 

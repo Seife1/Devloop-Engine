@@ -8,7 +8,17 @@ from mcp.server.fastmcp import FastMCP
 
 from learnloop.config import Settings
 from learnloop.mcp import prompts
-from learnloop.mcp.tools import capture, knowledge, practice, profile, review, skills, teaching, tour
+from learnloop.mcp.tools import (
+    capture,
+    knowledge,
+    practice,
+    profile,
+    review,
+    skills,
+    teaching,
+    technologies,
+    tour,
+)
 from learnloop.persistence.db import connect
 
 
@@ -27,6 +37,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
     capture.register(mcp, db, settings)
     profile.register(mcp, db)
     knowledge.register(mcp, db)
+    technologies.register(mcp, db)
     tour.register(mcp, db)
     review.register(mcp, db)
 

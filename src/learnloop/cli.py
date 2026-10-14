@@ -324,10 +324,48 @@ def cmd_doctor() -> int:
     return 0
 
 
+def cmd_techscan(repo: Path) -> int:
+    try:
+        from typing import Any
+
+        from learnloop.config import Settings
+        from learnloop.persistence.db import connect
+        from learnloop.services.technology_service import refresh_technologies
+
+        settings = Settings.load()
+        conn = connect(settings.db_path)
+        try:
+            project_id = _find_project_id(conn, repo)
+            if not project_id:
+                from learnloop.services.capture_service import start_project
+
+                p = start_project(conn, repo.resolve().name, str(repo.resolve()))
+                project_id = p["id"]
+
+            res = refresh_technologies(conn, project_id)
+            techs = res["technologies"]
+            sys.stdout.write(f"Scanned {len(techs)} technologies in {repo}:\n")
+            by_eco: dict[str, list[dict[str, Any]]] = {}
+            for t in techs:
+                by_eco.setdefault(t["ecosystem"], []).append(t)
+
+            for eco in sorted(by_eco.keys()):
+                sys.stdout.write(f"\n[{eco.upper()}]\n")
+                for t in by_eco[eco]:
+                    ver = f" ({t['version_spec']})" if t.get("version_spec") else ""
+                    sys.stdout.write(f"  - {t['name']}{ver} [{t['source_file']}]\n")
+            return 0
+        finally:
+            conn.close()
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"learnloop techscan failed: {exc}\n")
+        return 1
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="learnloop")
     sub = p.add_subparsers(dest="cmd")
-    for name in ("init", "record-commit", "concepts", "review", "briefing"):
+    for name in ("init", "record-commit", "concepts", "review", "briefing", "techscan"):
         sp = sub.add_parser(name)
         sp.add_argument("--repo", type=Path, default=Path.cwd())
     bf = sub.add_parser("backfill")
@@ -353,6 +391,8 @@ def main(argv: list[str] | None = None) -> None:
         code = cmd_doctor()
     elif args.cmd == "dashboard":
         code = cmd_dashboard(args.port)
+    elif args.cmd == "techscan":
+        code = cmd_techscan(args.repo)
     else:
         code = cmd_serve()
     raise SystemExit(code)

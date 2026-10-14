@@ -621,6 +621,78 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             </section>
             """)
 
+        # Technologies panel
+        tech_rows = conn.execute(
+            "SELECT ecosystem, name, version_spec, source_file FROM project_technologies "
+            "WHERE project_id=? ORDER BY ecosystem ASC, name ASC",
+            (pid,),
+        ).fetchall()
+
+        tag_rows = conn.execute(
+            "SELECT DISTINCT it.tag FROM item_tags it "
+            "JOIN knowledge_items ki ON it.item_id = ki.id "
+            "WHERE ki.project_id=? ORDER BY it.tag ASC",
+            (pid,),
+        ).fetchall()
+
+        tags_html = ""
+        if tag_rows:
+            tag_badges = "".join(
+                f'<span class="badge" style="background-color: var(--surface-raised); '
+                f'border: 1px solid var(--border); margin-right: 0.35rem; font-size: 0.8rem;">'
+                f'#{html.escape(r["tag"])}</span>'
+                for r in tag_rows
+            )
+            tags_html = f'<div style="margin-top: 1rem;"><strong>Item Tags:</strong> {tag_badges}</div>'
+
+        if not tech_rows and not tag_rows:
+            tech_html = """
+            <div class="panel panel-tech">
+              <h2 class="panel-title">🛠️ Technologies & References</h2>
+              <p style="color: var(--text-muted); font-size: 0.9rem;">
+                No dependencies scanned yet. Run <code>learnloop techscan</code>
+                or call <code>refresh_technologies</code>.
+              </p>
+            </div>
+            """
+        else:
+            by_eco: dict[str, list[dict[str, str]]] = {}
+            for tr in tech_rows:
+                eco = str(tr["ecosystem"])
+                by_eco.setdefault(eco, []).append({
+                    "name": tr["name"],
+                    "version_spec": tr["version_spec"] or "",
+                    "source_file": tr["source_file"],
+                })
+
+            eco_blocks = []
+            for eco, items in sorted(by_eco.items()):
+                items_li = []
+                for it in items:
+                    safe_name = html.escape(it["name"])
+                    safe_ver = f" ({html.escape(it['version_spec'])})" if it["version_spec"] else ""
+                    safe_src = html.escape(it["source_file"])
+                    items_li.append(
+                        f'<li><strong>{safe_name}</strong>{safe_ver} '
+                        f'<span class="tech-source">[{safe_src}]</span></li>'
+                    )
+                eco_blocks.append(f"""
+                <div class="tech-group">
+                  <div class="tech-group-title">{html.escape(eco.upper())} ({len(items)})</div>
+                  <ul class="tech-list">{''.join(items_li)}</ul>
+                </div>
+                """)
+
+            tech_html = f"""
+            <div class="panel panel-tech">
+              <h2 class="panel-title">🛠️ Technologies & References ({len(tech_rows)})</h2>
+              <div class="tech-grid">
+                {''.join(eco_blocks)}
+              </div>
+              {tags_html}
+            </div>
+            """
+
         safe_headline = html.escape(readiness["headline"])
         content = f"""
         <div class="section-header">
@@ -635,6 +707,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         {queue_hint}
         {stale_html}
         {due_html}
+        {tech_html}
         {''.join(bands_html)}
         """
         body = self._wrap_layout(
