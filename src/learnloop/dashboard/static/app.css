@@ -587,85 +587,205 @@ pre code {
   color: var(--text-muted);
 }
 
-/* Compact Micro-Insight Banner (Option B) */
-.panel-fact-banner {
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  margin-bottom: 1.25rem;
-  position: relative;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+/* Floating Micro-Learning Companion Widget */
+.floating-insight-widget {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 360px;
+  max-width: calc(100vw - 2rem);
+  z-index: 1000;
+  font-family: var(--font-sans);
 }
 
-.fact-radio {
+.insight-toggle-input {
   display: none !important;
 }
 
-.fact-banner-deck {
-  position: relative;
+.insight-card-inner {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+  padding: 1rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
 }
 
-.fact-banner-slide {
+/* Minimize behavior */
+.insight-toggle-input:checked ~ .insight-card-inner {
   display: none;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1.25rem;
-  flex-wrap: wrap;
 }
 
-/* Sibling selector to display active slide */
-.fact-radio-0:checked ~ .fact-banner-deck .slide-0,
-.fact-radio-1:checked ~ .fact-banner-deck .slide-1,
-.fact-radio-2:checked ~ .fact-banner-deck .slide-2 {
-  display: flex;
+.insight-floating-pill {
+  display: none;
+  cursor: pointer;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.45rem 0.85rem;
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  user-select: none;
+  transition: all 0.15s ease;
+  float: right;
 }
 
-.fact-banner-slide:only-child {
-  display: flex;
+.insight-floating-pill:hover {
+  background-color: var(--surface-raised);
+  border-color: var(--accent);
 }
 
-.fact-banner-main {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex: 1;
-  min-width: 280px;
-  flex-wrap: wrap;
-}
-
-.fact-banner-heading {
+.insight-toggle-input:checked ~ .insight-floating-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
+}
+
+.insight-card-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.insight-card-title {
   font-weight: 700;
   font-size: 0.85rem;
   color: var(--text-main);
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.insight-min-btn {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  user-select: none;
+}
+
+.insight-min-btn:hover {
+  background-color: var(--surface-raised);
+  color: var(--text-main);
+}
+
+.insight-slides-container {
+  position: relative;
+}
+
+.fact-slide {
+  display: none;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Sibling selector to display active slide */
+.fact-radio-0:checked ~ .insight-card-inner .slide-0,
+.fact-radio-1:checked ~ .insight-card-inner .slide-1,
+.fact-radio-2:checked ~ .insight-card-inner .slide-2 {
+  display: flex;
+}
+
+.fact-slide:only-child {
+  display: flex;
+}
+
+.fact-slide-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fact-tag-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.badge-tech-pill {
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.fact-card-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: auto;
+}
+
+.fact-nav-btn {
+  cursor: pointer;
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  font-size: 0.75rem;
+  font-weight: 700;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.fact-nav-btn:hover {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.fact-nav-counter {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 0 0.1rem;
 }
 
 .fact-text {
-  font-size: 0.92rem;
-  line-height: 1.45;
+  font-size: 0.9rem;
+  line-height: 1.5;
   color: var(--text-main);
   margin: 0;
-  flex: 1;
-  min-width: 200px;
 }
 
-.fact-banner-meta {
+.fact-slide-footer {
   display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  font-size: 0.8rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .fact-source-line {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  flex-wrap: wrap;
   color: var(--text-muted);
 }
 
@@ -681,57 +801,24 @@ pre code {
   font-size: 0.75rem;
 }
 
-.fact-banner-nav {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-left: 0.25rem;
-}
-
-.fact-banner-nav-btn {
-  cursor: pointer;
-  background-color: var(--surface-raised);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-main);
-  font-size: 0.75rem;
-  font-weight: 700;
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  user-select: none;
-  transition: all 0.15s ease;
-}
-
-.fact-banner-nav-btn:hover {
-  background-color: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-.fact-banner-counter {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-weight: 600;
-  padding: 0 0.15rem;
-}
-
 .badge-topic {
   background-color: var(--accent);
   color: #fff;
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
 }
 
 .badge-agent-reported {
-  background-color: var(--surface);
+  background-color: var(--surface-raised);
   border: 1px dashed var(--border-subtle);
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 500;
+  width: fit-content;
 }
+
 
 
 

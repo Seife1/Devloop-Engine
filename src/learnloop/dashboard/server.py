@@ -693,7 +693,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             </div>
             """
 
-        # Did you know facts panel (Option B: Compact Micro-Insight Banner)
+        # Did you know facts panel (Floating Micro-Learning Companion Widget)
         fact_rows = conn.execute(
             "SELECT id, topic, fact, source_url, source_title, retrieved_at, technology "
             "FROM project_facts WHERE project_id=? "
@@ -715,8 +715,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 retrieved_date = fr["retrieved_at"][:10]
                 escaped_tech = html.escape(fr["technology"]) if fr["technology"] else ""
                 tech_badge = (
-                    f'<span class="badge" style="background-color: var(--surface-raised); '
-                    f'border: 1px solid var(--border); font-size: 0.75rem;">{escaped_tech}</span>'
+                    f'<span class="badge badge-tech-pill">{escaped_tech}</span>'
                     if fr["technology"]
                     else ""
                 )
@@ -733,31 +732,32 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 flip_nav = ""
                 if num_facts > 1:
                     flip_nav = f"""
-                    <div class="fact-banner-nav">
-                      <label for="fact-tab-{pid}-{prev_idx}" class="fact-banner-nav-btn"
+                    <div class="fact-card-nav">
+                      <label for="fact-tab-{pid}-{prev_idx}" class="fact-nav-btn prev-btn"
                         title="Previous Insight">❮</label>
-                      <span class="fact-banner-counter">{idx + 1}/{num_facts}</span>
-                      <label for="fact-tab-{pid}-{next_idx}" class="fact-banner-nav-btn"
+                      <span class="fact-nav-counter">{idx + 1}/{num_facts}</span>
+                      <label for="fact-tab-{pid}-{next_idx}" class="fact-nav-btn next-btn"
                         title="Next Insight">❯</label>
                     </div>
                     """
 
                 slide_items.append(f"""
-                <div class="fact-banner-slide slide-{idx}">
-                  <div class="fact-banner-main">
-                    <span class="fact-banner-heading">💡 Did You Know?</span>
-                    <span class="badge badge-topic">{safe_topic}</span>
-                    {tech_badge}
-                    <p class="fact-text">{safe_fact}</p>
+                <div class="fact-slide slide-{idx}">
+                  <div class="fact-slide-header">
+                    <div class="fact-tag-group">
+                      <span class="badge badge-topic">{safe_topic}</span>
+                      {tech_badge}
+                    </div>
+                    {flip_nav}
                   </div>
-                  <div class="fact-banner-meta">
+                  <p class="fact-text">{safe_fact}</p>
+                  <div class="fact-slide-footer">
                     <span class="badge badge-agent-reported">Agent-reported: check the source</span>
                     <div class="fact-source-line">
                       <span>Source: <a href="{safe_url}" target="_blank"
                         rel="noopener noreferrer">{safe_title}</a></span>
                       <span class="fact-retrieved">(Retrieved: {retrieved_date})</span>
                     </div>
-                    {flip_nav}
                   </div>
                 </div>
                 """)
@@ -766,12 +766,23 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             slides_str = "".join(slide_items)
 
             facts_html = f"""
-            <div class="panel panel-fact-banner">
+            <aside class="floating-insight-widget">
+              <input type="checkbox" id="insight-min-toggle-{pid}" class="insight-toggle-input">
               {radios_str}
-              <div class="fact-banner-deck">
-                {slides_str}
+              <div class="insight-card-inner">
+                <div class="insight-card-topbar">
+                  <span class="insight-card-title">💡 Did You Know?</span>
+                  <label for="insight-min-toggle-{pid}" class="insight-min-btn"
+                    title="Minimize/Expand insight card">−</label>
+                </div>
+                <div class="insight-slides-container">
+                  {slides_str}
+                </div>
               </div>
-            </div>
+              <label for="insight-min-toggle-{pid}" class="insight-floating-pill">
+                💡 Did You Know? ({num_facts})
+              </label>
+            </aside>
             """
 
         safe_headline = html.escape(readiness["headline"])
@@ -785,12 +796,12 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
           <a href="/p/{pid}/concepts">Concept Log</a>
           <a href="/p/{pid}/docs">Docs</a>
         </nav>
-        {facts_html}
         {queue_hint}
         {stale_html}
         {due_html}
         {tech_html}
         {''.join(bands_html)}
+        {facts_html}
         """
         body = self._wrap_layout(
             project["name"],
