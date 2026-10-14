@@ -587,32 +587,186 @@ pre code {
   color: var(--text-muted);
 }
 
-/* Did You Know Facts Panel */
+/* Did You Know Facts Flashcard Deck */
 .panel-facts {
   background-color: var(--surface);
   border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
   margin-bottom: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  position: relative;
 }
 
-.facts-list {
+.fact-radio {
+  display: none !important;
+}
+
+.panel-facts-top {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 1rem;
-  margin-top: 0.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-facts-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.badge-flashcard-cue {
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+}
+
+/* Tab selectors / Pills */
+.fact-tabs-bar {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.fact-tab-pill {
+  cursor: pointer;
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  transition: all 0.2s ease;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fact-tab-pill .pill-num {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.fact-tab-pill:hover {
+  background-color: var(--surface);
+  border-color: var(--accent);
+  color: var(--text-main);
+}
+
+/* Sibling active tab styling */
+.fact-radio-0:checked ~ .panel-facts-top .fact-tab-pill-0,
+.fact-radio-1:checked ~ .panel-facts-top .fact-tab-pill-1,
+.fact-radio-2:checked ~ .panel-facts-top .fact-tab-pill-2 {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+.fact-radio-0:checked ~ .panel-facts-top .fact-tab-pill-0 .pill-num,
+.fact-radio-1:checked ~ .panel-facts-top .fact-tab-pill-1 .pill-num,
+.fact-radio-2:checked ~ .panel-facts-top .fact-tab-pill-2 .pill-num {
+  color: #fff;
+}
+
+/* Cards Deck */
+.facts-deck {
+  position: relative;
+  margin-top: 1rem;
 }
 
 .fact-card {
+  display: none;
   background-color: var(--surface-raised);
   border: 1px solid var(--border-subtle);
-  border-left: 4px solid var(--accent);
-  border-radius: 6px;
-  padding: 1rem;
+  border-left: 5px solid var(--accent);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
+}
+
+/* Sibling card display */
+.fact-radio-0:checked ~ .facts-deck .fact-card-0,
+.fact-radio-1:checked ~ .facts-deck .fact-card-1,
+.fact-radio-2:checked ~ .facts-deck .fact-card-2 {
+  display: block;
+}
+
+.fact-card:only-child {
+  display: block;
+}
+
+.fact-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.85rem;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.fact-badges-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.badge-tech-pill {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.fact-counter-badge {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-left: 0.35rem;
+}
+
+.fact-body {
+  position: relative;
+  padding: 0.4rem 0 0.6rem 1.6rem;
+}
+
+.fact-quote-mark {
+  position: absolute;
+  left: 0;
+  top: -0.25rem;
+  font-size: 2.2rem;
+  line-height: 1;
+  color: var(--accent);
+  opacity: 0.4;
+  font-family: Georgia, serif;
+  user-select: none;
 }
 
 .fact-text {
-  font-size: 0.95rem;
-  line-height: 1.5;
-  margin: 0.5rem 0;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--text-main);
+  margin: 0;
 }
 
 .fact-footer {
@@ -620,9 +774,101 @@ pre code {
   justify-content: space-between;
   align-items: center;
   font-size: 0.85rem;
-  margin-top: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
   flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.fact-source-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.fact-source-info a {
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.fact-retrieved {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* Flashcard Navigation Controls */
+.fact-nav-controls {
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
+  margin-left: auto;
+}
+
+.fact-nav-btn {
+  cursor: pointer;
+  background-color: var(--surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.35rem 0.85rem;
+  border-radius: 6px;
+  user-select: none;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.fact-nav-btn:hover {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.fact-nav-btn.next-btn {
+  background-color: var(--surface);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.fact-nav-btn.next-btn:hover {
+  background-color: var(--accent);
+  color: #fff;
+}
+
+.fact-indicator-dots {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0 0.25rem;
+}
+
+.fact-dot {
+  cursor: pointer;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--border-subtle);
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.fact-dot:hover {
+  background-color: var(--accent);
+  transform: scale(1.2);
+}
+
+/* Active dot styling via sibling selector */
+.fact-radio-0:checked ~ .facts-deck .dot-0,
+.fact-radio-1:checked ~ .facts-deck .dot-1,
+.fact-radio-2:checked ~ .facts-deck .dot-2 {
+  background-color: var(--accent);
+  transform: scale(1.25);
 }
 
 .badge-topic {
@@ -639,5 +885,6 @@ pre code {
   font-size: 0.75rem;
   font-weight: 500;
 }
+
 
 

@@ -703,8 +703,12 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 
         facts_html = ""
         if fact_rows:
-            fact_cards = []
-            for fr in fact_rows:
+            num_facts = len(fact_rows)
+            radio_inputs: list[str] = []
+            tab_pills: list[str] = []
+            fact_cards: list[str] = []
+
+            for idx, fr in enumerate(fact_rows):
                 safe_topic = html.escape(fr["topic"])
                 safe_fact = html.escape(fr["fact"])
                 safe_title = html.escape(fr["source_title"])
@@ -712,34 +716,88 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 retrieved_date = fr["retrieved_at"][:10]
                 escaped_tech = html.escape(fr["technology"]) if fr["technology"] else ""
                 tech_badge = (
-                    f'<span class="badge" style="background-color: var(--surface-raised); '
-                    f'border: 1px solid var(--border); font-size: 0.8rem;">{escaped_tech}</span> '
+                    f'<span class="badge badge-tech-pill">{escaped_tech}</span>'
                     if fr["technology"]
                     else ""
                 )
+
+                checked = "checked" if idx == 0 else ""
+                radio_inputs.append(
+                    f'<input type="radio" name="fact-tab-{pid}" id="fact-tab-{pid}-{idx}" '
+                    f'class="fact-radio fact-radio-{idx}" {checked}>'
+                )
+
+                tab_pills.append(
+                    f'<label for="fact-tab-{pid}-{idx}" class="fact-tab-pill fact-tab-pill-{idx}">'
+                    f'<span class="pill-num">{idx + 1}</span> {safe_topic}</label>'
+                )
+
+                prev_idx = (idx - 1) % num_facts
+                next_idx = (idx + 1) % num_facts
+
+                flip_nav = ""
+                if num_facts > 1:
+                    dots = "".join(
+                        f'<label for="fact-tab-{pid}-{d}" class="fact-dot dot-{d}"></label>'
+                        for d in range(num_facts)
+                    )
+                    flip_nav = f"""
+                    <div class="fact-nav-controls">
+                      <label for="fact-tab-{pid}-{prev_idx}" class="fact-nav-btn prev-btn"
+                        title="Previous Insight">❮ Prev</label>
+                      <span class="fact-indicator-dots">{dots}</span>
+                      <label for="fact-tab-{pid}-{next_idx}" class="fact-nav-btn next-btn"
+                        title="Next Insight">Next Insight ❯</label>
+                    </div>
+                    """
+
+                counter_label = f"Insight {idx + 1} of {num_facts}"
+
                 fact_cards.append(f"""
-                <div class="fact-card">
-                  <div style="display: flex; justify-content: space-between; align-items: center;
-                    margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
-                    <div>
+                <div class="fact-card fact-card-{idx}">
+                  <div class="fact-card-header">
+                    <div class="fact-badges-left">
                       <span class="badge badge-topic">{safe_topic}</span>
                       {tech_badge}
+                      <span class="fact-counter-badge">{counter_label}</span>
                     </div>
                     <span class="badge badge-agent-reported">Agent-reported: check the source</span>
                   </div>
-                  <p class="fact-text">{safe_fact}</p>
+                  <div class="fact-body">
+                    <span class="fact-quote-mark">“</span>
+                    <p class="fact-text">{safe_fact}</p>
+                  </div>
                   <div class="fact-footer">
-                    <span>Source: <a href="{safe_url}" target="_blank"
-                      rel="noopener noreferrer">{safe_title}</a></span>
-                    <span style="color: var(--text-muted); font-size: 0.8rem;">
-                      (Retrieved: {retrieved_date})</span>
+                    <div class="fact-source-info">
+                      <span>Source: <a href="{safe_url}" target="_blank"
+                        rel="noopener noreferrer">{safe_title}</a></span>
+                      <span class="fact-retrieved">(Retrieved: {retrieved_date})</span>
+                    </div>
+                    {flip_nav}
                   </div>
                 </div>
                 """)
+
+            tabs_bar = ""
+            if num_facts > 1:
+                tabs_bar = f'<div class="fact-tabs-bar">{"".join(tab_pills)}</div>'
+
+            radios_str = "".join(radio_inputs)
+            cards_str = "".join(fact_cards)
+
             facts_html = f"""
             <div class="panel panel-facts">
-              <h2 class="panel-title">💡 Did You Know?</h2>
-              <div class="facts-list">{''.join(fact_cards)}</div>
+              {radios_str}
+              <div class="panel-facts-top">
+                <div class="panel-facts-title-group">
+                  <h2 class="panel-title" style="margin-bottom: 0;">💡 Did You Know?</h2>
+                  <span class="badge badge-flashcard-cue">Flashcard Deck ({num_facts} insights)</span>
+                </div>
+                {tabs_bar}
+              </div>
+              <div class="facts-deck">
+                {cards_str}
+              </div>
             </div>
             """
 
