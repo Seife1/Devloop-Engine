@@ -765,6 +765,15 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             radios_str = "".join(radio_inputs)
             slides_str = "".join(slide_items)
 
+            dots_html = ""
+            if num_facts > 1:
+                dots_labels = "".join(
+                    f'<label for="fact-tab-{pid}-{d}" class="fact-dot dot-{d}" '
+                    f'title="Insight {d + 1}"></label>'
+                    for d in range(num_facts)
+                )
+                dots_html = f'<div class="fact-dots-container">{dots_labels}</div>'
+
             facts_html = f"""
             <aside class="floating-insight-widget">
               <input type="checkbox" id="insight-min-toggle-{pid}" class="insight-toggle-input">
@@ -778,6 +787,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 <div class="insight-slides-container">
                   {slides_str}
                 </div>
+                {dots_html}
               </div>
               <label for="insight-min-toggle-{pid}" class="insight-floating-pill">
                 💡 Did You Know? ({num_facts})

@@ -598,7 +598,8 @@ pre code {
   font-family: var(--font-sans);
 }
 
-.insight-toggle-input {
+.insight-toggle-input,
+.fact-radio {
   display: none !important;
 }
 
@@ -817,6 +818,40 @@ pre code {
   font-size: 0.72rem;
   font-weight: 500;
   width: fit-content;
+}
+
+/* Bottom Center Indicator Dots */
+.fact-dots-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.fact-dot {
+  cursor: pointer;
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--border-subtle);
+  transition: all 0.2s ease;
+}
+
+.fact-dot:hover {
+  background-color: var(--accent);
+  transform: scale(1.2);
+}
+
+/* Sibling selector for active dot indicator */
+.fact-radio-0:checked ~ .insight-card-inner .dot-0,
+.fact-radio-1:checked ~ .insight-card-inner .dot-1,
+.fact-radio-2:checked ~ .insight-card-inner .dot-2 {
+  background-color: var(--accent);
+  width: 16px;
+  border-radius: 4px;
 }
 
 
