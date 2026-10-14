@@ -587,6 +587,31 @@ pre code {
   color: var(--text-muted);
 }
 
+/* Overview Top Layout (Main + Aside) */
+.overview-top-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+@media (min-width: 920px) {
+  .overview-top-grid {
+    display: grid;
+    grid-template-columns: 1fr 440px;
+    align-items: start;
+    gap: 1.5rem;
+  }
+}
+
+.overview-top-main {
+  min-width: 0;
+}
+
+.overview-top-aside {
+  min-width: 0;
+}
+
 /* Did You Know Facts Flashcard Deck */
 .panel-facts {
   background-color: var(--surface);
@@ -596,6 +621,13 @@ pre code {
   margin-bottom: 2rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
   position: relative;
+  max-width: 480px;
+  margin-left: auto;
+}
+
+.overview-top-aside .panel-facts {
+  max-width: 100%;
+  margin: 0;
 }
 
 .fact-radio {

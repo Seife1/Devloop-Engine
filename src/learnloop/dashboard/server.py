@@ -802,6 +802,28 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             """
 
         safe_headline = html.escape(readiness["headline"])
+        if facts_html:
+            top_section = f"""
+            <div class="overview-top-grid">
+              <div class="overview-top-main">
+                {queue_hint}
+                {stale_html}
+                {due_html}
+                {tech_html}
+              </div>
+              <div class="overview-top-aside">
+                {facts_html}
+              </div>
+            </div>
+            """
+        else:
+            top_section = f"""
+            {queue_hint}
+            {stale_html}
+            {due_html}
+            {tech_html}
+            """
+
         content = f"""
         <div class="section-header">
           <h1 class="section-title">{pname}</h1>
@@ -812,11 +834,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
           <a href="/p/{pid}/concepts">Concept Log</a>
           <a href="/p/{pid}/docs">Docs</a>
         </nav>
-        {queue_hint}
-        {facts_html}
-        {stale_html}
-        {due_html}
-        {tech_html}
+        {top_section}
         {''.join(bands_html)}
         """
         body = self._wrap_layout(
