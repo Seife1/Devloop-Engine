@@ -9,10 +9,11 @@ dependencies = [
   "mcp>=1.2,<2",        # v2 renamed FastMCP -> MCPServer; migrate deliberately (see docs/adr/0002)
   "platformdirs>=4",
   "pyyaml>=6",
+  "aiosqlite>=0.20",    # Async SQLite for MCP integration
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.5", "mypy>=1.10", "types-PyYAML"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "hypothesis>=6.0", "ruff>=0.5", "mypy>=1.10", "types-PyYAML"]
 
 [project.scripts]
 learnloop = "learnloop.cli:main"

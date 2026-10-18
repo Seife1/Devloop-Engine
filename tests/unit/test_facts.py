@@ -230,7 +230,7 @@ def test_add_did_you_know_daily_rate_limit(db_conn, project):
     conn, _ = db_conn
     pid = project["id"]
 
-    for i in range(5):
+    for i in range(10):
         res = fact_service.add_did_you_know(
             conn,
             project_id=pid,
@@ -242,15 +242,15 @@ def test_add_did_you_know_daily_rate_limit(db_conn, project):
         )
         assert res["created"] is True
 
-    # 6th fact on same day raises ValidationError
-    with pytest.raises(ValidationError, match="Daily limit of 5 facts reached"):
+    # 11th fact on same day raises ValidationError
+    with pytest.raises(ValidationError, match="Daily limit of 10 facts reached"):
         fact_service.add_did_you_know(
             conn,
             project_id=pid,
-            topic="Topic 5",
-            fact="Sixth fact should be blocked by rate limit check.",
-            source_url="https://example.com/doc/5",
-            source_title="Doc 5",
+            topic="Topic 10",
+            fact="Eleventh fact should be blocked by rate limit check.",
+            source_url="https://example.com/doc/10",
+            source_title="Doc 10",
             retrieved_at="2026-03-01T10:00:00Z",
         )
 

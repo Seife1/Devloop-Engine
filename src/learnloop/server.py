@@ -11,6 +11,7 @@ from learnloop.mcp import prompts
 from learnloop.mcp.tools import (
     capture,
     facts,
+    intent,
     knowledge,
     practice,
     profile,
@@ -36,6 +37,7 @@ def build_server(settings: Settings | None = None) -> FastMCP:
 
     mcp = FastMCP("learnloop")
     capture.register(mcp, db, settings)
+    intent.register(mcp, db, settings)
     profile.register(mcp, db)
     knowledge.register(mcp, db)
     technologies.register(mcp, db)

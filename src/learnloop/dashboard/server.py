@@ -19,6 +19,7 @@ from __future__ import annotations
 import html
 import http.server
 import importlib.resources
+import json
 import os
 import re
 import sqlite3
@@ -108,6 +109,40 @@ def list_safe_learn_docs(repo_path: Path | str) -> list[str]:
         return sorted(docs)
     except Exception:
         return []
+
+
+def extract_project_description(repo_path: Path | str | None) -> str:
+    """Extract a one-line project description from pyproject.toml or package.json."""
+    if not repo_path:
+        return ""
+    try:
+        repo = Path(repo_path).resolve()
+        pyproj = repo / "pyproject.toml"
+        if pyproj.is_file() and not is_reparse_point_or_link(pyproj):
+            try:
+                import tomllib
+
+                data = tomllib.loads(pyproj.read_text(encoding="utf-8"))
+                desc = data.get("project", {}).get("description")
+                if not desc:
+                    desc = data.get("tool", {}).get("poetry", {}).get("description")
+                if desc and isinstance(desc, str):
+                    return desc.strip()
+            except Exception:
+                pass
+
+        pkg_json = repo / "package.json"
+        if pkg_json.is_file() and not is_reparse_point_or_link(pkg_json):
+            try:
+                data = json.loads(pkg_json.read_text(encoding="utf-8"))
+                desc = data.get("description")
+                if desc and isinstance(desc, str):
+                    return desc.strip()
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return ""
 
 
 def read_safe_learn_doc(repo_path: Path | str, doc_name: str) -> str | None:
@@ -256,6 +291,10 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 self._handle_home(conn, all_projects)
                 return
 
+            if path in ("/about", "/about-learnloop"):
+                self._handle_global_about(conn, all_projects)
+                return
+
             # Match project routes: /p/<project_id>/...
             match_proj = re.match(r"^/p/([^/]+)(/.*)?$", path)
             if not match_proj:
@@ -298,6 +337,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             elif sub_path.startswith("/docs/"):
                 doc_name = sub_path[len("/docs/") :]
                 self._handle_project_doc(conn, project, doc_name, all_projects)
+            elif sub_path in ("/about", "/about-learnloop"):
+                self._handle_about_learnloop(conn, project, all_projects)
             else:
                 self._send_error_page(HTTPStatus.NOT_FOUND, "Page not found.")
         finally:
@@ -339,16 +380,26 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 bc_items.append('<span class="separator">/</span>')
         bc_html = "".join(bc_items)
 
-        # Build project switcher links
-        switcher_links = []
+        # Build project switcher dropdown items
+        switcher_items = []
         for p in all_projects:
             pid = p["id"]
             pname = html.escape(p["name"])
             pfolder = html.escape(p["folder"])
             is_active = pid == current_project_id
-            active_cls = ' class="active"' if is_active else ""
-            switcher_links.append(f'<a href="/p/{pid}/"{active_cls} title="{pfolder}">{pname}</a>')
-        switcher_html = " ".join(switcher_links) if switcher_links else "<em>None</em>"
+            active_cls = " active" if is_active else ""
+            active_pill = '<span class="item-active-pill">Current</span>' if is_active else ""
+            switcher_items.append(
+                f'<a href="/p/{pid}/" class="project-dropdown-item{active_cls}" title="{pfolder}">'
+                f'<div class="item-title"><span>{pname}</span>{active_pill}</div>'
+                f'<span class="item-folder">{pfolder}</span>'
+                f'</a>'
+            )
+        dropdown_html = (
+            "".join(switcher_items)
+            if switcher_items
+            else '<div class="project-dropdown-empty">No projects registered</div>'
+        )
 
         return f"""<!DOCTYPE html>
 <html lang="en">
@@ -366,8 +417,19 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         <span class="brand-badge">Read-Only</span>
       </div>
       <div class="project-switcher">
-        <span style="font-size: 0.85rem; color: var(--text-muted);">Projects:</span>
-        <div class="project-nav-links">{switcher_html}</div>
+        <div class="project-dropdown">
+          <button class="project-dropdown-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+            <span class="dropdown-label">Projects</span>
+            <span class="dropdown-badge">{len(all_projects)}</span>
+            <span class="dropdown-arrow">▾</span>
+          </button>
+          <div class="project-dropdown-menu">
+            <div class="dropdown-menu-header">Projects ({len(all_projects)})</div>
+            <div class="dropdown-menu-items">
+              {dropdown_html}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </header>
@@ -431,9 +493,17 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             else:
                 last_activity = "None"
 
+            card_desc = extract_project_description(r["repo_path"])
+            card_desc_html = (
+                f'<div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.45rem; line-height: 1.35;">{html.escape(card_desc)}</div>'
+                if card_desc
+                else ""
+            )
+
             cards_html.append(f"""
             <div class="card">
               <h2 class="card-title"><a href="/p/{pid}/">{pname}</a></h2>
+              {card_desc_html}
               <div class="card-meta">Folder: <code>{pfolder}</code></div>
               <div class="card-headline">{headline}</div>
               {queue_html}
@@ -621,7 +691,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             </section>
             """)
 
-        # Technologies panel
+        # Project tech stack badges for header
         tech_rows = conn.execute(
             "SELECT ecosystem, name, version_spec, source_file FROM project_technologies "
             "WHERE project_id=? ORDER BY ecosystem ASC, name ASC",
@@ -635,69 +705,44 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             (pid,),
         ).fetchall()
 
-        tags_html = ""
-        if tag_rows:
-            tag_badges = "".join(
-                f'<span class="badge" style="background-color: var(--surface-raised); '
-                f'border: 1px solid var(--border); margin-right: 0.35rem; font-size: 0.8rem;">'
-                f'#{html.escape(r["tag"])}</span>'
-                for r in tag_rows
+        tech_pills: list[str] = []
+        for tr in tech_rows:
+            safe_name = html.escape(tr["name"])
+            safe_ver = f" ({html.escape(tr['version_spec'])})" if tr["version_spec"] else ""
+            safe_src = html.escape(tr["source_file"])
+            tech_pills.append(
+                f'<span class="badge badge-tech-item" title="Manifest: [{safe_src}]">'
+                f'<strong>{safe_name}</strong>{safe_ver}</span>'
             )
-            tags_html = f'<div style="margin-top: 1rem;"><strong>Item Tags:</strong> {tag_badges}</div>'
 
-        if not tech_rows and not tag_rows:
-            tech_html = """
-            <div class="panel panel-tech">
-              <h2 class="panel-title">🛠️ Technologies & References</h2>
-              <p style="color: var(--text-muted); font-size: 0.9rem;">
-                No dependencies scanned yet. Run <code>learnloop techscan</code>
-                or call <code>refresh_technologies</code>.
-              </p>
-            </div>
-            """
-        else:
-            by_eco: dict[str, list[dict[str, str]]] = {}
-            for tr in tech_rows:
-                eco = str(tr["ecosystem"])
-                by_eco.setdefault(eco, []).append({
-                    "name": tr["name"],
-                    "version_spec": tr["version_spec"] or "",
-                    "source_file": tr["source_file"],
-                })
+        tech_stack_html = (
+            f'<div class="header-metadata-row project-tech-stack">'
+            f'<span class="metadata-label">Stack:</span>'
+            f'<div class="metadata-pills-wrap">{"".join(tech_pills)}</div>'
+            f'</div>'
+            if tech_pills
+            else ""
+        )
 
-            eco_blocks = []
-            for eco, items in sorted(by_eco.items()):
-                items_li = []
-                for it in items:
-                    safe_name = html.escape(it["name"])
-                    safe_ver = f" ({html.escape(it['version_spec'])})" if it["version_spec"] else ""
-                    safe_src = html.escape(it["source_file"])
-                    items_li.append(
-                        f'<li><strong>{safe_name}</strong>{safe_ver} '
-                        f'<span class="tech-source">[{safe_src}]</span></li>'
-                    )
-                eco_blocks.append(f"""
-                <div class="tech-group">
-                  <div class="tech-group-title">{html.escape(eco.upper())} ({len(items)})</div>
-                  <ul class="tech-list">{''.join(items_li)}</ul>
-                </div>
-                """)
-
-            tech_html = f"""
-            <div class="panel panel-tech">
-              <h2 class="panel-title">🛠️ Technologies & References ({len(tech_rows)})</h2>
-              <div class="tech-grid">
-                {''.join(eco_blocks)}
-              </div>
-              {tags_html}
-            </div>
-            """
+        tag_badges = "".join(
+            f'<span class="badge badge-tag-item">'
+            f'🏷️ {html.escape(r["tag"])}</span>'
+            for r in tag_rows
+        )
+        tags_html = (
+            f'<div class="header-metadata-row project-tags-bar">'
+            f'<span class="metadata-label">Tags:</span>'
+            f'<div class="metadata-pills-wrap">{tag_badges}</div>'
+            f'</div>'
+            if tag_rows
+            else ""
+        )
 
         # Did you know facts panel (Floating Micro-Learning Companion Widget)
         fact_rows = conn.execute(
             "SELECT id, topic, fact, source_url, source_title, retrieved_at, technology "
             "FROM project_facts WHERE project_id=? "
-            "ORDER BY created_at DESC, id DESC LIMIT 3",
+            "ORDER BY created_at DESC, id DESC LIMIT 10",
             (pid,),
         ).fetchall()
 
@@ -776,40 +821,50 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 
             facts_html = f"""
             <aside class="floating-insight-widget">
-              <input type="checkbox" id="insight-min-toggle-{pid}" class="insight-toggle-input">
+              <input type="checkbox" id="insight-min-toggle-{pid}" class="insight-toggle-input" checked>
               {radios_str}
               <div class="insight-card-inner">
                 <div class="insight-card-topbar">
                   <span class="insight-card-title">💡 Did You Know?</span>
                   <label for="insight-min-toggle-{pid}" class="insight-min-btn"
-                    title="Minimize/Expand insight card">−</label>
+                    title="Minimize insight card">−</label>
                 </div>
                 <div class="insight-slides-container">
                   {slides_str}
                 </div>
                 {dots_html}
               </div>
-              <label for="insight-min-toggle-{pid}" class="insight-floating-pill">
+              <label for="insight-min-toggle-{pid}" class="insight-floating-pill" title="Click to view insights">
                 💡 Did You Know? ({num_facts})
               </label>
             </aside>
             """
 
-        safe_headline = html.escape(readiness["headline"])
+        safe_repo_path = html.escape(str(project.get("repo_path", "")))
+        proj_desc = extract_project_description(project.get("repo_path"))
+        desc_html = (
+            f'<p class="section-desc" style="font-size: 0.95rem; color: var(--text-main); margin: 0.25rem 0 0.35rem 0; line-height: 1.45;">'
+            f'{html.escape(proj_desc)}</p>'
+            if proj_desc
+            else ""
+        )
         content = f"""
         <div class="section-header">
           <h1 class="section-title">{pname}</h1>
-          <p class="section-subtitle">Folder: <code>{pfolder}</code> — {safe_headline}</p>
+          {desc_html}
+          <p class="section-subtitle">Folder: <code>{safe_repo_path}</code></p>
+          {tech_stack_html}
+          {tags_html}
         </div>
         <nav class="project-subnav">
           <a href="/p/{pid}/" class="active">Overview</a>
           <a href="/p/{pid}/concepts">Concept Log</a>
           <a href="/p/{pid}/docs">Docs</a>
+          <a href="/p/{pid}/about">About LearnLoop</a>
         </nav>
         {queue_hint}
         {stale_html}
         {due_html}
-        {tech_html}
         {''.join(bands_html)}
         {facts_html}
         """
@@ -975,6 +1030,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
           <a href="/p/{pid}/">Overview</a>
           <a href="/p/{pid}/concepts" class="active">Concept Log</a>
           <a href="/p/{pid}/docs">Docs</a>
+          <a href="/p/{pid}/about">About LearnLoop</a>
         </nav>
         <article class="markdown-body">
           {rendered_html}
@@ -1021,6 +1077,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
           <a href="/p/{pid}/">Overview</a>
           <a href="/p/{pid}/concepts">Concept Log</a>
           <a href="/p/{pid}/docs" class="active">Docs</a>
+          <a href="/p/{pid}/about">About LearnLoop</a>
         </nav>
         <div class="card" style="margin-top: 1rem;">
           {docs_list_html}
@@ -1062,6 +1119,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
           <a href="/p/{pid}/">Overview</a>
           <a href="/p/{pid}/concepts">Concept Log</a>
           <a href="/p/{pid}/docs">Docs</a>
+          <a href="/p/{pid}/about">About LearnLoop</a>
         </nav>
         <article class="markdown-body">
           {rendered_html}
@@ -1075,6 +1133,341 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             current_project_id=pid,
         )
         self._send_response_page(HTTPStatus.OK, body)
+
+    def _handle_about_learnloop(
+        self,
+        conn: sqlite3.Connection,
+        project: dict[str, Any],
+        all_projects: list[dict[str, str]],
+    ) -> None:
+        pid = project["id"]
+        pname = html.escape(project["name"])
+        content = self._render_about_learnloop_content(pid=pid, pname=pname)
+        body = self._wrap_layout(
+            f"About LearnLoop — {project['name']}",
+            content,
+            [("Home", "/"), (project["name"], f"/p/{pid}/"), ("About LearnLoop", "")],
+            all_projects,
+            current_project_id=pid,
+        )
+        self._send_response_page(HTTPStatus.OK, body)
+
+    def _handle_global_about(
+        self,
+        conn: sqlite3.Connection,
+        all_projects: list[dict[str, str]],
+    ) -> None:
+        content = self._render_about_learnloop_content(pid=None, pname=None)
+        body = self._wrap_layout(
+            "About LearnLoop",
+            content,
+            [("Home", "/"), ("About LearnLoop", "")],
+            all_projects,
+            current_project_id=None,
+        )
+        self._send_response_page(HTTPStatus.OK, body)
+
+    def _render_about_learnloop_content(self, pid: str | None, pname: str | None) -> str:
+        if pid and pname:
+            header_and_nav = f"""
+            <div class="section-header">
+              <h1 class="section-title">About LearnLoop</h1>
+              <p class="section-subtitle">
+                Project: <strong>{pname}</strong> — The AI Learning Companion that transforms AI-assisted coding into true technical mastery.
+              </p>
+            </div>
+            <nav class="project-subnav">
+              <a href="/p/{pid}/">Overview</a>
+              <a href="/p/{pid}/concepts">Concept Log</a>
+              <a href="/p/{pid}/docs">Docs</a>
+              <a href="/p/{pid}/about" class="active">About LearnLoop</a>
+            </nav>
+            """
+        else:
+            header_and_nav = """
+            <div class="section-header">
+              <h1 class="section-title">About LearnLoop</h1>
+              <p class="section-subtitle">
+                The AI Learning Companion that transforms AI-assisted coding into true technical mastery.
+              </p>
+            </div>
+            """
+
+        return f"""
+        {header_and_nav}
+        <div class="about-hero">
+          <div class="about-hero-title">💡 Why LearnLoop Exists</div>
+          <p class="about-hero-desc">
+            When an AI coding agent writes code that runs on the first try, reading it feels effortless.
+            This creates the <strong>AI Illusion of Competence</strong>: passive recognition masquerading as genuine mastery.
+            LearnLoop bridges this gap by tracking what the AI built against actual Git commits, capturing your intent,
+            and prompting short, targeted explain-backs so you can defend every decision with total confidence.
+          </p>
+        </div>
+
+        <section class="about-section">
+          <div class="about-section-header">
+            <span class="about-section-badge">Problem Statement</span>
+            <h2>The "AI Illusion of Competence"</h2>
+          </div>
+          <div class="about-grid-3">
+            <div class="about-card">
+              <div class="about-card-title">🧠 Passive Reading vs. Active Recall</div>
+              <div class="about-card-body">
+                Cognitive psychology proves that recognizing code activates shallow familiarity rather than deep retrieval.
+                Because an AI-generated solution looks obvious in hindsight, developers mistakenly believe they could build it themselves from scratch.
+              </div>
+            </div>
+            <div class="about-card">
+              <div class="about-card-title">🎙️ The Defense & Review Blindspot</div>
+              <div class="about-card-body">
+                In technical interviews, architecture reviews, and high-stakes production outages, the AI prompt box is absent.
+                Engineers who passively commit AI-written code often struggle to articulate trade-offs, edge cases, and architectural rationale.
+              </div>
+            </div>
+            <div class="about-card">
+              <div class="about-card-title">📦 Git's Comprehension Blindness</div>
+              <div class="about-card-body">
+                Traditional Git history records <em>what</em> code was merged, but has zero visibility into <em>who understands it</em>.
+                A commit history full of complex abstractions says nothing about whether the engineer owns the codebase.
+              </div>
+            </div>
+          </div>
+          <div class="about-quote">
+            “True technical mastery isn’t having working code in a repository—it’s being able to defend every architectural decision, concurrency lock, and trade-off without the AI.”
+          </div>
+        </section>
+
+        <section class="about-section">
+          <div class="about-section-header">
+            <span class="about-section-badge">Solution</span>
+            <h2>The LearnLoop Engine</h2>
+          </div>
+          <div class="about-grid-3">
+            <div class="about-card">
+              <div class="about-card-title">🛡️ Exposure vs. Mastery</div>
+              <div class="about-card-body">
+                <strong>Exposure</strong> (what the AI built) is automatically verified against concrete Git commits.
+                <strong>Mastery</strong> is proven through your own explain-backs and self-ratings.
+              </div>
+            </div>
+            <div class="about-card">
+              <div class="about-card-title">📍 Grounded in Real Files</div>
+              <div class="about-card-body">
+                Every concept in LearnLoop is anchored to physical filepaths (<code>src/...</code>) and commit SHAs—not abstract, disconnected textbook trivia.
+              </div>
+            </div>
+            <div class="about-card">
+              <div class="about-card-title">🔄 Derived Staleness Engine</div>
+              <div class="about-card-body">
+                When new commits touch files you previously explained, LearnLoop automatically flags them as <strong>Stale</strong>, prompting a quick refresh before mental decay sets in.
+              </div>
+            </div>
+            <div class="about-card">
+              <div class="about-card-title">📈 SM-2 Spaced Repetition</div>
+              <div class="about-card-body">
+                Utilizes the SuperMemo SM-2 interval algorithm to prompt review questions right when memory decay begins, converting fragile short-term insights into permanent long-term memory.
+              </div>
+            </div>
+            <div class="about-card">
+              <div class="about-card-title">☕ Calm & Non-Intrusive</div>
+              <div class="about-card-body">
+                Zero guilt trips, notifications, or gaming streaks. Morning briefings take ~60 seconds, and spaced reviews are pulled on demand whenever you have time.
+              </div>
+            </div>
+            <div class="about-card">
+              <div class="about-card-title">🔒 100% Local-First Privacy</div>
+              <div class="about-card-body">
+                All data resides in a local SQLite database (<code>~/.learnloop/learnloop.db</code>). No cloud telemetry, no code uploads, and a read-only zero-JS dashboard.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="about-section">
+          <div class="about-section-header">
+            <span class="about-section-badge">Reference</span>
+            <h2>Complete MCP Tool Suite</h2>
+          </div>
+          <div class="tools-table-container">
+            <table class="tools-table">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Tool Name</th>
+                  <th>Description & Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Onboarding & Tour</strong></td>
+                  <td><code>get_project_tour</code></td>
+                  <td>Generates an interactive, bounded architectural tour of entry points, directory structure, and core components from basic to advanced.</td>
+                </tr>
+                <tr>
+                  <td><strong>Onboarding & Tour</strong></td>
+                  <td><code>get_session_briefing</code></td>
+                  <td>Delivers a 60-second morning catch-up summarizing recent commits, explain-back readiness, and the single recommended next action.</td>
+                </tr>
+                <tr>
+                  <td><strong>Capture & Reconcile</strong></td>
+                  <td><code>start_skill_session</code></td>
+                  <td>Declares intent before coding, recording target files, skills involved, and the architectural <em>why</em> behind the change.</td>
+                </tr>
+                <tr>
+                  <td><strong>Capture & Reconcile</strong></td>
+                  <td><code>log_decision</code></td>
+                  <td>Logs deliberate architectural choices and trade-offs between concrete alternatives (e.g., PostgreSQL vs SQLite, Polling vs WebSockets).</td>
+                </tr>
+                <tr>
+                  <td><strong>Capture & Reconcile</strong></td>
+                  <td><code>ingest_queue</code></td>
+                  <td>Reconciles commit metadata deposited into <code>.learn/queue/</code> by the non-blocking Git post-commit hook against declared intents.</td>
+                </tr>
+                <tr>
+                  <td><strong>Knowledge & Mastery</strong></td>
+                  <td><code>register_knowledge_item</code></td>
+                  <td>Registers a key conceptual component, architectural pattern, or tricky bug fix anchored to tracked repository files (Basic, Intermediate, or Advanced).</td>
+                </tr>
+                <tr>
+                  <td><strong>Knowledge & Mastery</strong></td>
+                  <td><code>record_explanation</code></td>
+                  <td>Records your explain-back in your own words, paired with an honest 1–5 confidence rating to establish your comprehension baseline.</td>
+                </tr>
+                <tr>
+                  <td><strong>Knowledge & Mastery</strong></td>
+                  <td><code>list_stale_items</code></td>
+                  <td>Surfaces concepts whose underlying source files have been modified by newer Git commits since you last explained them.</td>
+                </tr>
+                <tr>
+                  <td><strong>Spaced Repetition</strong></td>
+                  <td><code>review_due</code></td>
+                  <td>Pulls knowledge items due for active review, scheduling retention checks according to the SuperMemo SM-2 algorithm.</td>
+                </tr>
+                <tr>
+                  <td><strong>Spaced Repetition</strong></td>
+                  <td><code>record_review</code></td>
+                  <td>Updates recall scores, intervals, and ease factors based on your answers to active review questions.</td>
+                </tr>
+                <tr>
+                  <td><strong>Spaced Repetition</strong></td>
+                  <td><code>snooze_item</code></td>
+                  <td>Politely defers an item when you are in flow or facing a deadline, without resetting your spaced repetition progress.</td>
+                </tr>
+                <tr>
+                  <td><strong>Discovery & Trivia</strong></td>
+                  <td><code>refresh_technologies</code></td>
+                  <td>Deterministically scans package manifests (<code>pyproject.toml</code>, <code>package.json</code>, etc.) to keep your tech stack up to date.</td>
+                </tr>
+                <tr>
+                  <td><strong>Discovery & Trivia</strong></td>
+                  <td><code>add_did_you_know</code></td>
+                  <td>Curates verified, sourced technical trivia, language origins, spec evolutions, or pop-culture connections for the floating companion.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="about-section">
+          <div class="about-section-header">
+            <span class="about-section-badge">Best Practices</span>
+            <h2>How to Use LearnLoop to Get the Most Out of It</h2>
+          </div>
+          <div class="about-workflow-list">
+            <div class="about-workflow-step">
+              <div class="step-num-pill">1</div>
+              <div class="step-content">
+                <h3>Start Every Session with a 60-Second Briefing</h3>
+                <p>
+                  Before writing any new code, ask your agent: <em>“Give me the session briefing”</em> or run <code>learnloop briefing</code> in your terminal.
+                  Review recent commits and take care of the single recommended review question if one is due.
+                </p>
+              </div>
+            </div>
+            <div class="about-workflow-step">
+              <div class="step-num-pill">2</div>
+              <div class="step-content">
+                <h3>Take the Codebase Tour When Onboarding</h3>
+                <p>
+                  When starting a new project or returning after a break, ask: <em>“Give me a tour of this project”</em>.
+                  LearnLoop will walk you through entry points, configuration manifests, and core abstractions from simple to complex.
+                </p>
+              </div>
+            </div>
+            <div class="about-workflow-step">
+              <div class="step-num-pill">3</div>
+              <div class="step-content">
+                <h3>Have Your Agent Declare Intent & Log Architectural Decisions</h3>
+                <p>
+                  Before your AI writes a substantial piece of code, ensure it calls <code>start_skill_session</code> with the files to touch and why.
+                  When choosing between alternatives (e.g. libraries, database schemas, API styles), ensure it calls <code>log_decision</code>.
+                  Months from now, you’ll never have to wonder why an architectural path was taken.
+                </p>
+              </div>
+            </div>
+            <div class="about-workflow-step">
+              <div class="step-num-pill">4</div>
+              <div class="step-content">
+                <h3>Commit Frequently: Git is the Proof of Outcome</h3>
+                <p>
+                  Never log what the agent merely "attempted" as learning. LearnLoop verifies exposure only when you commit code.
+                  The silent Git post-commit hook logs commits into <code>.learn/queue/</code> without adding any latency to your Git workflow.
+                </p>
+              </div>
+            </div>
+            <div class="about-workflow-step">
+              <div class="step-num-pill">5</div>
+              <div class="step-content">
+                <h3>Explain It Back in Your Own Words</h3>
+                <p>
+                  Whenever an important component is completed or a subtle bug is resolved, register it with <code>register_knowledge_item</code>.
+                  Then take 60 seconds to explain how it works in your own words using <code>record_explanation</code>.
+                  Self-rating your confidence (1 to 5) turns passive AI code delivery into active cognitive synthesis.
+                </p>
+              </div>
+            </div>
+            <div class="about-workflow-step">
+              <div class="step-num-pill">6</div>
+              <div class="step-content">
+                <h3>Practice Spaced Reviews & Mock Interviews</h3>
+                <p>
+                  Once a week or before an upcoming interview or team demo, ask your agent: <em>“Review due concepts with me”</em> or <em>“Run a mock interview on this project”</em>.
+                  Your AI will ask targeted questions one at a time, test your understanding, and cement the knowledge into long-term recall.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="about-section">
+          <div class="about-section-header">
+            <span class="about-section-badge">Security & Architecture</span>
+            <h2>Security, Privacy & Local-First Design</h2>
+          </div>
+          <div class="about-grid-3">
+            <div class="about-card">
+              <div class="about-card-title">🔐 Strict Read-Only Dashboard</div>
+              <div class="about-card-body">
+                The local web dashboard (<code>127.0.0.1:8765</code>) connects to SQLite with <code>?mode=ro</code>.
+                It uses a zero-JavaScript architecture, strict Content Security Policy (<code>default-src 'none'</code>), and mandatory HTML escaping.
+              </div>
+            </div>
+            <div class="about-card">
+              <div class="about-card-title">🛡️ Secret Redaction Engine</div>
+              <div class="about-card-body">
+                LearnLoop applies automated regex sanitization across free-text explanations and commit messages to prevent accidental logging of API keys, bearer tokens, and credentials.
+              </div>
+            </div>
+            <div class="about-card">
+              <div class="about-card-title">📄 Pure Markdown Artifacts</div>
+              <div class="about-card-body">
+                Zero proprietary lock-in. LearnLoop atomically generates clean, portable Markdown files in your repository’s <code>.learn/concepts.md</code> and <code>.learn/docs/</code>.
+              </div>
+            </div>
+          </div>
+        </section>
+        """
 
 
 class DashboardServer(http.server.ThreadingHTTPServer):

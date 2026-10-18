@@ -15,7 +15,7 @@ from learnloop.capture.techscan import redact_credentials
 from learnloop.domain.errors import ValidationError
 from learnloop.services.capture_service import require_project
 
-MAX_DAILY_FACTS = 5
+MAX_DAILY_FACTS = 10
 
 
 def validate_source_url(url: str) -> str:
@@ -192,7 +192,7 @@ def add_did_you_know(
     }
 
 
-def list_facts(conn: sqlite3.Connection, project_id: str, limit: int = 3) -> list[dict[str, Any]]:
+def list_facts(conn: sqlite3.Connection, project_id: str, limit: int = 10) -> list[dict[str, Any]]:
     """Return latest facts for a project in deterministic order."""
     rows = conn.execute(
         "SELECT id, project_id, topic, fact, source_url, source_title, retrieved_at, technology, created_at "

@@ -144,3 +144,97 @@ def flag_misunderstanding(
         "SELECT count FROM mistakes WHERE skill_id=? AND pattern=?", (skill, pattern)
     ).fetchone()
     return {"skill": skill, "pattern": pattern, "count": row["count"]}
+
+
+def start_skill_session_v2(
+    conn: sqlite3.Connection,
+    project_id: str,
+    session_id: str,
+    intent_description: str,
+    files: list[str],
+    skills: list[str] | None = None,
+    intent_id: str | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Create intent record using new intent_records schema with session_id.
+    
+    This is the MCP-native implementation that uses the intent_records table
+    with proper session tracking.
+    
+    Args:
+        conn: Database connection
+        project_id: Project ID
+        session_id: MCP session identifier
+        intent_description: What the user intends to implement
+        files: List of file paths to be modified (required, non-empty)
+        skills: Optional list of skill identifiers
+        intent_id: Optional intent ID for idempotency
+        now: Optional timestamp for testing
+    
+    Returns:
+        Dict with intent_id, created status, and intent status
+    
+    Raises:
+        ValidationError: If validation fails
+    
+    Requirements:
+        - 4.1: Create IntentRecord when user calls start_skill_session
+        - 4.2: Capture intent description, file list, and skills  
+        - 4.3: Mark with status "open" upon creation
+        - 4.4: Store session_id and timestamp
+        - 4.5: Allow multiple open intents per project
+        - 4.6: Respond in under 50ms
+    """
+    require_project(conn, project_id)
+    
+    # Validate inputs (Requirement 4.2)
+    if not intent_description or not intent_description.strip():
+        raise ValidationError("intent_description must not be empty")
+    
+    if not files or len(files) == 0:
+        raise ValidationError("files list must not be empty (Requirement 4.2)")
+    
+    if len(files) > 50:
+        raise ValidationError("files list cannot exceed 50 items")
+    
+    # Normalize inputs
+    skills_list = skills or []
+    if skills_list:
+        validate_skills(conn, skills_list)
+    
+    normalised_files: list[str] = []
+    if files:
+        normalised_files = list(dict.fromkeys(normalise_path(f) for f in files))
+    
+    # Generate or use provided intent ID for idempotency
+    iid = intent_id or _new_id()
+    
+    # Check if already exists (idempotent)
+    existing = conn.execute(
+        "SELECT id, status FROM intent_records WHERE id=?", (iid,)
+    ).fetchone()
+    if existing:
+        return {"intent_id": iid, "created": False, "status": existing["status"]}
+    
+    # Create intent with OPEN status (Requirements 4.3, 4.4)
+    created_at = clock.iso(now or clock.utcnow())
+    conn.execute(
+        """
+        INSERT INTO intent_records 
+        (id, session_id, project_id, intent_description, files_json, skills_json, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            iid,
+            session_id,
+            project_id,
+            intent_description,
+            json.dumps(normalised_files),
+            json.dumps(skills_list),
+            "open",
+            created_at,
+        ),
+    )
+    conn.commit()
+    
+    return {"intent_id": iid, "created": True, "status": "open"}

@@ -19,6 +19,10 @@ from learnloop.domain.staleness import compute_item_staleness
 from learnloop.journal.concept_log import regenerate_concept_log
 from learnloop.services.capture_service import require_project
 from learnloop.services.profile_service import get_effective_profile
+from learnloop.services.explanation_service import (
+    calculate_explanation_depth,
+    generate_quality_feedback,
+)
 
 VALID_KINDS = {"component", "decision", "concept", "bug-fix"}
 VALID_BANDS = {"basic", "intermediate", "advanced"}
@@ -251,6 +255,14 @@ def record_explanation(
     profile = get_effective_profile(conn, project_id)
     now_s = clock.iso(now or clock.utcnow())
     redacted_text = redact(cleaned_text)
+    
+    # Calculate explanation depth score (0.0-1.0) based on text analysis
+    # Requirements: 10.3, 10.4
+    explanation_depth_score = calculate_explanation_depth(cleaned_text)
+    
+    # Generate quality feedback if depth is low
+    # Requirement: 10.7
+    quality_feedback = generate_quality_feedback(explanation_depth_score, self_rating)
 
     # Determine status & depth transitions
     new_status = "explained" if score >= 0.8 else "shaky"
@@ -340,7 +352,7 @@ def record_explanation(
 
     written = regenerate_concept_log(conn, project_id, project["repo_path"])
 
-    return {
+    result = {
         "explanation_id": rec_exp_id,
         "item_id": item_id,
         "key": item["key"],
@@ -352,7 +364,14 @@ def record_explanation(
         "baseline_committed_at": baseline_committed_at,
         "created": True,
         "concept_log_written": written,
+        "explanation_depth_score": explanation_depth_score,  # Requirement: 10.4
     }
+    
+    # Add quality feedback if needed (Requirement: 10.7)
+    if quality_feedback["needs_improvement"]:
+        result["quality_feedback"] = quality_feedback
+    
+    return result
 
 
 def list_items(
@@ -509,3 +528,79 @@ def list_stale_items(
         "stale_items": stale_items,
         "count": len(stale_items),
     }
+
+
+def generate_item_explanation_prompt(
+    conn: sqlite3.Connection,
+    project_id: str,
+    key: str,
+    max_context_lines: int = 50,
+) -> dict[str, Any]:
+    """Generate explanation prompt for a knowledge item.
+    
+    Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8
+    
+    Args:
+        conn: Database connection
+        project_id: Project ID
+        key: Knowledge item key
+        max_context_lines: Maximum lines of code context to include (default 50)
+        
+    Returns:
+        dict with prompt text, questions, and metadata
+        
+    Raises:
+        NotFoundError: If knowledge item not found
+    """
+    from learnloop.services.explanation_service import generate_explanation_prompt
+    
+    require_project(conn, project_id)
+    
+    # Fetch the knowledge item
+    item = conn.execute(
+        "SELECT * FROM knowledge_items WHERE project_id=? AND key=?",
+        (project_id, key.strip()),
+    ).fetchone()
+    
+    if not item:
+        raise NotFoundError(f"Knowledge item with key {key!r} not found in project {project_id!r}.")
+    
+    # Fetch tracked files from item_files table
+    files_rows = conn.execute(
+        "SELECT path FROM item_files WHERE item_id=? ORDER BY path",
+        (item["id"],)
+    ).fetchall()
+    files = [row["path"] for row in files_rows]
+    
+    # Try to extract code context from tracked files
+    # Requirement: 8.2 - Extract code snippets from exposure files (max 50 lines)
+    code_context = None
+    if files:
+        try:
+            # Get the first file's content as context
+            first_file = Path(files[0])
+            if first_file.exists() and first_file.is_file():
+                with open(first_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    lines = f.readlines()
+                    # Limit to max_context_lines
+                    if len(lines) > max_context_lines:
+                        code_context = ''.join(lines[:max_context_lines])
+                    else:
+                        code_context = ''.join(lines)
+        except (OSError, IOError):
+            # If file read fails, continue without context
+            pass
+    
+    # Generate the prompt
+    # Requirements: 8.3, 8.4, 8.5, 8.6, 8.7, 8.8
+    prompt_data = generate_explanation_prompt(
+        item_key=item["key"],
+        item_title=item["title"],
+        item_kind=item["kind"],
+        item_band=item["band"],
+        tracked_files=files,
+        code_context=code_context,
+        max_context_lines=max_context_lines,
+    )
+    
+    return prompt_data

@@ -115,3 +115,24 @@ def register(mcp: FastMCP, db: Db) -> None:
         Resolves default project if omitted. Never computes scores or percentages."""
         with db() as conn:
             return readiness_service.get_project_readiness(conn, project_id=project_id)
+    
+    @mcp.tool()
+    def generate_explanation_prompt(
+        project_id: str,
+        key: ItemKey,
+        max_context_lines: Annotated[int, Field(ge=10, le=100)] = 50,
+    ) -> dict[str, Any]:
+        """Generate an explanation prompt for a knowledge item.
+        
+        Creates depth-appropriate questions (2-4) tailored to the item's complexity band.
+        Includes code context (max 50 lines by default) and self-rating guidance (1-5 scale).
+        
+        Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8
+        """
+        with db() as conn:
+            return knowledge_service.generate_item_explanation_prompt(
+                conn,
+                project_id=project_id,
+                key=key,
+                max_context_lines=max_context_lines,
+            )

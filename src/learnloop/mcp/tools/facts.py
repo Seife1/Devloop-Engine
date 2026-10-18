@@ -25,11 +25,15 @@ def register(mcp: FastMCP, db: Db) -> None:
         retrieved_at: str,
         technology: str | None = None,
     ) -> dict[str, Any]:
-        """Record an interesting, verified technical fact connected to a project technology.
+        """Record a captivating, verified insight connected to a project technology, architecture, or history.
+
+        Trigger whenever the user adds/updates technology, scales the project, or makes key technical decisions.
+        Uncovers living spec evolution (e.g. deprecations/upgrades), creator origin stories & computing lore,
+        or pop-culture/historical media crossovers (movies, anime, books, real-world lore) to create an "Aha!" moment.
 
         Protocol requirement: You MUST fetch and read the source using your own web tools BEFORE
-        calling this tool. Write the fact in your own words. The source_url must be HTTPS with a valid
-        domain host (no userinfo, not localhost or IP literals). Max 5 facts per project per UTC day.
+        calling this tool. Write the fact in your own engaging words (max 300 chars). The source_url
+        must be HTTPS with a valid domain host (no userinfo, not localhost or IP literals).
         """
         with db() as conn:
             return fact_service.add_did_you_know(

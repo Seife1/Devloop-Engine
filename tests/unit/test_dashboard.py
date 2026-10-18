@@ -151,11 +151,13 @@ def test_dashboard_security_headers_on_all_routes(dashboard_env):
 
     routes = [
         "/",
+        "/about",
         f"/p/{id_a}/",
         f"/p/{id_a}/items/key_a1",
         f"/p/{id_a}/concepts",
         f"/p/{id_a}/docs",
         f"/p/{id_a}/docs/guide.md",
+        f"/p/{id_a}/about",
         "/static/app.css",
     ]
 
@@ -307,7 +309,12 @@ def test_dashboard_never_exposes_full_repo_path(dashboard_env):
     id_a = dashboard_env["id_a"]
     repo_a = str(dashboard_env["repo_a"])
 
-    for route in ["/", f"/p/{id_a}/", f"/p/{id_a}/items/key_a1", f"/p/{id_a}/concepts", f"/p/{id_a}/docs"]:
+    # Overview header explicitly displays the absolute folder path per user specification
+    _, _, body_overview = _request(port, "GET", f"/p/{id_a}/")
+    assert repo_a in body_overview
+
+    # Secondary routes do not leak the full repo path
+    for route in ["/", "/about", f"/p/{id_a}/items/key_a1", f"/p/{id_a}/concepts", f"/p/{id_a}/docs", f"/p/{id_a}/about"]:
         _, _, body = _request(port, "GET", route)
         assert repo_a not in body, f"Full repo path leaked in {route}"
         # Folder basename is allowed
@@ -457,5 +464,33 @@ def test_dashboard_concurrent_mcp_write_and_dashboard_read(dashboard_env):
 
     assert not write_errors, f"Write errors occurred during concurrent read/write: {write_errors}"
     assert not read_errors, f"Read errors occurred during concurrent read/write: {read_errors}"
+
+
+def test_dashboard_about_learnloop_tab(dashboard_env):
+    port = dashboard_env["port"]
+    id_a = dashboard_env["id_a"]
+
+    # 1. Project-level About tab
+    status, _, body = _request(port, "GET", f"/p/{id_a}/about")
+    assert status == 200
+    assert "About LearnLoop" in body
+    assert "AI Illusion of Competence" in body
+    assert "Exposure vs. Mastery" in body
+    assert "Complete MCP Tool Suite" in body
+    assert "get_project_tour" in body
+    assert "How to Use LearnLoop to Get the Most Out of It" in body
+    assert f'<a href="/p/{id_a}/about" class="active">About LearnLoop</a>' in body
+
+    # 2. Check that overview subnav also includes the About tab link
+    status_ov, _, body_ov = _request(port, "GET", f"/p/{id_a}/")
+    assert status_ov == 200
+    assert f'<a href="/p/{id_a}/about">About LearnLoop</a>' in body_ov
+
+    # 3. Global /about route
+    status_g, _, body_g = _request(port, "GET", "/about")
+    assert status_g == 200
+    assert "About LearnLoop" in body_g
+    assert "AI Illusion of Competence" in body_g
+
 
 

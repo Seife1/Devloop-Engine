@@ -411,8 +411,8 @@ def test_dashboard_renders_technologies_and_escapes_xss(tmp_path: Path):
         body = resp.read().decode("utf-8")
         http_conn.close()
 
-        # Technologies panel present
-        assert "Technologies &amp; References" in body or "Technologies & References" in body
+        # Project tech stack in header present
+        assert "project-tech-stack" in body
         assert "react" in body
         assert "[package.json]" in body
 

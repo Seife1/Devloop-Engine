@@ -23,15 +23,29 @@ Mock Interview Protocol:
 
 DID_YOU_KNOW_PROTOCOL = """\
 Did You Know Fact Protocol:
-1. Identify a technology, library, or architectural concept used in this project
-   (e.g. from refresh_technologies or list_items).
-2. Using your OWN web tools, retrieve and read an official source (documentation, RFC,
-   release notes, or project specification).
-3. Verify that the webpage explicitly states the fact. If the page does not substantiate
-   the claim, discard it.
-4. If you lack web access or web tools, state so clearly and add NOTHING. Never invent or guess a URL.
-5. Formulate the fact in your own words (maximum 300 characters). Do not copy copyrighted text verbatim.
-6. Record the fact using add_did_you_know(
+Trigger: Whenever the user updates the project, scales up, introduces a new technology/library,
+refactors, or makes an architectural decision, proactively uncover and record a captivating,
+verified insight to spark curiosity and delight ("Aha!" moment).
+
+Focus Areas (Choose what best matches the moment):
+1. Living Evolution & Modern Upgrades: Breaking specification changes, modern migrations, and
+   deprecations vs new standards (e.g., SSE transport deprecated in favor of Streamable HTTP in MCP).
+2. Origin Stories & Computing History: The creator behind the language/tool, why it was built,
+   fascinating historical circumstances, or serendipitous accidents (e.g., Guido van Rossum creating
+   Python during Christmas 1989 because he was bored; Richard Hipp creating SQLite on a US Navy
+   destroyer so damage-control software wouldn't crash when Oracle network sockets failed).
+3. Pop Culture, Media & Lore Crossovers: Real-world hacker lore, seminal articles, iconic movies
+   (Mr. Robot, WarGames, The Matrix), anime (Ghost in the Shell, Lain), or literature (The Cuckoo's
+   Egg, Cryptonomicon) connected to the technical domain (cybersecurity, cryptography, systems, AI).
+4. Developer Context Match: Welcoming historical sparks for new languages/beginners, deep
+   architectural insights for complex refactors.
+
+Verification & Recording Rules:
+1. Identify the relevant technology, architectural concept, or cultural domain in the project.
+2. Using your OWN web tools, retrieve and verify an official documentation page, RFC, historical
+   archive, or authoritative source.
+3. Formulate the insight in your own engaging words (maximum 300 characters). Never invent or guess URLs.
+4. Call add_did_you_know(
      project_id=...,
      topic=...,
      fact=...,
@@ -43,6 +57,7 @@ Did You Know Fact Protocol:
    The source_url must strictly use HTTPS with a valid domain host (no userinfo,
    not localhost or IP literals).\
 """
+
 
 
 def register(mcp: FastMCP) -> None:
@@ -98,11 +113,14 @@ def register(mcp: FastMCP) -> None:
             f"{INTERVIEW_PROTOCOL}"
         )
 
-    @mcp.prompt(name="did-you-know", description="Discover and record a sourced, verified technical fact")
+    @mcp.prompt(
+        name="did-you-know",
+        description="Discover and record a captivating, verified insight (modern specs, origin lore, pop-culture/media crossovers)",
+    )
     def did_you_know(project_id: str = "") -> str:
         call = f"refresh_technologies(project_id={project_id!r})" if project_id else "refresh_technologies()"
         return (
-            f"Discover and record an interesting, verified technical fact connected to this project.\n"
+            f"Discover and record an engaging, verified insight (living evolution, origin lore, or cultural crossovers).\n"
             f"First check project technologies with {call} or list_items().\n\n"
             f"{DID_YOU_KNOW_PROTOCOL}"
         )

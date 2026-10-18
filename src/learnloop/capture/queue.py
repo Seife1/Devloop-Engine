@@ -55,7 +55,20 @@ def write_queue_entry(
 
 
 def ingest(conn: sqlite3.Connection, settings: Settings, project_id: str, repo: Path) -> dict[str, int]:
-    """Server side. Redacts again, dedupes by sha, quarantines bad files instead of crashing."""
+    """Server side. Redacts again, dedupes by sha, quarantines bad files instead of crashing.
+    
+    Requirements: 7.1, 24.7
+    
+    This function implements commit queue processing:
+    1. Read JSON files from .learn/queue/
+    2. Parse commit metadata with error handling
+    3. Create commit records in database
+    4. Create Queue_Entry records for reconciliation tracking
+    5. Delete processed queue files after successful ingestion
+    
+    The Queue_Entry records enable reconciliation to track which commits have been
+    matched with intents. They are marked as processed after reconciliation.
+    """
     stats = {"ingested": 0, "duplicates": 0, "rejected": 0}
     d = queue_dir(repo)
     if not d.is_dir():
@@ -93,7 +106,21 @@ def ingest(conn: sqlite3.Connection, settings: Settings, project_id: str, repo: 
                 ),
             )
 
-            stats["ingested" if cur.rowcount else "duplicates"] += 1
+            if cur.rowcount:
+                # Create Queue_Entry record for reconciliation (Requirement 7.1)
+                # This enables tracking which commits have been processed/matched with intents
+                import uuid
+                queue_entry_id = str(uuid.uuid4())
+                conn.execute(
+                    "INSERT OR IGNORE INTO queue_entries "
+                    "(id, project_id, commit_sha, processed, created_at) "
+                    "VALUES (?, ?, ?, 0, datetime('now'))",
+                    (queue_entry_id, project_id, sha),
+                )
+                stats["ingested"] += 1
+            else:
+                stats["duplicates"] += 1
+
             conn.commit()
             path.unlink()
         except Exception as exc:  # noqa: BLE001 - one bad file must not block the rest

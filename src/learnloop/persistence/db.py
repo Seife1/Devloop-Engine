@@ -48,6 +48,17 @@ def migrate(conn: sqlite3.Connection, path: Path | None = None) -> None:
         conn.executescript(f.read_text("utf-8"))
         conn.execute(f"PRAGMA user_version={version}")
         conn.commit()
+        
+        # Run Python-based migrations if they exist
+        if version == 14:
+            try:
+                from learnloop.persistence.migrations import migration_014_mcp_native_helpers
+                migration_014_mcp_native_helpers.apply_python_migrations(conn)
+                log.info("Applied Python migrations for version 14")
+            except ImportError:
+                log.warning("Python migrations for version 14 not found")
+            except Exception as e:
+                log.error(f"Failed to apply Python migrations for version 14: {e}")
 
 
 def seed_taxonomy(conn: sqlite3.Connection) -> None:
