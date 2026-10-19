@@ -238,9 +238,9 @@ def test_migration_from_v2_to_latest_preserves_all_data(tmp_path: Path):
     # Run migrations to latest version
     migrate(conn, db_path)
 
-    # Assert latest user_version (13 for v0.5.3)
+    # Assert latest user_version (14 for v0.5.3 + MCP-native redesign)
     new_version = conn.execute("PRAGMA user_version").fetchone()[0]
-    assert new_version == 13
+    assert new_version == 14
 
     # 1. Assert no row is lost or altered
     assert conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 1
@@ -372,9 +372,9 @@ def test_migration_005_to_006(tmp_path: Path):
     )
     conn.commit()
 
-    # Apply migration 006 (migrate will also apply 007-013)
+    # Apply migration 006 (migrate will also apply 007-014)
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
 
     row = conn.execute("SELECT origin FROM commits WHERE sha='c1'").fetchone()
     assert row["origin"] == "hook"
@@ -410,7 +410,7 @@ def test_migration_006_to_007(tmp_path: Path):
     conn.commit()
 
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
 
     # Verify learner_profile initialized
     prof = conn.execute("SELECT * FROM learner_profile WHERE id=1").fetchone()
@@ -532,7 +532,7 @@ def test_migration_007_to_008(tmp_path: Path):
     conn.commit()
 
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
 
     # Verify last_briefing_at column exists
     p = conn.execute("SELECT * FROM projects WHERE id='p1'").fetchone()
@@ -767,7 +767,7 @@ def test_migration_008_to_009(tmp_path: Path):
 
     # Migrate v8 -> v9
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
 
     # Verify all 21 tables still have rows
     for tbl in all_21_tables:
@@ -846,7 +846,7 @@ def test_migration_009_to_010_cleans_legacy_snapshots(tmp_path: Path):
 
     # Migrate to v10+
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
 
     # Check foreign keys pass
     fk_errors = conn.execute("PRAGMA foreign_key_check").fetchall()
@@ -907,7 +907,7 @@ def test_migration_010_to_011_project_scoping_and_ratings(tmp_path: Path):
     conn.commit()
 
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
 
     # Verify project_profile table exists and works
     conn.execute(
@@ -970,7 +970,7 @@ def test_migration_011_to_012_project_technologies(tmp_path: Path):
     conn.commit()
 
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
 
     # Verify project_technologies table exists and works
     conn.execute(
@@ -1024,7 +1024,7 @@ def test_migration_012_to_013_project_facts(tmp_path: Path):
     conn.commit()
 
     migrate(conn, db_path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 14
 
     # Verify project_facts table exists and works
     conn.execute(

@@ -29,6 +29,8 @@ IGNORED_GLOBS = (
     "*.sqlite",
     "*.db",
     ".learn/*",
+    "node_modules/*",
+    "node_modules",
 )
 
 _PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -50,5 +52,6 @@ def redact(text: str) -> str:
 
 
 def is_ignored(path: str) -> bool:
-    name = path.rsplit("/", 1)[-1]
-    return any(fnmatch.fnmatch(path, g) or fnmatch.fnmatch(name, g) for g in IGNORED_GLOBS)
+    norm = path.replace("\\", "/")
+    name = norm.rsplit("/", 1)[-1]
+    return any(fnmatch.fnmatch(norm, g) or fnmatch.fnmatch(name, g) for g in IGNORED_GLOBS)

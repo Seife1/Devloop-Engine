@@ -492,10 +492,21 @@ async def test_update_exposure_explanation(temp_db, sample_project_data):
         skills=["skill1"],
     )
     
+    commit_sha = "a" * 40
+    async with temp_db._get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO commits (sha, project_id, message, files, committed_at, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (commit_sha, str(project.id), "Test commit", json.dumps(["file.py"]), datetime.now(timezone.utc).isoformat(), "new")
+        )
+        await conn.commit()
+    
     exposure = await temp_db.create_exposure(
         project_id=project.id,
         intent_id=intent.id,
-        commit_sha="a" * 40,
+        commit_sha=commit_sha,
         skills=["skill1"],
         files=["file.py"],
     )
@@ -521,10 +532,21 @@ async def test_update_exposure_explanation_invalid_depth(temp_db, sample_project
         skills=["skill1"],
     )
     
+    commit_sha = "a" * 40
+    async with temp_db._get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO commits (sha, project_id, message, files, committed_at, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (commit_sha, str(project.id), "Test commit", json.dumps(["file.py"]), datetime.now(timezone.utc).isoformat(), "new")
+        )
+        await conn.commit()
+    
     exposure = await temp_db.create_exposure(
         project_id=project.id,
         intent_id=intent.id,
-        commit_sha="a" * 40,
+        commit_sha=commit_sha,
         skills=["skill1"],
         files=["file.py"],
     )
@@ -546,11 +568,22 @@ async def test_get_exposures_without_explanation(temp_db, sample_project_data):
         skills=["skill1"],
     )
     
+    commit_sha = "a" * 40
+    async with temp_db._get_connection() as conn:
+        await conn.execute(
+            """
+            INSERT INTO commits (sha, project_id, message, files, committed_at, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (commit_sha, str(project.id), "Test commit", json.dumps(["file.py"]), datetime.now(timezone.utc).isoformat(), "new")
+        )
+        await conn.commit()
+    
     # Create exposure without explanation
     await temp_db.create_exposure(
         project_id=project.id,
         intent_id=intent.id,
-        commit_sha="a" * 40,
+        commit_sha=commit_sha,
         skills=["skill1"],
         files=["file.py"],
     )

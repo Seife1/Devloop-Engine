@@ -126,8 +126,7 @@ CREATE TABLE IF NOT EXISTS review_schedules (
 );
 CREATE INDEX IF NOT EXISTS idx_review_schedules_due ON review_schedules(due_at);
 CREATE INDEX IF NOT EXISTS idx_review_schedules_item ON review_schedules(item_id);
-CREATE INDEX IF NOT EXISTS idx_review_schedules_due_query ON review_schedules(due_at, snoozed_until) 
-  WHERE snoozed_until IS NULL OR snoozed_until <= datetime('now');
+CREATE INDEX IF NOT EXISTS idx_review_schedules_due_query ON review_schedules(due_at, snoozed_until);
 
 
 -- ============================================================================

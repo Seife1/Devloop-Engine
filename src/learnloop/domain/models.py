@@ -7,7 +7,7 @@ with built-in validation rules to ensure data integrity.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Final
 
@@ -198,7 +198,7 @@ def create_initial_review_schedule(
     import uuid
     from datetime import timedelta
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     due = now + timedelta(days=1)
 
     return ReviewSchedule(
@@ -247,8 +247,9 @@ class ExposureRecord:
             raise ValidationError(f"commit_sha must be 40 hex characters, got: {self.commit_sha}")
 
         # Validate verified_at timestamp not in future
-        now = datetime.utcnow()
-        if self.verified_at > now:
+        now = datetime.now(timezone.utc)
+        v_at = self.verified_at if self.verified_at.tzinfo is not None else self.verified_at.replace(tzinfo=timezone.utc)
+        if v_at > now:
             raise ValidationError("verified_at cannot be in the future")
 
         # Validate explanation depth constraints (Requirements 23.6, 23.7)

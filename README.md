@@ -25,7 +25,54 @@ Agent/Learner --> register_knowledge_item --> concepts.md
 git commits   --> staleness detection     --> list_stale_items
 ```
 
-## Quick start
+## 🚀 Quick Start (Universal Integration)
+
+**No file copying needed!** LearnLoop works in ANY IDE/terminal automatically.
+
+### One-Command Setup:
+```bash
+# Install LearnLoop
+pip install -e ".[dev]"
+
+# Navigate to your project
+cd your-project
+
+# Initialize with universal integration
+learnloop init --integrate
+
+# OR do it step by step
+learnloop init
+learnloop integrate --all
+```
+
+### What This Does Automatically:
+- ✅ **Detects your IDE** (VS Code, Cursor, Claude, WindSurf, Zed)
+- ✅ **Configures MCP settings** for AI assistants
+- ✅ **Adds LearnLoop rules** to IDE configs
+- ✅ **Creates terminal shortcuts** (`learnloop-tools`)
+- ✅ **Sets up environment aliases** (`llb`, `llr`, `lld`)
+
+### Terminal Usage (Anywhere):
+```bash
+# Get session briefing
+learnloop-tools briefing
+
+# Start work session
+learnloop-tools start-session "Implement feature" "file1.py,file2.py"
+
+# Review knowledge
+learnloop-tools review
+
+# Open dashboard
+learnloop-tools dashboard
+
+# See all commands
+learnloop-tools help
+```
+
+## 🔧 Manual Setup (Optional)
+
+If you prefer manual configuration:
 
 ```bash
 pip install -e ".[dev]"
@@ -34,73 +81,243 @@ cd your-project && learnloop init # creates .learn/, installs the post-commit ho
 learnloop backfill                # backfills pre-existing commits into .learn/queue
 ```
 
-Add to your IDE's MCP config:
+For IDE integration:
 
-```json
-{ "mcpServers": { "learnloop": { "command": "learnloop" } } }
+```bash
+# Auto-integrate with detected IDE
+learnloop integrate --ide auto
+
+# Or specify IDE
+learnloop integrate --ide vscode
+learnloop integrate --ide cursor
+learnloop integrate --ide claude
 ```
 
-Then paste `integrations/rules/CLAUDE.md.template` into your `CLAUDE.md` / `.cursorrules` so the agent
-actually calls the tools.
+## 📋 CLI Commands
 
-## CLI Commands
+### Core Commands:
+- `learnloop init [--repo .] [--integrate]`: Initialize `.learn/` with optional IDE integration
+- `learnloop integrate [--ide auto|vscode|cursor|claude|windsurf|zed|all] [--terminal] [--env] [--all]`: Universal integration
+- `learnloop record-commit [--repo .]`: Record recent commit metadata (called by git hook)
+- `learnloop backfill [--repo .] [--limit 50]`: Ingest existing commit history
+- `learnloop concepts [--repo .]`: Regenerate `.learn/concepts.md`
+- `learnloop review [--repo .]`: Interactive spaced repetition review
+- `learnloop briefing [--repo .]`: Session-start briefing
+- `learnloop doctor`: Verify database, taxonomy, hooks
+- `learnloop dashboard [--port 8765]`: Web dashboard on `127.0.0.1:8765`
+- `learnloop techscan [--repo .]`: Scan repository dependencies
 
-- `learnloop`: Start the MCP server over stdio.
-- `learnloop init [--repo .]`: Initialize `.learn/` and install the post-commit git hook.
-- `learnloop record-commit [--repo .]`: Record recent commit metadata to `.learn/queue/` (called by git hook).
-- `learnloop backfill [--repo .] [--limit 50]`: Ingest existing commit history into the queue.
-- `learnloop concepts [--repo .]`: Regenerate `.learn/concepts.md` from registered items.
-- `learnloop review [--repo .]`: Conduct an interactive command-line spaced review session.
-- `learnloop briefing [--repo .]`: Output today's session-start briefing in the terminal.
-- `learnloop doctor`: Verify database migrations, taxonomy seeds, and git hooks.
-- `learnloop dashboard [--port 8765]`: Start the local read-only web dashboard on `127.0.0.1:8765`.
-- `learnloop techscan [--repo .]`: Deterministically scan repository dependencies and technologies.
+### Terminal Shortcuts (after `learnloop integrate --terminal`):
+- `learnloop-tools briefing`: Get session update
+- `learnloop-tools start-session`: Start work session
+- `learnloop-tools review`: Review knowledge
+- `learnloop-tools register`: Register knowledge item
+- `learnloop-tools dashboard`: Open dashboard
+- `learnloop-tools integrate`: Integrate with IDEs
 
-## Tools (v0.5.3)
+### Environment Aliases (after sourcing):
+- `llb`: Get briefing
+- `llr`: Start review  
+- `lld`: Open dashboard
 
-- **Technologies & Facts:** `refresh_technologies` · `add_did_you_know`
-- **Knowledge Items & Readiness:** `register_knowledge_item` · `record_explanation` (with optional `self_rating`) · `list_items` · `list_stale_items` · `get_project_readiness`
-- **Tour & Review:** `get_project_tour` · `review_due` · `record_review` · `snooze_review` · `get_session_briefing`
-- **Capture & Git Reconcile:** `start_project` · `start_skill_session` (skills optional) · `log_decision` · `ingest_queue`
-- **Profile:** `set_learner_profile` (supports optional `project_id` override)
-- **Legacy Tools (opt-in via `LEARNLOOP_LEGACY_TOOLS=1`):** `list_skills` · `propose_skill` · `get_skill_map` · `find_gaps` · `submit_attempt` · `get_teaching_context` · `create_quiz` · `record_quiz_result` · `flag_misunderstanding`
+## 🌐 HTTP/SSE Deployment
 
-## Prompts
+Deploy as a hosted HTTP service (not PyPI):
 
-- `tour`: Start an interactive codebase walkthrough from basic entry points to advanced components.
-- `catch-up`: Deliver a quick session-start briefing on what changed.
-- `review`: Run today's spaced repetition review of knowledge items.
-- `mock-interview`: Conduct an interview on the project.
-- `did-you-know`: Find and suggest verified technical facts related to project technologies.
-- `teach-me` *(deprecated)*: Prefer tour, review, or mock-interview for per-project confidence.
+```bash
+# Install HTTP dependencies
+pip install -r requirements_http.txt
 
-## Status
+# Start HTTP server
+python learnloop_http.py
+# Access: http://localhost:8000
+```
+
+### Endpoints:
+- `GET /` - Server info
+- `POST /api/initialize` - Initialize project
+- `GET /api/tools` - List tools
+- `POST /api/execute` - Execute tool
+- `GET /api/events` - Server-Sent Events stream
+- `GET /health` - Health check
+
+## 🛠️ Tools (v2.0.0)
+
+### Learning & Tracking:
+- `start_skill_session` - Start work session with intent tracking
+- `get_session_briefing` - Get session-start update
+- `get_project_tour` - Architecture walkthrough
+- `log_decision` - Log design decisions
+
+### Knowledge Management:
+- `register_knowledge_item` - Register concepts for spaced repetition
+- `record_explanation` - Record explanations with self-rating
+- `review_due` - Get items due for review
+- `record_review` - Record review outcomes
+- `snooze_review` - Snooze review items
+
+### Git Integration:
+- `ingest_queue` - Process commit queue
+- `list_stale_items` - List items needing review due to changes
+- `get_project_readiness` - Get project readiness level
+
+### Insights & Discovery:
+- `add_did_you_know` - Add technical insights
+- `refresh_technologies` - Refresh technology detection
+
+## 🎯 How It Works
+
+### With AI Assistants (after integration):
+1. **Session Start**: AI calls `get_session_briefing` automatically
+2. **Architecture**: AI calls `get_project_tour` for walkthroughs  
+3. **Work**: AI calls `start_skill_session` before coding
+4. **Decisions**: AI calls `log_decision` for alternatives
+5. **After Commits**: AI calls `ingest_queue` to track work
+6. **Knowledge**: AI offers `register_knowledge_item` for key concepts
+7. **Reviews**: AI helps with `review_due` and `record_review`
+8. **Insights**: AI adds `add_did_you_know` for technical facts
+
+### Git Integration:
+- Post-commit hooks track AI work automatically
+- Commits verify exposure (what AI built)
+- Staleness detection alerts when code changes
+- Backfill processes existing commit history
+
+## 📊 Dashboard
+
+Access the dashboard at `http://localhost:8765`:
+
+- **Project Overview**: Activity visualization
+- **Knowledge Tracking**: Item status and reviews
+- **Staleness Detection**: Files changed since explanation
+- **Best Practices**: Learning workflow guide
+- **Progress Metrics**: Readiness levels and milestones
+
+## 🏗️ Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   AI Assistant  │    │   LearnLoop     │    │     Git         │
+│   (Any IDE)     │◄──►│   MCP Server    │◄──►│   Repository    │
+│                 │    │                 │    │                 │
+│ • MCP Tools     │    │ • Auto-tracking │    │ • Post-commit   │
+│ • Rules         │    │ • Reconciliation│    │   hooks         │
+│ • Integration   │    │ • Spaced rep.   │    │ • Commit queue  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                        │
+         │                        │
+         ▼                        ▼
+┌─────────────────┐    ┌─────────────────┐
+│   Terminal      │    │   Dashboard     │
+│   Interface     │    │   (Web UI)      │
+│                 │    │                 │
+│ • learnloop-tools│   │ • Visualization │
+│ • Aliases       │    │ • Insights      │
+│ • Environment   │    │ • Best Practices│
+└─────────────────┘    └─────────────────┘
+```
+
+## 🚀 Deployment Options
+
+### 1. **Local Development** (Recommended for testing):
+```bash
+pip install -e ".[dev]"
+learnloop init --integrate
+learnloop dashboard
+```
+
+### 2. **HTTP Service** (Your distribution strategy):
+```bash
+# Deploy as HTTP/SSE service
+python learnloop_http.py --host 0.0.0.0 --port 8000
+
+# Docker deployment
+docker build -t learnloop .
+docker run -p 8000:8000 -p 8765:8765 learnloop
+```
+
+### 3. **Platform Services**:
+- **Fly.io**, **Railway.app**, **Render.com**
+- Set environment variables
+- Point to your deployment
+
+## 📈 Status
 
 | Feature | Status | Details |
 | :--- | :--- | :--- |
-| Git post-commit hook queue | **Built** | Metadata-only JSON in `.learn/queue/`, non-blocking |
-| Intent-commit reconciliation | **Built** | `exposure` verified against git commits |
-| Backfill & tracked file snapshots | **Built** | `learnloop backfill` seeds existing repos (single snapshot row) |
-| Project-grounded knowledge items | **Built** | Anchored to real project paths, bands Basic/Intermediate/Advanced |
-| Learner profile & project overrides | **Built** | Global preferences + per-project overrides via `project_profile` |
-| Count-based project readiness | **Built** | `get_project_readiness` & briefing readiness (no percentages or scores) |
-| Deterministic concept log | **Built** | Safe atomic generation of `.learn/concepts.md` with self-ratings |
-| Local read-only dashboard | **Built** | `learnloop dashboard` on 127.0.0.1, mode=ro, custom Markdown renderer, no JS |
-| Project tour bundle | **Built** | Bounded evidence bundle (< 8 KB), entry points, manifests |
-| Derived staleness detection | **Built** | Detects newer commits touching explained files |
-| Spaced repetition scheduler | **Built** | SM-2 interval calculations and pull-based reviews |
-| Session-start briefing | **Built** | Quick catch-up briefing (< 3 KB) with compact readiness counts |
-| Technologies & references scan | **Built** | Deterministic dependency and language detection (Step 3) |
-| Sourced "Did you know" | **Built** | Verified web-sourced technical facts with mandatory links (Step 4) |
-| Resources (windowed, token-capped)| *Planned* | See `docs/adr/` |
+| Universal IDE Integration | **✅ Built** | Auto-detects VS Code, Cursor, Claude, WindSurf, Zed |
+| Terminal Integration | **✅ Built** | `learnloop-tools`, aliases, environment setup |
+| HTTP/SSE Deployment | **✅ Built** | Streamable endpoints, real-time events |
+| Git Integration | **✅ Built** | Automatic tracking via post-commit hooks |
+| Dashboard | **✅ Built** | Visual insights, best practices guide |
+| Spaced Repetition | **✅ Built** | SM-2 algorithm with review scheduling |
+| Knowledge Management | **✅ Built** | Item registration, concepts.md generation |
+| Staleness Detection | **✅ Built** | Alerts when explained code changes |
+| Progressive Enhancement | **✅ Built** | Readiness levels, feature unlocking |
+| Multi-project Support | **✅ Built** | Data isolation, independent tracking |
+| Security Features | **✅ Built** | Code redaction, local-only binding |
 
-## Limits
+## 🔒 Security & Privacy
 
-- **Redaction is best-effort regex:** Free-text sanitization relies on regular expressions for secrets, credentials, and sensitive patterns. It cannot guarantee catch-all detection for all proprietary formats.
-- **Staleness sees committed changes only:** Staleness detection evaluates git commits ingested into the database; uncommitted file edits or git stash changes are invisible to staleness.
-- **One-second timestamp resolution:** Commit ordering and staleness comparisons use ISO timestamps with one-second resolution. Ties (commits within the same second) are not strictly greater than baseline.
-- **The server cannot verify who wrote an answer:** LearnLoop evaluates and logs explanations and quiz answers submitted to its tools; the MCP server cannot verify whether the learner or the AI authored an answer.
+- **Local-First**: Data stays on your machine by default
+- **Code Redaction**: Best-effort secret detection
+- **HTTP Security**: Optional authentication for production
+- **Git Integration**: Non-invasive hooks, preserves existing functionality
+- **Dashboard**: Local-only binding (`127.0.0.1`)
 
-## Develop
+## 🆘 Troubleshooting
 
-`make test` · `make lint` · `make inspect` (MCP Inspector). Logs go to stderr only; never `print()`.
+**IDE not detecting?**
+```bash
+# Force specific IDE
+learnloop integrate --ide vscode --force
+```
+
+**Terminal tools not working?**
+```bash
+# Use full path
+./.learn/tools.sh briefing
+
+# Or add to PATH
+export PATH="$PATH:$(pwd)/.learn"
+```
+
+**Dashboard not loading?**
+```bash
+# Check if running
+learnloop dashboard --port 8765
+
+# Access: http://localhost:8765
+```
+
+## 🎯 The Goal
+
+**Zero friction, maximum learning.** You focus on building with AI, LearnLoop handles:
+- Tracking what AI builds
+- Reinforcing what you learn  
+- Showing progress
+- Preparing you to explain your code
+
+No manual file copying. No complex setup. Just `learnloop integrate --all` and start learning! 🚀
+
+## 📚 Learn More
+
+- [Universal Integration Guide](UNIVERSAL_INTEGRATION.md) - Complete integration details
+- [Testing Guide](TEST_INSTRUCTIONS.md) - How to test with real projects
+- [HTTP Deployment](DEPLOYMENT.md) - HTTP/SSE distribution strategy
+- [Setup & Testing](SETUP_AND_TESTING.md) - Comprehensive testing workflow
+
+## 🛠️ Development
+
+```bash
+# Run tests
+python -m pytest tests/ -v
+
+# Run linter
+python -m black src/ tests/
+
+# Start development server
+python -m learnloop.dashboard
+```
+
+Logs go to stderr only; never `print()`.

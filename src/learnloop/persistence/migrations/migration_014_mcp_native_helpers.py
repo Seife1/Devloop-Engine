@@ -120,8 +120,9 @@ def migrate_projects(conn: sqlite3.Connection) -> None:
     )
     safe_add_column(
         conn, "projects", "last_accessed",
-        "TEXT NOT NULL DEFAULT (datetime('now'))"
+        "TEXT NULL"
     )
+    conn.execute("UPDATE projects SET last_accessed = datetime('now') WHERE last_accessed IS NULL")
     
     conn.commit()
 
