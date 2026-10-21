@@ -93,6 +93,21 @@ def cmd_gui(port: int = 8765, route: str = "/setup", hide_console: bool = True) 
     return launch_desktop_gui(port=port, route=route, hide_console=hide_console)
 
 
+def cmd_http(host: str = "0.0.0.0", port: int = 8000, reload: bool = False) -> int:
+    try:
+        import uvicorn
+        from learnloop_http import app
+    except ImportError as exc:
+        sys.stderr.write(
+            f"HTTP dependencies not installed ({exc}).\n"
+            "Install with: pip install -r requirements_http.txt\n"
+        )
+        return 1
+
+    uvicorn.run(app, host=host, port=port, reload=reload, log_level="info")
+    return 0
+
+
 def cmd_setup(port: int = 8765, open_browser: bool = True, use_gui: bool = True) -> int:
     if use_gui and open_browser:
         from learnloop.gui import is_gui_available, launch_desktop_gui
@@ -501,9 +516,16 @@ def main(argv: list[str] | None = None) -> None:
     integ.add_argument("--env", action="store_true", help="Setup environment")
     integ.add_argument("--all", action="store_true", help="Setup everything")
 
+    http_p = sub.add_parser("http", help="Start HTTP/SSE server for LAN and cloud deployment")
+    http_p.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
+    http_p.add_argument("--port", type=int, default=8000, help="Port to bind to (default: 8000)")
+    http_p.add_argument("--reload", action="store_true", help="Enable auto-reload")
+
     args = p.parse_args(argv)
     if args.cmd == "init":
         code = cmd_init(args.repo, integrate=args.integrate, in_repo=args.in_repo)
+    elif args.cmd == "http":
+        code = cmd_http(host=args.host, port=args.port, reload=args.reload)
     elif args.cmd == "setup":
         code = cmd_setup(
             port=args.port,
