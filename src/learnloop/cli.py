@@ -10,13 +10,23 @@ import sqlite3
 import stat
 import subprocess
 import sys
+
+if sys.platform == "win32":
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from pathlib import Path
 
 from learnloop.logging import setup_logging
 
 HOOK_MARKER = "# learnloop-hook"
 
-HOOK_TEMPLATE = (
+HOOK_TEMPLATE_PYTHON = (
     "#!/bin/sh\n"
     f"{HOOK_MARKER}\n"
     "# Fast, non-blocking, never fails the commit.\n"
@@ -25,17 +35,30 @@ HOOK_TEMPLATE = (
     '--repo "$(git rev-parse --show-toplevel)" ) >/dev/null 2>&1 &\n'
     "exit 0\n"
 )
+HOOK_TEMPLATE = HOOK_TEMPLATE_PYTHON
+
+HOOK_TEMPLATE_BINARY = (
+    "#!/bin/sh\n"
+    f"{HOOK_MARKER}\n"
+    "# Fast, non-blocking, never fails the commit.\n"
+    "# Writes a redacted metadata record to .learn/queue/.\n"
+    '( "{binary}" record-commit '
+    '--repo "$(git rev-parse --show-toplevel)" ) >/dev/null 2>&1 &\n'
+    "exit 0\n"
+)
 
 
-def _hook_text(python: str | None = None) -> str:
+def _hook_text(executable: str | None = None) -> str:
     """Generate the post-commit hook body.
 
-    Single source of truth for hook content. Uses the absolute interpreter path
-    so the hook works even when the venv is not on PATH (common on Windows).
+    Single source of truth for hook content. Uses the absolute interpreter or binary path
+    so the hook works even when the executable is not on PATH (common on Windows).
     Forward slashes and quoting for sh compatibility.
     """
-    py = (python if python is not None else sys.executable).replace("\\", "/")
-    return HOOK_TEMPLATE.format(python=py)
+    exe = (executable if executable is not None else sys.executable).replace("\\", "/")
+    if getattr(sys, "frozen", False):
+        return HOOK_TEMPLATE_BINARY.format(binary=exe)
+    return HOOK_TEMPLATE_PYTHON.format(python=exe)
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -52,8 +75,45 @@ def cmd_serve() -> int:
     return 0
 
 
-def cmd_dashboard(port: int = 8765) -> int:
+def cmd_dashboard(port: int = 8765, use_gui: bool = False) -> int:
+    if use_gui:
+        from learnloop.gui import is_gui_available, launch_desktop_gui
+
+        if is_gui_available():
+            return launch_desktop_gui(port=port, route="/", hide_console=True)
+
     from learnloop.dashboard.server import run_dashboard_server
+
+    return run_dashboard_server(port=port)
+
+
+def cmd_gui(port: int = 8765, route: str = "/setup", hide_console: bool = True) -> int:
+    from learnloop.gui import launch_desktop_gui
+
+    return launch_desktop_gui(port=port, route=route, hide_console=hide_console)
+
+
+def cmd_setup(port: int = 8765, open_browser: bool = True, use_gui: bool = True) -> int:
+    if use_gui and open_browser:
+        from learnloop.gui import is_gui_available, launch_desktop_gui
+
+        if is_gui_available():
+            return launch_desktop_gui(port=port, route="/setup", hide_console=True)
+
+    import threading
+    import time
+    from learnloop.dashboard.server import run_dashboard_server
+
+    if open_browser:
+        def _launch_browser():
+            time.sleep(0.6)
+            try:
+                import webbrowser
+                webbrowser.open(f"http://127.0.0.1:{port}/setup")
+            except Exception:
+                pass
+
+        threading.Thread(target=_launch_browser, daemon=True).start()
 
     return run_dashboard_server(port=port)
 
@@ -246,7 +306,7 @@ def cmd_briefing(repo: Path) -> int:
         return 1
 
 
-def cmd_init(repo: Path) -> int:
+def cmd_init(repo: Path, integrate: bool = False, in_repo: bool = False) -> int:
     from learnloop.journal.concept_log import init_concept_log
 
     learn = repo / ".learn"
@@ -254,21 +314,50 @@ def cmd_init(repo: Path) -> int:
     (learn / ".gitignore").write_text("queue/\n", encoding="utf-8")
     init_concept_log(repo)
 
+    if in_repo:
+        from learnloop.persistence.db import connect
+        db_file = learn / "learnloop.db"
+        conn = connect(db_file)
+        conn.close()
+        sys.stderr.write(f"Initialised in-repo database: {db_file}\n")
+
     hook = repo / ".git" / "hooks" / "post-commit"
     if not (repo / ".git").is_dir():
         sys.stderr.write("Notice: Not a git repository root; created .learn/concepts.md only.\n")
         sys.stderr.write("Tip: Run `git init` and make your first commit to activate LearnLoop tracking.\n")
+        if integrate:
+            from learnloop.integrator import LearnLoopIntegrator
+            LearnLoopIntegrator().run(["--all"])
         return 1
     body = _hook_text()
     if hook.exists() and HOOK_MARKER not in hook.read_text("utf-8"):
         sys.stderr.write(f"{hook} already exists and isn't ours; add `learnloop record-commit` manually.\n")
+        if integrate:
+            from learnloop.integrator import LearnLoopIntegrator
+            LearnLoopIntegrator().run(["--all"])
         return 1
     hook.parent.mkdir(parents=True, exist_ok=True)
     hook.write_bytes(body.encode("utf-8"))
     hook.chmod(hook.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     sys.stderr.write(f"Initialised {learn} and installed post-commit hook.\n")
     sys.stderr.write("Tip: Run `git commit` as you work so LearnLoop can track what your AI builds!\n")
+
+    if integrate:
+        from learnloop.integrator import LearnLoopIntegrator
+        LearnLoopIntegrator().run(["--all"])
+
     return 0
+
+
+def cmd_integrate(args: list[str]) -> int:
+    try:
+        from learnloop.integrator import LearnLoopIntegrator
+        integrator = LearnLoopIntegrator()
+        integrator.run(args)
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"learnloop integrate failed: {exc}\n")
+        return 1
 
 
 def cmd_doctor() -> int:
@@ -310,14 +399,19 @@ def cmd_doctor() -> int:
             continue
         if HOOK_MARKER not in text:
             continue
-        match = re.search(r'"([^"]+)"\s+-m\s+learnloop', text)
-        if match:
-            interp = Path(match.group(1))
-            if not interp.exists():
-                sys.stderr.write(
-                    f"WARNING: hook in {repo}: interpreter {interp} not found. "
-                    f'Re-run: learnloop init --repo "{repo}"\n'
-                )
+        match_py = re.search(r'"([^"]+)"\s+-m\s+learnloop', text)
+        match_bin = re.search(r'"([^"]+)"\s+record-commit', text)
+        target_path = None
+        if match_py:
+            target_path = Path(match_py.group(1))
+        elif match_bin:
+            target_path = Path(match_bin.group(1))
+
+        if target_path and not target_path.exists():
+            sys.stderr.write(
+                f"WARNING: hook in {repo}: executable {target_path} not found. "
+                f'Re-run: learnloop init --repo "{repo}"\n'
+            )
 
     conn.close()
     sys.stderr.write("ok\n")
@@ -365,18 +459,72 @@ def cmd_techscan(repo: Path) -> int:
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="learnloop")
     sub = p.add_subparsers(dest="cmd")
-    for name in ("init", "record-commit", "concepts", "review", "briefing", "techscan"):
+
+    init_p = sub.add_parser("init", help="Initialize LearnLoop in project")
+    init_p.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
+    init_p.add_argument("--integrate", action="store_true", help="Auto-integrate with IDEs")
+    init_p.add_argument("--in-repo", action="store_true", help="Store SQLite DB inside .learn/ folder")
+
+    for name in ("record-commit", "concepts", "review", "briefing", "techscan"):
         sp = sub.add_parser(name)
         sp.add_argument("--repo", type=Path, default=Path.cwd())
+
     bf = sub.add_parser("backfill")
     bf.add_argument("--repo", type=Path, default=Path.cwd())
     bf.add_argument("--limit", type=int, default=50)
+
     sub.add_parser("doctor")
+
     dash = sub.add_parser("dashboard")
     dash.add_argument("--port", type=int, default=8765)
+    dash.add_argument("--gui", action="store_true", help="Open dashboard in native desktop GUI window")
+
+    setup_p = sub.add_parser("setup", help="Launch interactive setup wizard")
+    setup_p.add_argument("--port", type=int, default=8765, help="Port to run setup server on")
+    setup_p.add_argument("--no-browser", action="store_true", help="Do not automatically open browser")
+    setup_p.add_argument("--browser", action="store_true", help="Force opening in web browser instead of desktop window")
+
+    gui_p = sub.add_parser("gui", help="Launch native desktop GUI window (Edge WebView2)")
+    gui_p.add_argument("--port", type=int, default=8765, help="Port to run setup server on")
+    gui_p.add_argument("--route", default="/setup", choices=["/setup", "/"], help="Starting view (/setup or /)")
+    gui_p.add_argument("--no-hide-console", action="store_true", help="Keep console window visible")
+
+    integ = sub.add_parser("integrate", help="Integrate with IDEs or terminal")
+    integ.add_argument(
+        "--ide",
+        choices=["auto", "vscode", "cursor", "claude", "windsurf", "zed", "agents", "all"],
+        default="auto",
+        help="IDE to integrate with",
+    )
+    integ.add_argument("--force", action="store_true", help="Force overwrite")
+    integ.add_argument("--terminal", action="store_true", help="Setup terminal integration")
+    integ.add_argument("--env", action="store_true", help="Setup environment")
+    integ.add_argument("--all", action="store_true", help="Setup everything")
+
     args = p.parse_args(argv)
     if args.cmd == "init":
-        code = cmd_init(args.repo)
+        code = cmd_init(args.repo, integrate=args.integrate, in_repo=args.in_repo)
+    elif args.cmd == "setup":
+        code = cmd_setup(
+            port=args.port,
+            open_browser=not args.no_browser,
+            use_gui=not args.browser and not args.no_browser,
+        )
+    elif args.cmd == "gui":
+        code = cmd_gui(port=args.port, route=args.route, hide_console=not args.no_hide_console)
+    elif args.cmd == "integrate":
+        integ_args = []
+        if args.ide:
+            integ_args.extend(["--ide", args.ide])
+        if args.force:
+            integ_args.append("--force")
+        if args.terminal:
+            integ_args.append("--terminal")
+        if args.env:
+            integ_args.append("--env")
+        if args.all:
+            integ_args.append("--all")
+        code = cmd_integrate(integ_args)
     elif args.cmd == "record-commit":
         code = cmd_record_commit(args.repo)
     elif args.cmd == "backfill":
@@ -390,9 +538,19 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "doctor":
         code = cmd_doctor()
     elif args.cmd == "dashboard":
-        code = cmd_dashboard(args.port)
+        code = cmd_dashboard(args.port, use_gui=args.gui)
     elif args.cmd == "techscan":
         code = cmd_techscan(args.repo)
     else:
-        code = cmd_serve()
+        # Smart launch: if launched interactively by user (double-click in Explorer or running
+        # learnloop without args in a terminal), launch the setup wizard in desktop window.
+        # If piped from an IDE (Cursor, VS Code, etc.), silently run FastMCP stdio server.
+        if sys.stdin and hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
+            code = cmd_setup(use_gui=True)
+        else:
+            code = cmd_serve()
     raise SystemExit(code)
+
+
+if __name__ == "__main__":
+    main()

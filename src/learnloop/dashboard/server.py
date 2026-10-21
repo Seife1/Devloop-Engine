@@ -204,8 +204,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
     def _send_security_headers(self, content_type: str = "text/html; charset=utf-8") -> None:
         self.send_header("Content-Type", content_type)
         csp = (
-            "default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; "
-            "form-action 'none'; frame-ancestors 'none'"
+            "default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; "
+            "form-action 'self'; frame-ancestors 'none'"
         )
         self.send_header("Content-Security-Policy", csp)
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -243,7 +243,19 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         self.do_GET()
 
     def do_POST(self) -> None:
-        self._reject_non_get()
+        if not self._validate_host():
+            self._send_error_page(HTTPStatus.FORBIDDEN, "Forbidden: Invalid Host header.")
+            return
+
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+
+        if path == "/api/setup":
+            self._handle_api_setup()
+        elif path == "/api/shutdown":
+            self._handle_api_shutdown()
+        else:
+            self._reject_non_get()
 
     def do_PUT(self) -> None:
         self._reject_non_get()
@@ -257,7 +269,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
     def _reject_non_get(self) -> None:
         self.send_response(HTTPStatus.METHOD_NOT_ALLOWED)
         self._send_security_headers("text/plain; charset=utf-8")
-        self.send_header("Allow", "GET, HEAD")
+        self.send_header("Allow", "GET, HEAD, POST")
         body = b"Method Not Allowed"
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -275,6 +287,11 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         # Static assets
         if path == "/static/app.css":
             self._serve_css()
+            return
+
+        # Setup wizard
+        if path in ("/setup", "/setup/"):
+            self._handle_setup()
             return
 
         conn = self._get_ro_conn()
@@ -415,21 +432,27 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
       <div class="brand">
         <a href="/" style="color: inherit; text-decoration: none;">LearnLoop</a>
         <span class="brand-badge">Read-Only</span>
+        <a href="/setup" class="setup-link-pill" title="Setup Wizard & Tools">Setup</a>
       </div>
-      <div class="project-switcher">
-        <div class="project-dropdown">
-          <button class="project-dropdown-trigger" type="button" aria-haspopup="true" aria-expanded="false">
-            <span class="dropdown-label">Projects</span>
-            <span class="dropdown-badge">{len(all_projects)}</span>
-            <span class="dropdown-arrow">▾</span>
-          </button>
-          <div class="project-dropdown-menu">
-            <div class="dropdown-menu-header">Projects ({len(all_projects)})</div>
-            <div class="dropdown-menu-items">
-              {dropdown_html}
+      <div class="header-actions">
+        <div class="project-switcher">
+          <div class="project-dropdown">
+            <button class="project-dropdown-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+              <span class="dropdown-label">Projects</span>
+              <span class="dropdown-badge">{len(all_projects)}</span>
+              <span class="dropdown-arrow">▾</span>
+            </button>
+            <div class="project-dropdown-menu">
+              <div class="dropdown-menu-header">Projects ({len(all_projects)})</div>
+              <div class="dropdown-menu-items">
+                {dropdown_html}
+              </div>
             </div>
           </div>
         </div>
+        <form method="POST" action="/api/shutdown" class="shutdown-form" style="display:inline; margin:0;">
+          <button type="submit" class="btn-shutdown" title="Stop local server">Stop</button>
+        </form>
       </div>
     </div>
   </header>
@@ -441,6 +464,293 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 </html>"""
 
     # --- Route Handlers ---
+
+    def _handle_setup(self) -> None:
+        """Render the 3-step setup wizard."""
+        from learnloop.integrator import LearnLoopIntegrator
+
+        integrator = LearnLoopIntegrator(Path.cwd())
+        ide_status = integrator.detect_ide_status()
+
+        ide_cards_html = []
+        for ide_key, ide in ide_status.items():
+            name = html.escape(ide["name"])
+            desc = html.escape(ide["desc"])
+            badge = html.escape(ide["badge"])
+            checked = " checked" if ide["detected"] else ""
+            badge_class = "badge-detected" if ide["detected"] else "badge-available"
+            if ide_key == "agents":
+                badge_class = "badge-recommended"
+
+            ide_cards_html.append(
+                f"""
+                <label class="ide-card" for="ide_{ide_key}">
+                  <div class="ide-card-header">
+                    <div class="ide-card-title-group">
+                      <input type="checkbox" name="ides" value="{ide_key}" id="ide_{ide_key}"{checked}>
+                      <span class="ide-name">{name}</span>
+                    </div>
+                    <span class="ide-badge {badge_class}">{badge}</span>
+                  </div>
+                  <p class="ide-desc">{desc}</p>
+                </label>
+                """
+            )
+
+        cards_str = "".join(ide_cards_html)
+        current_folder = html.escape(Path.cwd().name)
+
+        # Get projects for switcher
+        all_projects = []
+        try:
+            if self.db_path.exists():
+                conn = self._get_ro_conn()
+                try:
+                    all_projects = [
+                        {"id": r["id"], "name": r["name"], "folder": Path(r["repo_path"]).name}
+                        for r in conn.execute(
+                            "SELECT id, name, repo_path FROM projects ORDER BY name ASC"
+                        ).fetchall()
+                    ]
+                finally:
+                    conn.close()
+        except Exception:
+            pass
+
+        content = f"""
+        <div class="setup-wrapper">
+          <div class="setup-hero">
+            <span class="setup-hero-badge">Zero-Config Onboarding</span>
+            <h1 class="setup-title">LearnLoop Setup Wizard</h1>
+            <p class="setup-subtitle">
+              Your private, local-first companion that transforms AI coding into lasting engineering mastery.
+            </p>
+          </div>
+
+          <div class="privacy-banner">
+            <div class="privacy-icon">🔒</div>
+            <div class="privacy-content">
+              <strong>100% Local-First &amp; Zero Data Sharing</strong>
+              <p>All SQLite databases, concepts, and logs remain strictly on your local machine. LearnLoop has zero telemetry, zero analytics, and zero cloud synchronization.</p>
+            </div>
+          </div>
+
+          <form method="POST" action="/api/setup" class="setup-form">
+            <!-- Step 1: Connect IDEs -->
+            <section class="wizard-section">
+              <div class="wizard-section-header">
+                <div class="wizard-step-badge">1</div>
+                <div>
+                  <h2 class="wizard-section-title">Connect Your AI IDEs &amp; Agents</h2>
+                  <p class="wizard-section-desc">Select which IDEs and agents to configure. LearnLoop injects MCP server configs and teaching companion rules.</p>
+                </div>
+              </div>
+
+              <div class="ide-grid">
+                {cards_str}
+              </div>
+            </section>
+
+            <!-- Step 2: Storage & Git Tracking -->
+            <section class="wizard-section">
+              <div class="wizard-section-header">
+                <div class="wizard-step-badge">2</div>
+                <div>
+                  <h2 class="wizard-section-title">Storage &amp; Commit Tracking</h2>
+                  <p class="wizard-section-desc">Choose where your SQLite database lives and configure Git tracking for <code>{current_folder}</code>.</p>
+                </div>
+              </div>
+
+              <div class="storage-options">
+                <label class="storage-card" for="storage_global">
+                  <input type="radio" name="storage" value="global" id="storage_global" checked>
+                  <div class="storage-info">
+                    <div class="storage-title">
+                      <strong>Global Developer Library (Recommended)</strong>
+                      <span class="storage-tag storage-tag-rec">Unified</span>
+                    </div>
+                    <p class="storage-desc">Stores your database centrally in your user data directory. Single unified view across all your projects.</p>
+                  </div>
+                </label>
+
+                <label class="storage-card" for="storage_in_repo">
+                  <input type="radio" name="storage" value="in_repo" id="storage_in_repo">
+                  <div class="storage-info">
+                    <div class="storage-title">
+                      <strong>In-Project Storage (.learn/)</strong>
+                      <span class="storage-tag storage-tag-iso">Isolated</span>
+                    </div>
+                    <p class="storage-desc">Stores <code>learnloop.db</code> isolated inside this repository's <code>.learn/</code> folder.</p>
+                  </div>
+                </label>
+              </div>
+
+              <div class="hook-option">
+                <label class="checkbox-card" for="hook_check">
+                  <input type="checkbox" name="install_hook" value="true" id="hook_check" checked>
+                  <div class="checkbox-content">
+                    <strong>Auto-track commits with Git post-commit hook</strong>
+                    <p>Automatically records commit metadata into <code>.learn/queue/</code>. Runs non-blocking in the background and never delays or breaks <code>git commit</code>.</p>
+                  </div>
+                </label>
+              </div>
+            </section>
+
+            <!-- Step 3: Complete & Launch -->
+            <section class="wizard-section wizard-section-action">
+              <div class="action-card">
+                <h3>Ready to start building?</h3>
+                <p>Click below to apply configuration to your project and open the dashboard.</p>
+                <button type="submit" class="btn-setup-launch">✨ Complete Setup &amp; Open Dashboard</button>
+              </div>
+            </section>
+          </form>
+        </div>
+        """
+
+        body = self._wrap_layout("Setup Wizard", content, [("Home", "/"), ("Setup Wizard", "")], all_projects)
+        self._send_response_page(HTTPStatus.OK, body)
+
+    def _handle_api_setup(self) -> None:
+        """Process setup configuration and redirect or return JSON."""
+        content_length = int(self.headers.get("Content-Length", 0))
+        post_data = self.rfile.read(content_length)
+        content_type = self.headers.get("Content-Type", "")
+
+        ides: list[str] = []
+        storage = "global"
+        install_hook = False
+        target_dir = Path.cwd()
+
+        if "application/json" in content_type:
+            try:
+                data = json.loads(post_data.decode("utf-8"))
+            except Exception:
+                data = {}
+            ides = data.get("ides", [])
+            storage = data.get("storage", "global")
+            install_hook = data.get("install_hook", True)
+            if data.get("repo_path"):
+                target_dir = Path(data["repo_path"])
+        else:
+            parsed = urllib.parse.parse_qs(post_data.decode("utf-8"))
+            ides = parsed.get("ides", [])
+            storage = parsed.get("storage", ["global"])[0]
+            install_hook = "install_hook" in parsed or parsed.get("install_hook", ["false"])[0].lower() in ("true", "1")
+            if parsed.get("repo_path") and parsed["repo_path"][0]:
+                target_dir = Path(parsed["repo_path"][0])
+
+        # Run integration
+        from learnloop.integrator import LearnLoopIntegrator
+        from learnloop.cli import cmd_init
+
+        in_repo = (storage == "in_repo")
+        cmd_init(target_dir, integrate=False, in_repo=in_repo)
+
+        integrator = LearnLoopIntegrator(project_root=target_dir)
+        configured_ides = []
+        for ide in ides:
+            if integrator.integrate_ide(ide, force=True):
+                configured_ides.append(ide)
+
+        # Register project in database
+        from learnloop.config import Settings
+        from learnloop.persistence.db import connect
+        from learnloop.services import capture_service
+
+        settings = Settings.load()
+        resolved_db = (target_dir / ".learn" / "learnloop.db") if in_repo else settings.db_path
+        conn = connect(resolved_db)
+        proj = capture_service.start_project(conn, target_dir.resolve().name, str(target_dir.resolve()))
+        conn.close()
+
+        accept = self.headers.get("Accept", "")
+        if "application/json" in accept or "application/json" in content_type:
+            resp_payload = json.dumps({
+                "status": "ok",
+                "redirect": "/",
+                "configured_ides": configured_ides,
+                "project_id": proj["id"],
+                "db_path": str(resolved_db),
+            }).encode("utf-8")
+            self.send_response(HTTPStatus.OK)
+            self._send_security_headers("application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(resp_payload)))
+            self.end_headers()
+            self.wfile.write(resp_payload)
+            return
+
+        ides_display = ", ".join(i.upper() for i in configured_ides) if configured_ides else "None"
+        html_body = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="2;url=/">
+  <title>Setup Complete — LearnLoop</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <main class="container" style="max-width: 640px; margin-top: 4rem;">
+    <div class="setup-complete-card">
+      <div class="complete-icon">✨</div>
+      <h2 style="margin-bottom: 0.5rem;">Setup Complete!</h2>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+        LearnLoop is now configured for your repository and AI tools.
+      </p>
+      <div class="configured-summary" style="text-align: left; background: var(--surface-raised); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid var(--border);">
+        <div style="margin-bottom: 0.5rem;">✅ <strong>Configured Tools:</strong> {html.escape(ides_display)}</div>
+        <div style="margin-bottom: 0.5rem;">✅ <strong>Storage:</strong> {html.escape('In-Project (.learn/learnloop.db)' if in_repo else 'Global Developer Library')}</div>
+        <div>✅ <strong>Project:</strong> {html.escape(target_dir.resolve().name)}</div>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Redirecting to dashboard in 2 seconds...
+      </p>
+      <a href="/" class="btn-setup-launch" style="display: inline-block; text-decoration: none;">Open LearnLoop Dashboard →</a>
+    </div>
+  </main>
+</body>
+</html>"""
+        self._send_response_page(HTTPStatus.OK, html_body)
+
+    def _handle_api_shutdown(self) -> None:
+        """Handle server shutdown request."""
+        accept = self.headers.get("Accept", "")
+        if "application/json" in accept:
+            payload = json.dumps({"status": "shutting_down", "message": "Server stopped"}).encode("utf-8")
+            self.send_response(HTTPStatus.OK)
+            self._send_security_headers("application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+        else:
+            body = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Server Stopped — LearnLoop</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <main class="container" style="max-width: 540px; margin-top: 5rem; text-align: center;">
+    <div class="empty-state">
+      <div style="font-size: 3rem; margin-bottom: 1rem;">⏹️</div>
+      <h1 class="empty-state-title" style="font-size: 1.5rem;">LearnLoop Server Stopped</h1>
+      <p class="empty-state-desc" style="margin-top: 0.5rem;">
+        The local dashboard server has been safely shut down.
+      </p>
+      <p style="font-size: 0.88rem; color: var(--text-muted); margin-top: 1rem;">
+        You can now safely close this browser window or tab.
+      </p>
+    </div>
+  </main>
+</body>
+</html>"""
+            self._send_response_page(HTTPStatus.OK, body)
+
+        import threading
+        threading.Thread(target=self.server.shutdown, daemon=True).start()
 
     def _handle_home(self, conn: sqlite3.Connection, all_projects: list[dict[str, str]]) -> None:
         rows = conn.execute(
@@ -458,6 +768,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
               <h2 class="empty-state-title">No projects registered yet</h2>
               <p class="empty-state-desc">Start building in your repo and call <code>start_project</code>
               with your AI agent to see project readiness and knowledge items here.</p>
+              <p style="margin-top: 1.25rem;"><a href="/setup" class="btn-setup-launch" style="display:inline-block; text-decoration:none;">Launch Setup Wizard →</a></p>
             </div>
             """
             body = self._wrap_layout("Projects", content, [("Home", "/")], all_projects)
@@ -1477,17 +1788,22 @@ class DashboardServer(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
 
-def run_dashboard_server(port: int = 8765, db_path: Path | None = None) -> int:
-    """Run the read-only dashboard HTTP server on 127.0.0.1:<port>."""
+def create_dashboard_server(port: int = 8765, db_path: Path | None = None) -> tuple[DashboardServer, int]:
+    """Create and configure a DashboardServer instance, ready to serve."""
     from learnloop.config import Settings
 
     settings = Settings.load()
     resolved_db_path = db_path or settings.db_path
 
-    # Verify database exists and migration version is up-to-date
+    # Verify database exists and migration version is up-to-date; auto-initialize if needed
     if not resolved_db_path.exists():
-        sys.stderr.write("Error: database does not exist. Run learnloop first.\n")
-        return 1
+        from learnloop.persistence.db import connect
+        try:
+            conn = connect(resolved_db_path)
+            conn.close()
+            sys.stderr.write(f"Initialized LearnLoop database at {resolved_db_path}\n")
+        except Exception as exc:
+            raise RuntimeError(f"Error initializing database: {exc}") from exc
 
     # Check migration version
     required_version = get_required_migration_version()
@@ -1496,22 +1812,40 @@ def run_dashboard_server(port: int = 8765, db_path: Path | None = None) -> int:
         current_version = conn.execute("PRAGMA user_version").fetchone()[0]
         conn.close()
         if current_version < required_version:
-            sys.stderr.write("run: learnloop doctor\n")
-            return 1
+            raise RuntimeError("Database schema requires migration. Run: learnloop doctor")
     except sqlite3.OperationalError as exc:
-        sys.stderr.write(f"Error opening database: {exc}\n")
-        return 1
+        raise RuntimeError(f"Error opening database: {exc}") from exc
 
-    DashboardHandler.server_port = port
-    DashboardHandler.db_path = resolved_db_path
+    # Attempt binding, fallback to next ports if port is occupied
+    actual_port = port
+    last_exc = None
+    server = None
+    for p in range(port, port + 20):
+        try:
+            DashboardHandler.server_port = p
+            DashboardHandler.db_path = resolved_db_path
+            server = DashboardServer(("127.0.0.1", p), DashboardHandler)
+            actual_port = p
+            break
+        except OSError as exc:
+            last_exc = exc
+            continue
 
+    if server is None:
+        raise OSError(f"Could not bind to port {port} or next 20 ports: {last_exc}")
+
+    return server, actual_port
+
+
+def run_dashboard_server(port: int = 8765, db_path: Path | None = None) -> int:
+    """Run the read-only dashboard HTTP server on 127.0.0.1:<port>."""
     try:
-        server = DashboardServer(("127.0.0.1", port), DashboardHandler)
-    except OSError as exc:
-        sys.stderr.write(f"Error: port {port} is already in use ({exc}).\n")
+        server, actual_port = create_dashboard_server(port=port, db_path=db_path)
+    except Exception as exc:
+        sys.stderr.write(f"{exc}\n")
         return 1
 
-    sys.stdout.write(f"LearnLoop dashboard running at http://127.0.0.1:{port}/\n")
+    sys.stdout.write(f"LearnLoop dashboard running at http://127.0.0.1:{actual_port}/\n")
     sys.stdout.flush()
 
     try:

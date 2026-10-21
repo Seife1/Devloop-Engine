@@ -6,12 +6,17 @@
 ### Base URL: https://learnloop.yourdomain.com
 
 ### Endpoints:
-1. **GET /** - Server info and endpoints
-2. **POST /api/initialize** - Initialize project
-3. **GET /api/tools** - List available tools
-4. **POST /api/execute** - Execute tool
-5. **GET /api/events** - Server-Sent Events stream
-6. **GET /health** - Health check
+1. **GET /** - Server status, docs, and endpoint dashboard
+2. **GET /health** - Health check and SQLite database path
+3. **GET /mcp** - Streamable HTTP info and tool discovery
+4. **POST /mcp** - Modern Streamable HTTP JSON-RPC transport (`initialize`, `tools/list`, `tools/call`)
+5. **GET /sse** - Standard Server-Sent Events stream (yields endpoint `/mcp/v1/call`)
+6. **POST /mcp/v1/call** - MCP JSON-RPC execution endpoint
+7. **GET /mcp/v1/tools** - JSON-RPC tools listing
+8. **GET /rules** - Raw official `AGENTS.md` rules
+9. **GET /setup.ps1** - Dynamic one-shot PowerShell LAN/remote installer
+10. **GET /setup.sh** - Dynamic one-shot Bash LAN/remote installer
+11. **GET /tools** & **POST /call/{name}** - Legacy REST testing endpoints
 
 ## Docker Deployment
 
@@ -83,18 +88,42 @@ railway up
 
 ## Client Integration
 
-### MCP Client Configuration (Claude Desktop)
+### 1. One-Shot LAN / Remote Setup (Recommended)
+From any remote computer on the same network or internet:
+
+* **Windows (PowerShell):**
+  ```powershell
+  irm http://<SERVER-HOST>:8000/setup.ps1 | iex
+  ```
+* **macOS / Linux (Bash):**
+  ```bash
+  curl -sSL http://<SERVER-HOST>:8000/setup.sh | bash
+  ```
+
+This automatically downloads `AGENTS.md` and `.windsurfrules` and configures `mcp_config.json` with `mcp-remote`.
+
+### 2. Manual MCP Client Configuration (Windsurf, Claude Desktop, Cursor)
 ```json
 {
   "mcpServers": {
     "learnloop": {
-      "command": "curl",
+      "command": "npx",
       "args": [
-        "-X", "POST",
-        "-H", "Content-Type: application/json",
-        "-d", "{\"tool\": \"get_session_briefing\", \"arguments\": {\"workspace\": \"{{workspace}}\"}}",
-        "https://learnloop.yourdomain.com/api/execute"
+        "-y",
+        "mcp-remote",
+        "http://<SERVER-HOST>:8000/sse"
       ]
+    }
+  }
+}
+```
+
+### 3. Direct Modern Streamable HTTP (Cursor / Future IDEs)
+```json
+{
+  "mcpServers": {
+    "learnloop": {
+      "url": "http://<SERVER-HOST>:8000/mcp"
     }
   }
 }
@@ -127,4 +156,28 @@ async function executeTool(tool, args) {
 2. **CORS**: Configure allowed origins
 3. **Rate Limiting**: Implement per-IP rate limiting
 4. **Data Isolation**: Projects isolated by workspace hash
-5. **Redaction**: Always enabled for HTTP transport
+5. **Redaction**: Always enabled for HTTP transport
+
+---
+
+## Windows Standalone Desktop App & GUI
+
+LearnLoop provides a zero-dependency standalone Windows executable (`dist/learnloop.exe`) bundling Microsoft Edge WebView2:
+
+### Usage on Windows:
+- **Interactive Double-Click**: Double-clicking `learnloop.exe` in File Explorer automatically detaches the console and launches a native desktop application window into the 3-Step Setup Wizard.
+- **IDE MCP Mode**: When spawned silently by Cursor, VS Code, or Windsurf via stdio pipes (`learnloop`), it runs the headless FastMCP server.
+- **CLI Commands**:
+  ```powershell
+  # Launch native desktop application window
+  learnloop gui
+
+  # Launch native desktop window directly into dashboard
+  learnloop gui --route /
+
+  # Run setup wizard in external web browser tab instead
+  learnloop setup --browser
+
+  # Run dashboard directly in native desktop window
+  learnloop dashboard --gui
+  ```

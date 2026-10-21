@@ -1,12 +1,12 @@
-# HTTP Server Dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-sse-starlette==1.6.5
-python-multipart==0.0.6
+﻿# HTTP Server Dependencies
+fastapi>=0.146.0
+uvicorn[standard]>=0.54.0
+sse-starlette>=3.5.0
+python-multipart>=0.0.32
 
 # LearnLoop Core
 -e .
 
 # Optional for production
 gunicorn==21.2.0
-redis==5.0.1  # For rate limiting
+redis==5.0.1  # For rate limiting

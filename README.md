@@ -3,6 +3,12 @@
 An MCP server that shows you where your AI coding agent did work you can't yet do alone, then gives you
 short, targeted practice to close the gap.
 
+> ### 🔒 100% Local-First & Zero Data Sharing
+> **Your data never leaves your machine.**
+> - **Local SQLite DB:** Your learning logs, review history, and commit tracking stay entirely on your disk.
+> - **Local Dashboard:** Runs strictly on `http://127.0.0.1:8765` in read-only mode with zero external CDN dependencies.
+> - **Zero Telemetry:** NO data is transmitted to external servers, cloud metrics, or third parties—not even the creator.
+
 **Core idea:** *exposure* (what the AI built, verified against git) is tracked separately from *mastery*
 (what you demonstrated in your own graded attempts and explain-backs).
 
@@ -25,24 +31,24 @@ Agent/Learner --> register_knowledge_item --> concepts.md
 git commits   --> staleness detection     --> list_stale_items
 ```
 
-## 🚀 Quick Start (Universal Integration)
+## 🚀 Quick Start (Zero-Dependency One-Liner)
 
-**No file copying needed!** LearnLoop works in ANY IDE/terminal automatically.
+**No Python, Node, or configuration required!** LearnLoop auto-detects your IDE and configures everything in 30 seconds:
 
-### One-Command Setup:
+### Windows (PowerShell):
+```powershell
+irm https://learnloop.dev/setup.ps1 | iex
+```
+
+### macOS & Linux (Terminal):
 ```bash
-# Install LearnLoop
+curl -fsSL https://learnloop.dev/setup.sh | bash
+```
+
+### Python Developers (pip / uv):
+```bash
 pip install -e ".[dev]"
-
-# Navigate to your project
-cd your-project
-
-# Initialize with universal integration
 learnloop init --integrate
-
-# OR do it step by step
-learnloop init
-learnloop integrate --all
 ```
 
 ### What This Does Automatically:
@@ -96,6 +102,9 @@ learnloop integrate --ide claude
 ## 📋 CLI Commands
 
 ### Core Commands:
+- `learnloop gui [--port 8765] [--route /setup|/]`: Launch native Microsoft Edge WebView2 desktop application window
+- `learnloop setup [--port 8765] [--browser] [--no-browser]`: Interactive 3-step setup wizard
+- `learnloop dashboard [--port 8765] [--gui]`: Web dashboard on `127.0.0.1:8765` (optional `--gui` window)
 - `learnloop init [--repo .] [--integrate]`: Initialize `.learn/` with optional IDE integration
 - `learnloop integrate [--ide auto|vscode|cursor|claude|windsurf|zed|all] [--terminal] [--env] [--all]`: Universal integration
 - `learnloop record-commit [--repo .]`: Record recent commit metadata (called by git hook)
@@ -104,7 +113,6 @@ learnloop integrate --ide claude
 - `learnloop review [--repo .]`: Interactive spaced repetition review
 - `learnloop briefing [--repo .]`: Session-start briefing
 - `learnloop doctor`: Verify database, taxonomy, hooks
-- `learnloop dashboard [--port 8765]`: Web dashboard on `127.0.0.1:8765`
 - `learnloop techscan [--repo .]`: Scan repository dependencies
 
 ### Terminal Shortcuts (after `learnloop integrate --terminal`):
@@ -236,10 +244,36 @@ docker build -t learnloop .
 docker run -p 8000:8000 -p 8765:8765 learnloop
 ```
 
-### 3. **Platform Services**:
+### 3. **Remote & LAN Setup (Connect Another PC over Wi-Fi)**:
+
+Run LearnLoop on your main workstation and connect any remote IDE (Windsurf, VS Code, Cursor) from another computer on the same network.
+
+**On the Host PC (Server):**
+```bash
+python learnloop_http.py --host 0.0.0.0 --port 8000
+```
+*(Find your host IP using `ipconfig` or `ifconfig`, e.g. `192.168.10.199`)*
+
+**On the Other PC (One-Fly Setup):**
+Navigate to your project directory in terminal and run a single command:
+
+* **Windows (PowerShell):**
+  ```powershell
+  irm http://<HOST-IP>:8000/setup.ps1 | iex
+  ```
+* **macOS / Linux (Bash):**
+  ```bash
+  curl -sSL http://<HOST-IP>:8000/setup.sh | bash
+  ```
+
+This single command automatically:
+1. Ingests the official 8-rule `AGENTS.md` and `.windsurfrules` into your workspace.
+2. Injects the `learnloop` server configuration with `mcp-remote` into Windsurf (`mcp_config.json`), VS Code (`.vscode/settings.json`), and Cursor.
+3. Connects your remote IDE over the local network with zero manual JSON editing.
+
+### 4. **Platform Cloud Deployments**:
 - **Fly.io**, **Railway.app**, **Render.com**
-- Set environment variables
-- Point to your deployment
+- Supports both modern **Streamable HTTP** (`/mcp`) and legacy **HTTP+SSE** (`/sse`).
 
 ## 📈 Status
 

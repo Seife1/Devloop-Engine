@@ -6,6 +6,16 @@ Makes LearnLoop tools available in ANY IDE/terminal without manual file copying.
 
 import os
 import sys
+
+if sys.platform == "win32":
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 import json
 import shutil
 from pathlib import Path
@@ -16,8 +26,8 @@ import subprocess
 class LearnLoopIntegrator:
     """Universal integration for all IDEs and terminals."""
     
-    def __init__(self):
-        self.project_root = Path.cwd()
+    def __init__(self, project_root: Optional[Path] = None):
+        self.project_root = Path(project_root) if project_root else Path.cwd()
         self.learnloop_dir = self.project_root / ".learn"
         self.integrations_dir = Path(__file__).parent / "integrations"
         
@@ -29,6 +39,7 @@ class LearnLoopIntegrator:
             ],
             "cursor": [
                 self.project_root / ".cursorrules",
+                self.project_root / ".cursor" / "mcp.json",
                 Path.home() / ".cursorrules",
             ],
             "claude": [
@@ -37,97 +48,174 @@ class LearnLoopIntegrator:
             ],
             "windsurf": [
                 self.project_root / ".windsurfrules",
+                self.project_root / ".windsurf" / "mcp_config.json",
                 Path.home() / ".windsurfrules",
             ],
             "zed": [
+                self.project_root / ".zed" / "settings.json",
                 self.project_root / "settings.json",
                 Path.home() / ".config" / "zed" / "settings.json",
             ],
+            "agents": [
+                self.project_root / "AGENTS.md",
+                self.project_root / "GEMINI.md",
+            ],
             "any": [self.project_root / ".learnloop_rules.md"]
         }
-        
+
+    @staticmethod
+    def _get_claude_desktop_config_path() -> Optional[Path]:
+        """Return the platform-specific config path for Claude Desktop."""
+        if sys.platform == "win32":
+            appdata = os.environ.get("APPDATA")
+            return Path(appdata) / "Claude" / "claude_desktop_config.json" if appdata else None
+        elif sys.platform == "darwin":
+            return Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+        else:
+            return Path.home() / ".config" / "Claude" / "claude_desktop_config.json"
+
+    def detect_ide_status(self) -> Dict[str, Dict[str, Any]]:
+        """Return rich detection status for each supported IDE."""
+        # Cursor
+        cursor_detected = (
+            (self.project_root / ".cursor").exists()
+            or (self.project_root / ".cursorrules").exists()
+            or (Path.home() / ".cursor").exists()
+            or bool(shutil.which("cursor"))
+            or (sys.platform == "win32" and (Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "cursor").exists())
+        )
+
+        # VS Code
+        vscode_detected = (
+            (self.project_root / ".vscode").exists()
+            or (Path.home() / ".vscode").exists()
+            or bool(shutil.which("code"))
+            or (sys.platform == "win32" and (Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Microsoft VS Code").exists())
+        )
+
+        # Windsurf
+        windsurf_detected = (
+            (self.project_root / ".windsurf").exists()
+            or (self.project_root / ".windsurfrules").exists()
+            or (Path.home() / ".codeium" / "windsurf").exists()
+            or bool(shutil.which("windsurf"))
+            or (sys.platform == "win32" and (Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Windsurf").exists())
+        )
+
+        # Claude Desktop / Code
+        claude_cfg = self._get_claude_desktop_config_path()
+        claude_detected = (
+            (self.project_root / "CLAUDE.md").exists()
+            or (claude_cfg is not None and claude_cfg.parent.exists())
+            or bool(shutil.which("claude"))
+        )
+
+        # Zed
+        zed_detected = (
+            (self.project_root / ".zed").exists()
+            or (Path.home() / ".config" / "zed").exists()
+            or bool(shutil.which("zed"))
+            or (sys.platform == "win32" and (Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Zed").exists())
+        )
+
+        # Universal Agents (AGENTS.md / GEMINI.md)
+        agents_detected = (
+            (self.project_root / "AGENTS.md").exists()
+            or (self.project_root / "GEMINI.md").exists()
+            or True  # Universal - always recommended
+        )
+
+        return {
+            "cursor": {
+                "name": "Cursor",
+                "desc": "Generates .cursorrules and configures MCP in .cursor/mcp.json",
+                "detected": cursor_detected,
+                "badge": "Detected" if cursor_detected else "Available",
+            },
+            "vscode": {
+                "name": "VS Code",
+                "desc": "Configures MCP in .vscode/settings.json",
+                "detected": vscode_detected,
+                "badge": "Detected" if vscode_detected else "Available",
+            },
+            "windsurf": {
+                "name": "Windsurf",
+                "desc": "Generates .windsurfrules and configures MCP",
+                "detected": windsurf_detected,
+                "badge": "Detected" if windsurf_detected else "Available",
+            },
+            "claude": {
+                "name": "Claude Desktop & Code",
+                "desc": "Configures claude_desktop_config.json and CLAUDE.md",
+                "detected": claude_detected,
+                "badge": "Detected" if claude_detected else "Available",
+            },
+            "zed": {
+                "name": "Zed",
+                "desc": "Configures MCP in .zed/settings.json",
+                "detected": zed_detected,
+                "badge": "Detected" if zed_detected else "Available",
+            },
+            "agents": {
+                "name": "Antigravity & Universal AI Agents",
+                "desc": "Generates AGENTS.md and GEMINI.md (Copilot, Roo, Cline, Aider)",
+                "detected": agents_detected,
+                "badge": "Recommended",
+            },
+        }
+
     def detect_ide(self) -> List[str]:
         """Detect which IDEs are being used."""
-        detected = []
-        
-        # Check for IDE-specific files/directories
-        if (self.project_root / ".vscode").exists():
-            detected.append("vscode")
-        if (self.project_root / ".cursorrules").exists():
-            detected.append("cursor")
-        if (self.project_root / "CLAUDE.md").exists() or (self.project_root / ".claude.md").exists():
-            detected.append("claude")
-        if (self.project_root / ".windsurfrules").exists():
-            detected.append("windsurf")
-        if (self.project_root / ".zed").exists() or (Path.home() / ".config" / "zed").exists():
-            detected.append("zed")
-        
-        # Always include "any" for terminal usage
-        detected.append("any")
-        
+        status = self.detect_ide_status()
+        detected = [k for k, v in status.items() if v["detected"]]
+        if "any" not in detected:
+            detected.append("any")
         return detected
     
     def get_mcp_config(self, ide: str) -> Dict[str, Any]:
         """Get MCP configuration for specific IDE."""
-        if ide in ["vscode", "zed"]:
-            return {
-                "mcpServers": {
-                    "learnloop": {
-                        "command": "learnloop",
-                        "args": []
-                    }
+        return {
+            "mcpServers": {
+                "learnloop": {
+                    "command": "learnloop",
+                    "args": []
                 }
             }
-        elif ide == "cursor":
-            return {
-                "mcpServers": {
-                    "learnloop": {
-                        "command": "learnloop"
-                    }
-                }
-            }
-        else:
-            # Generic MCP config
-            return {
-                "mcpServers": {
-                    "learnloop": {
-                        "command": "learnloop",
-                        "args": []
-                    }
-                }
-            }
+        }
     
-    def generate_rules_content(self, ide: str) -> str:
-        """Generate IDE-specific rules content."""
-        template_path = self.integrations_dir / "rules" / f"{ide.upper()}.md.template"
-        if template_path.exists():
-            return template_path.read_text()
-        
-        # Fallback to generic template
-        generic_path = self.integrations_dir / "rules" / "CLAUDE.md.template"
-        if generic_path.exists():
-            return generic_path.read_text()
-        
-        # Default rules
-        return """## LearnLoop Integration
+    def generate_rules_content(self, ide: str = "generic") -> str:
+        """Generate canonical LearnLoop rule content."""
+        return """## LearnLoop (learning companion)
 
-Use LearnLoop tools to track learning and build confidence:
+You are working with a learner who builds projects with AI and must be confident explaining each project. Use the `learnloop` MCP tools:
 
-1. **Session Start**: Call `get_session_briefing`
-2. **Architecture**: Call `get_project_tour` 
-3. **Work Session**: Call `start_skill_session`
-4. **Decisions**: Call `log_decision`
-5. **After Commits**: Call `ingest_queue`
-6. **Knowledge**: Call `register_knowledge_item`
-7. **Reviews**: Call `review_due` and `record_review`
-8. **Insights**: Call `add_did_you_know`
+1. At session start: call `get_session_briefing`. Present the calm ~60s briefing, offer the ONE suggested next action, and honor "skip" or "not now". Overdue items are simply re-spaced.
+2. For an architecture walkthrough or when onboarding to a project: call `get_project_tour` to guide the learner through entry points and components from basic to advanced.
+3. Before implementing a meaningful piece of work: call `start_skill_session` with the files you plan to touch (`files: [...]`), a one-line summary, and WHY. Use a stable `intent_id` (e.g. a short slug) so retries don't duplicate.
+4. When you choose between real alternatives: call `log_decision`.
+5. NEVER log what you merely "did" as learning. Git commits are the proof of outcome (a hook records them). After the user commits, call `ingest_queue`.
+6. When creating a component, making an architectural choice, or fixing a subtle bug: offer `register_knowledge_item` with key, title, summary, and tracked files.
+7. When conducting spaced reviews or technical interviews: call `review_due`, ask ONE question at a time, wait for learner's answer, and record outcomes with `record_review`.
+8. When introducing a new technology, scaling up architecture, or deciding on patterns: call `add_did_you_know` to record a captivating, sourced insight (living spec evolution/deprecations, creator origin lore, or pop culture/media crossovers like movies/anime/books).
 """
     
     def integrate_ide(self, ide: str, force: bool = False) -> bool:
         """Integrate LearnLoop with specific IDE."""
         print(f"Integrating with {ide.upper()}...")
+
+        if ide == "agents":
+            return self._integrate_agents_rules(force)
         
-        # Get config paths
+        if ide == "claude":
+            return self._integrate_claude(force)
+
+        if ide == "cursor":
+            return self._integrate_cursor(force)
+
+        if ide == "windsurf":
+            return self._integrate_windsurf(force)
+        
+        # Get config paths for json-based IDEs (vscode, zed, any)
         config_paths = self.ide_configs.get(ide, [])
         
         for config_path in config_paths:
@@ -136,14 +224,10 @@ Use LearnLoop tools to track learning and build confidence:
             
             if ide in ["vscode", "zed"]:
                 success = self._integrate_json_config(config_path, ide, force)
-            elif ide == "cursor":
-                success = self._integrate_cursor_rules(config_path, force)
-            elif ide == "claude":
-                success = self._integrate_claude_rules(config_path, force)
-            elif ide == "windsurf":
-                success = self._integrate_windsurf_rules(config_path, force)
             elif ide == "any":
                 success = self._integrate_generic_rules(config_path, force)
+            else:
+                success = False
             
             if success:
                 print(f"  ✅ Integrated: {config_path}")
@@ -151,14 +235,81 @@ Use LearnLoop tools to track learning and build confidence:
         
         print(f"  ❌ No suitable config location found for {ide}")
         return False
+
+    def _integrate_agents_rules(self, force: bool) -> bool:
+        """Integrate universal agent rules (AGENTS.md & GEMINI.md)."""
+        rules = self.generate_rules_content("agents")
+        for filename in ("AGENTS.md", "GEMINI.md"):
+            p = self.project_root / filename
+            self._write_rule_file(p, rules, force)
+        return True
+
+    def _integrate_claude(self, force: bool) -> bool:
+        """Integrate Claude Desktop global config and project CLAUDE.md."""
+        rules = self.generate_rules_content("claude")
+        self._write_rule_file(self.project_root / "CLAUDE.md", rules, force)
+
+        # Also configure Claude Desktop app if config dir exists or can be created
+        desktop_cfg = self._get_claude_desktop_config_path()
+        if desktop_cfg:
+            try:
+                desktop_cfg.parent.mkdir(parents=True, exist_ok=True)
+                self._integrate_json_config(desktop_cfg, "claude", force)
+            except Exception:
+                pass
+        return True
+
+    def _integrate_cursor(self, force: bool) -> bool:
+        """Integrate Cursor rules and MCP."""
+        rules = self.generate_rules_content("cursor")
+        self._write_rule_file(self.project_root / ".cursorrules", rules, force)
+
+        # Also configure .cursor/mcp.json
+        cursor_mcp = self.project_root / ".cursor" / "mcp.json"
+        try:
+            cursor_mcp.parent.mkdir(parents=True, exist_ok=True)
+            self._integrate_json_config(cursor_mcp, "cursor", force)
+        except Exception:
+            pass
+        return True
+
+    def _integrate_windsurf(self, force: bool) -> bool:
+        """Integrate Windsurf rules and MCP."""
+        rules = self.generate_rules_content("windsurf")
+        self._write_rule_file(self.project_root / ".windsurfrules", rules, force)
+
+        # Configure .windsurf/mcp_config.json
+        ws_mcp = self.project_root / ".windsurf" / "mcp_config.json"
+        try:
+            ws_mcp.parent.mkdir(parents=True, exist_ok=True)
+            self._integrate_json_config(ws_mcp, "windsurf", force)
+        except Exception:
+            pass
+        return True
+
+    def _write_rule_file(self, path: Path, content: str, force: bool) -> bool:
+        if path.exists() and not force:
+            try:
+                current = path.read_text(encoding="utf-8")
+                if "LearnLoop" in current:
+                    print(f"  ⚠️  LearnLoop already integrated: {path}")
+                    return True
+                path.write_text(current + "\n\n" + content, encoding="utf-8")
+            except Exception:
+                path.write_text(content, encoding="utf-8")
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        print(f"  ✅ Integrated rules: {path}")
+        return True
     
     def _integrate_json_config(self, config_path: Path, ide: str, force: bool) -> bool:
-        """Integrate with JSON-based config (VS Code, Zed)."""
+        """Integrate with JSON-based config (VS Code, Zed, Claude, Cursor)."""
         config = {}
         if config_path.exists() and not force:
             try:
-                config = json.loads(config_path.read_text())
-            except json.JSONDecodeError:
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 print(f"  ⚠️  Config file corrupt, overwriting: {config_path}")
         
         mcp_config = self.get_mcp_config(ide)
@@ -170,61 +321,19 @@ Use LearnLoop tools to track learning and build confidence:
         config["mcpServers"].update(mcp_config["mcpServers"])
         
         # Write config
-        config_path.write_text(json.dumps(config, indent=2))
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
         return True
-    
-    def _integrate_cursor_rules(self, config_path: Path, force: bool) -> bool:
-        """Integrate with Cursor rules."""
-        rules_content = self.generate_rules_content("cursor")
-        
-        if config_path.exists() and not force:
-            current_content = config_path.read_text()
-            if "LearnLoop" in current_content:
-                print(f"  ⚠️  LearnLoop already integrated: {config_path}")
-                return True
-            
-            # Append to existing rules
-            new_content = current_content + "\n\n" + rules_content
-            config_path.write_text(new_content)
-        else:
-            # Create new rules file
-            config_path.write_text(rules_content)
-        
-        return True
-    
-    def _integrate_claude_rules(self, config_path: Path, force: bool) -> bool:
-        """Integrate with Claude rules."""
-        return self._integrate_text_rules(config_path, "claude", force)
-    
-    def _integrate_windsurf_rules(self, config_path: Path, force: bool) -> bool:
-        """Integrate with WindSurf rules."""
-        return self._integrate_text_rules(config_path, "windsurf", force)
     
     def _integrate_generic_rules(self, config_path: Path, force: bool) -> bool:
         """Integrate with generic rules file."""
-        return self._integrate_text_rules(config_path, "any", force)
-    
-    def _integrate_text_rules(self, config_path: Path, ide: str, force: bool) -> bool:
-        """Integrate with text-based rules files."""
-        rules_content = self.generate_rules_content(ide)
-        
-        if config_path.exists() and not force:
-            current_content = config_path.read_text()
-            if "LearnLoop" in current_content:
-                print(f"  ⚠️  LearnLoop already integrated: {config_path}")
-                return True
-            
-            # Append to existing rules
-            new_content = current_content + "\n\n" + rules_content
-            config_path.write_text(new_content)
-        else:
-            # Create new rules file
-            config_path.write_text(rules_content)
-        
-        return True
+        return self._write_rule_file(config_path, self.generate_rules_content("generic"), force)
     
     def create_terminal_wrapper(self) -> bool:
         """Create terminal wrapper script for direct tool access."""
+        # Ensure .learn directory exists
+        self.learnloop_dir.mkdir(parents=True, exist_ok=True)
+        
         wrapper_path = self.learnloop_dir / "tools.sh"
         
         wrapper_content = """#!/bin/bash
@@ -278,7 +387,7 @@ case "$1" in
 esac
 """
         
-        wrapper_path.write_text(wrapper_content)
+        wrapper_path.write_text(wrapper_content, encoding="utf-8")
         wrapper_path.chmod(0o755)
         
         # Create batch file for Windows
@@ -317,7 +426,6 @@ if "%1"=="briefing" (
     echo Use: learnloop-tools help
     exit /b 1
 )
-goto :eof
 
 :help
 echo LearnLoop Terminal Commands:
@@ -330,7 +438,7 @@ echo   integrate     - Integrate with IDEs
 echo   help         - Show this help
 """
         
-        batch_path.write_text(batch_content)
+        batch_path.write_text(batch_content, encoding="utf-8")
         
         print(f"  ✅ Terminal wrappers created:")
         print(f"     - {wrapper_path}")
@@ -356,7 +464,7 @@ alias ll-review="learnloop review"
 alias ll-dashboard="learnloop dashboard &"
 """
         
-        env_path.write_text(env_content)
+        env_path.write_text(env_content, encoding="utf-8")
         
         # Create PowerShell profile script
         ps_profile = self.learnloop_dir / "LearnLoop.ps1"
@@ -381,7 +489,7 @@ Set-Alias llr Start-LearnLoopReview
 Set-Alias lld Open-LearnLoopDashboard
 """
         
-        ps_profile.write_text(ps_content)
+        ps_profile.write_text(ps_content, encoding="utf-8")
         
         print("  ✅ Environment setup complete")
         print("  📝 Source: source .learn/environment.sh (Linux/Mac)")
@@ -392,7 +500,7 @@ Set-Alias lld Open-LearnLoopDashboard
     def run(self, args):
         """Run integration based on command line args."""
         parser = argparse.ArgumentParser(description="LearnLoop Universal Integration")
-        parser.add_argument("--ide", choices=["auto", "vscode", "cursor", "claude", "windsurf", "zed", "all"], 
+        parser.add_argument("--ide", choices=["auto", "vscode", "cursor", "claude", "windsurf", "zed", "agents", "all"], 
                           default="auto", help="IDE to integrate with")
         parser.add_argument("--force", action="store_true", help="Force overwrite existing configs")
         parser.add_argument("--terminal", action="store_true", help="Setup terminal integration")
@@ -450,4 +558,6 @@ def main():
     integrator.run(sys.argv[1:])
 
 if __name__ == "__main__":
-    main()
+    main()
+
+

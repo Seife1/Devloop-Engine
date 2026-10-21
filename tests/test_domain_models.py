@@ -679,7 +679,8 @@ class TestCreateInitialReviewSchedule:
         assert schedule.last_reviewed_at is None
 
         # Verify due date is approximately 1 day from now
-        now = datetime.utcnow()
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
         expected_due = now + timedelta(days=1)
         time_diff = abs((schedule.due_at - expected_due).total_seconds())
         assert time_diff < 2  # Allow 2 seconds tolerance

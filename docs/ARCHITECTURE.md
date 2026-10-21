@@ -10,6 +10,7 @@ src/learnloop/
 ├── __main__.py              # CLI entry point
 ├── cli.py                   # Command-line interface
 ├── config.py                # Runtime settings (database path, etc.)
+├── gui.py                   # Native Microsoft Edge WebView2 desktop window
 ├── logging.py               # Logging infrastructure
 ├── server.py                # MCP server builder and tool registration
 │

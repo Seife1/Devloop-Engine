@@ -19,5 +19,12 @@ class Settings:
     @classmethod
     def load(cls) -> Settings:
         override = os.environ.get("LEARNLOOP_DB")
-        path = Path(override) if override else Path(user_data_dir("learnloop")) / "learnloop.db"
+        if override:
+            path = Path(override)
+        else:
+            in_repo_db = Path.cwd() / ".learn" / "learnloop.db"
+            if in_repo_db.exists():
+                path = in_repo_db
+            else:
+                path = Path(user_data_dir("learnloop")) / "learnloop.db"
         return cls(db_path=path)

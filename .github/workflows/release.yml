@@ -1,0 +1,90 @@
+name: Release Standalone Binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows-x64
+            binary_name: learnloop.exe
+            release_name: learnloop-windows-x64.exe
+          - os: macos-latest
+            target: darwin-arm64
+            binary_name: learnloop
+            release_name: learnloop-darwin-arm64
+          - os: macos-13
+            target: darwin-x64
+            binary_name: learnloop
+            release_name: learnloop-darwin-x64
+          - os: ubuntu-latest
+            target: linux-x64
+            binary_name: learnloop
+            release_name: learnloop-linux-x64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install pyinstaller
+
+      - name: Build standalone binary
+        run: python scripts/build_binary.py
+
+      - name: Rename release asset
+        shell: bash
+        run: |
+          mkdir -p release_assets
+          mv "dist/${{ matrix.binary_name }}" "release_assets/${{ matrix.release_name }}"
+          chmod +x "release_assets/${{ matrix.release_name }}" || true
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: release_assets/${{ matrix.release_name }}
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_binaries
+          merge-multiple: true
+
+      - name: Generate Checksums
+        working-directory: release_binaries
+        run: |
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release_binaries/*
+          generate_release_notes: true
