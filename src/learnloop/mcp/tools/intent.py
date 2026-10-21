@@ -34,9 +34,10 @@ def _generate_session_id() -> str:
 
 def register(mcp: FastMCP, db: Db, settings: Settings) -> None:
     """Register MCP-native intent tracking tools."""
-    
-    # Session ID is generated once per server instance
-    # In production, this should come from MCP session context
+    import os
+    if os.environ.get("LEARNLOOP_LEGACY_TOOLS") != "1":
+        return
+
     _session_id = _generate_session_id()
     
     @mcp.tool()
@@ -47,29 +48,7 @@ def register(mcp: FastMCP, db: Db, settings: Settings) -> None:
         skills: Annotated[list[SkillId], Field(min_length=0, max_length=8)] = [],  # noqa: B006
         intent_id: str | None = None,
     ) -> dict[str, Any]:
-        """Declare what you are about to build (MCP-native version with session tracking).
-        
-        Creates an intent record that tracks your learning goals before implementation.
-        The intent will be matched with git commits to create verified exposure records.
-        
-        Args:
-            project_id: Project identifier
-            intent_description: What you plan to implement (1-2000 chars)
-            files: List of files you'll be working on (1-50 files)
-            skills: Optional skill identifiers being practiced (0-8 skills)
-            intent_id: Optional ID for idempotency (auto-generated if not provided)
-        
-        Returns:
-            Dict with intent_id, created (bool), and status
-        
-        Requirements:
-            - 4.1: Tool handler for intent creation
-            - 4.2: Validate input parameters (intent, files, skills)
-            - 4.3: Create IntentRecord with OPEN status
-            - 4.4: Store session_id and timestamp
-            - 4.5: Allow multiple open intents per project
-            - 4.6: Return success response in under 50ms
-        """
+        """Declare what you are about to build (legacy v2 alias). Use start_skill_session instead."""
         with db() as conn:
             return capture_service.start_skill_session_v2(
                 conn=conn,

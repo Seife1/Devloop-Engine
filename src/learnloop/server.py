@@ -36,19 +36,23 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             conn.close()
 
     mcp = FastMCP("learnloop")
-    capture.register(mcp, db, settings)
-    intent.register(mcp, db, settings)
-    profile.register(mcp, db)
-    knowledge.register(mcp, db)
-    technologies.register(mcp, db)
-    facts.register(mcp, db)
-    tour.register(mcp, db)
-    review.register(mcp, db)
+    
+    # Register the 4 modern Domain-Clustered tools (default)
+    from learnloop.mcp.tools import cluster
+    cluster.register(mcp, db, settings)
 
-    # Legacy skill/quiz tools: register only when LEARNLOOP_LEGACY_TOOLS=1 (default off)
+    # Legacy individual tools: register only when LEARNLOOP_LEGACY_TOOLS=1 (default off)
     import os
 
     if os.environ.get("LEARNLOOP_LEGACY_TOOLS") == "1":
+        capture.register(mcp, db, settings)
+        intent.register(mcp, db, settings)
+        profile.register(mcp, db)
+        knowledge.register(mcp, db)
+        technologies.register(mcp, db)
+        facts.register(mcp, db)
+        tour.register(mcp, db)
+        review.register(mcp, db)
         skills.register(mcp, db)
         practice.register(mcp, db)
         teaching.register(mcp, db)

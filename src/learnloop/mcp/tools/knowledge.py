@@ -29,6 +29,8 @@ Db = Callable[[], AbstractContextManager[Connection]]
 
 
 def register(mcp: FastMCP, db: Db) -> None:
+    import os
+
     @mcp.tool()
     def register_knowledge_item(
         project_id: str,
@@ -41,8 +43,7 @@ def register(mcp: FastMCP, db: Db) -> None:
         tags: Annotated[list[Annotated[str, Field(min_length=1, max_length=40)]], Field(max_length=5)]
         | None = None,
     ) -> dict[str, Any]:
-        """Register or update a project knowledge item (component, decision, concept, or bug-fix).
-        Paths must exist in the union of ingested commits. Idempotent per (project_id, key)."""
+        """Register or update a project knowledge item (component, decision, concept, or bug-fix)."""
         with db() as conn:
             return knowledge_service.register_knowledge_item(
                 conn,
@@ -67,8 +68,7 @@ def register(mcp: FastMCP, db: Db) -> None:
         explanation_id: int | None = None,
         self_rating: SelfRating | None = None,
     ) -> dict[str, Any]:
-        """Record the LEARNER's explain-back for a knowledge item and the agent's rubric score (0.0-1.0).
-        Rejects empty learner_text. Score >= 0.8 marks item explained; updates baseline commit to HEAD."""
+        """Record the learner's explain-back for a knowledge item and rubric score (0.0-1.0)."""
         with db() as conn:
             return knowledge_service.record_explanation(
                 conn,
@@ -87,12 +87,15 @@ def register(mcp: FastMCP, db: Db) -> None:
         project_id: str,
         band: ItemBand | None = None,
         status: ItemStatus | None = None,
+        stale_only: bool = False,
+        detailed: bool = False,
         limit: Limit = 30,
         cursor: str | None = None,
     ) -> dict[str, Any]:
-        """List knowledge items for a project, filtered by band or status.
-        Bounded output with summaries clipped to 160 characters."""
+        """List project knowledge items with optional filters. Compact by default (set detailed=True for files/commits)."""
         with db() as conn:
+            if stale_only:
+                return knowledge_service.list_stale_items(conn, project_id=project_id)
             return knowledge_service.list_items(
                 conn,
                 project_id=project_id,
@@ -100,19 +103,19 @@ def register(mcp: FastMCP, db: Db) -> None:
                 status=status,
                 limit=limit,
                 cursor=cursor,
+                detailed=detailed,
             )
 
-    @mcp.tool()
-    def list_stale_items(project_id: str) -> dict[str, Any]:
-        """List knowledge items whose files were changed by newer commits since last explained.
-        Returns changed commits so you can inspect diffs and re-explain."""
-        with db() as conn:
-            return knowledge_service.list_stale_items(conn, project_id=project_id)
+    if os.environ.get("LEARNLOOP_LEGACY_TOOLS") == "1":
+        @mcp.tool()
+        def list_stale_items(project_id: str) -> dict[str, Any]:
+            """DEPRECATED legacy tool. Use list_items(stale_only=True) instead."""
+            with db() as conn:
+                return knowledge_service.list_stale_items(conn, project_id=project_id)
 
     @mcp.tool()
     def get_project_readiness(project_id: str | None = None) -> dict[str, Any]:
-        """Get count-based confidence metrics for a project (explained, stale, due, by-band).
-        Resolves default project if omitted. Never computes scores or percentages."""
+        """Get count-based readiness metrics for a project (explained, stale, due, and band counts)."""
         with db() as conn:
             return readiness_service.get_project_readiness(conn, project_id=project_id)
     
@@ -122,13 +125,7 @@ def register(mcp: FastMCP, db: Db) -> None:
         key: ItemKey,
         max_context_lines: Annotated[int, Field(ge=10, le=100)] = 50,
     ) -> dict[str, Any]:
-        """Generate an explanation prompt for a knowledge item.
-        
-        Creates depth-appropriate questions (2-4) tailored to the item's complexity band.
-        Includes code context (max 50 lines by default) and self-rating guidance (1-5 scale).
-        
-        Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8
-        """
+        """Generate depth-appropriate explain-back questions (2-4) and code context for a knowledge item."""
         with db() as conn:
             return knowledge_service.generate_item_explanation_prompt(
                 conn,

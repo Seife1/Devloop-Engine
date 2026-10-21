@@ -45,3 +45,14 @@ def register(mcp: FastMCP, db: Db) -> None:
         Skills the AI used a lot that the learner has not demonstrated. Highest priority first."""
         with db() as conn:
             return skill_service.find_gaps(conn, project_id, limit)
+
+    @mcp.tool()
+    def flag_misunderstanding(
+        skill: str,
+        pattern: ShortText,
+        confidence: str = "medium",
+    ) -> dict[str, Any]:
+        """DEPRECATED legacy tool."""
+        from learnloop.services import capture_service
+        with db() as conn:
+            return capture_service.flag_misunderstanding(conn, skill, pattern, confidence)

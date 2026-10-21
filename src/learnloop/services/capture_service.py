@@ -67,17 +67,18 @@ def start_skill_session(
         validate_skills(conn, skills_list)
     normalised_files: list[str] = []
     if files:
-        if len(files) > 20:
-            raise ValidationError("Provide at most 20 files.")
+        if len(files) > 50:
+            raise ValidationError("Provide at most 50 files.")
         normalised_files = list(dict.fromkeys(normalise_path(f) for f in files))
 
     iid = intent_id or _new_id()
     if conn.execute("SELECT 1 FROM intents WHERE id=?", (iid,)).fetchone():
         return {"intent_id": iid, "created": False}
+    created_at = clock.iso(now or clock.utcnow())
     conn.execute(
         "INSERT INTO intents (id, project_id, summary, rationale, commit_sha, created_at)"
         " VALUES (?,?,?,?,?,?)",
-        (iid, project_id, summary, rationale, commit_sha, clock.iso(now or clock.utcnow())),
+        (iid, project_id, summary, rationale, commit_sha, created_at),
     )
     if skills_list:
         conn.executemany(
@@ -89,6 +90,28 @@ def start_skill_session(
             "INSERT INTO intent_files (intent_id, path, touched) VALUES (?,?,NULL)",
             [(iid, f) for f in normalised_files],
         )
+
+    # Mirror to intent_records if table exists for session tracking and v2 reconciliation
+    try:
+        desc = f"{summary} ({rationale})" if rationale else summary
+        conn.execute(
+            """INSERT OR IGNORE INTO intent_records 
+               (id, session_id, project_id, intent_description, files_json, skills_json, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                iid,
+                "default-session",
+                project_id,
+                desc,
+                json.dumps(normalised_files),
+                json.dumps(skills_list),
+                "open",
+                created_at,
+            ),
+        )
+    except Exception:
+        pass
+
     conn.commit()
     return {"intent_id": iid, "created": True, "status": "open"}
 

@@ -65,7 +65,12 @@ def _matches_any(path: str, patterns: list[str]) -> bool:
     return False
 
 
-def get_project_tour(conn: sqlite3.Connection, project_id: str) -> dict[str, Any]:
+def get_project_tour(
+    conn: sqlite3.Connection,
+    project_id: str,
+    max_uncovered: int = 40,
+    include_protocol: bool = True,
+) -> dict[str, Any]:
     """Generate bounded project tour bundle (<8 KB)."""
     require_project(conn, project_id)
     profile = get_effective_profile(conn, project_id)
@@ -107,12 +112,12 @@ def get_project_tour(conn: sqlite3.Connection, project_id: str) -> dict[str, Any
     for f in file_rows:
         covered_paths.add(f["path"])
 
-    # Uncovered files (capped at 40)
+    # Uncovered files
     uncovered = [p for p in known_paths if p not in covered_paths]
-    uncovered_sample = uncovered[:40]
-    uncovered_truncated = len(uncovered) > 40
+    uncovered_sample = uncovered[:max_uncovered]
+    uncovered_truncated = len(uncovered) > max_uncovered
 
-    return {
+    bundle: dict[str, Any] = {
         "project_id": project_id,
         "learner_profile": profile,
         "top_level_dirs": top_dirs,
@@ -122,5 +127,7 @@ def get_project_tour(conn: sqlite3.Connection, project_id: str) -> dict[str, Any
         "uncovered_files": uncovered_sample,
         "uncovered_truncated": uncovered_truncated,
         "uncovered_total": len(uncovered),
-        "protocol": TOUR_PROTOCOL,
     }
+    if include_protocol:
+        bundle["protocol"] = TOUR_PROTOCOL
+    return bundle

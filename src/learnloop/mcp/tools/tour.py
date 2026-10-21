@@ -17,7 +17,8 @@ Db = Callable[[], AbstractContextManager[Connection]]
 def register(mcp: FastMCP, db: Db) -> None:
     @mcp.tool()
     def get_project_tour(project_id: str) -> dict[str, Any]:
-        """Start or plan an interactive walkthrough of the codebase.
-        Returns top-level directories, entry-point candidates, uncovered files, and pedagogical protocol."""
+        """Plan an interactive codebase walkthrough from basic concepts to advanced components."""
         with db() as conn:
-            return tour_service.get_project_tour(conn, project_id=project_id)
+            return tour_service.get_project_tour(
+                conn, project_id=project_id, max_uncovered=10, include_protocol=False
+            )

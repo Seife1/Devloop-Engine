@@ -1,12 +1,17 @@
 ## LearnLoop (learning companion)
 
-You are working with a learner who builds projects with AI and must be confident explaining each project. Use the `learnloop` MCP tools:
+You are working with a learner who builds projects with AI and must be confident explaining each project. LearnLoop uses 4 domain-clustered MCP tools (`project_id` is automatically resolved):
 
-1. At session start: call `get_session_briefing`. Present the calm ~60s briefing, offer the ONE suggested next action, and honor "skip" or "not now". Overdue items are simply re-spaced.
-2. For an architecture walkthrough or when onboarding to a project: call `get_project_tour` to guide the learner through entry points and components from basic to advanced.
-3. Before implementing a meaningful piece of work: call `start_skill_session` with the files you plan to touch (`files: [...]`), a one-line summary, and WHY. Use a stable `intent_id` (e.g. a short slug) so retries don't duplicate.
-4. When you choose between real alternatives: call `log_decision`.
-5. NEVER log what you merely "did" as learning. Git commits are the proof of outcome (a hook records them). After the user commits, call `ingest_queue`.
-6. When creating a component, making an architectural choice, or fixing a subtle bug: offer `register_knowledge_item` with key, title, summary, and tracked files.
-7. When conducting spaced reviews or technical interviews: call `review_due`, ask ONE question at a time, wait for learner's answer, and record outcomes with `record_review`.
-8. When introducing a new technology, scaling up architecture, or deciding on patterns: call `add_did_you_know` to record a captivating, sourced insight (living spec evolution/deprecations, creator origin lore, or pop culture/media crossovers like movies/anime/books).
+1. **Active Coding** (`track_intent`):
+   - Before implementing meaningful work: call `track_intent(action="start_session", summary="...", files=[...])`.
+   - When choosing between real technical alternatives: call `track_intent(action="log_decision", choice="...", alternatives=[...], tradeoffs="...")`.
+   - After commits: call `track_intent(action="reconcile")`. NEVER log what you merely "did" as learning; git commits are the proof.
+2. **Spaced Repetition & Catch-up** (`manage_reviews`):
+   - At session start: call `manage_reviews(action="briefing")` for a calm catch-up briefing.
+   - For reviews/interview prep: call `manage_reviews(action="due")`, ask ONE question at a time, and record outcomes with `manage_reviews(action="record", ...)`.
+3. **Knowledge Catalog** (`manage_knowledge`):
+   - When creating a component or fixing a subtle bug: call `manage_knowledge(action="register", key="...", title="...", kind="...", band="...", files=[...], summary="...")`.
+   - To inspect concepts: call `manage_knowledge(action="list")` (compact by default).
+4. **Codebase Exploration** (`explore_project`):
+   - For codebase walkthroughs or onboarding: call `explore_project(action="tour")`.
+   - When introducing new technologies: call `explore_project(action="add_fact", ...)` with a verified technical insight.

@@ -25,8 +25,7 @@ def register(mcp: FastMCP, db: Db) -> None:
         audience: LearnerAudience | None = None,
         project_id: str | None = None,
     ) -> dict[str, Any]:
-        """Configure learner profile preferences (level, goal, session minutes, target audience).
-        If project_id is provided, overrides profile for that project; otherwise updates global profile."""
+        """Configure learner profile preferences (level, goal, session minutes, target audience)."""
         with db() as conn:
             return profile_service.set_learner_profile(
                 conn,

@@ -29,9 +29,7 @@ def register(mcp: FastMCP, db: Db) -> None:
         project_id: ShortText,
         limit: ReviewLimit = 3,
     ) -> dict[str, Any]:
-        """Fetch knowledge items due for spaced repetition review today (max 3).
-        Ordered with stale items first. Waiting items are shown as a plain count.
-        """
+        """Fetch up to 3 knowledge items due for spaced repetition review today (stale items prioritized)."""
         with db() as conn:
             return review_service.review_due(conn, project_id=project_id, limit=limit)
 
@@ -44,9 +42,7 @@ def register(mcp: FastMCP, db: Db) -> None:
         score: Score,
         review_id: int | None = None,
     ) -> dict[str, Any]:
-        """Record the learner's answer to a spaced review question and reschedule using SM-2.
-        Redacts free text before DB write, updates depth if score >= 0.8, and regenerates concepts.md.
-        """
+        """Record learner's answer to a review question and reschedule using SM-2 algorithm."""
         with db() as conn:
             return review_service.record_review(
                 conn,
@@ -77,9 +73,7 @@ def register(mcp: FastMCP, db: Db) -> None:
     def get_session_briefing(
         project_id: ShortText,
     ) -> dict[str, Any]:
-        """Get a calm, compact (< 3 KB) session-start briefing showing recent changes and due reviews.
-        Updates projects.last_briefing_at to record this catch-up session.
-        """
+        """Get a calm session-start briefing showing recent changes and due reviews."""
         with db() as conn:
             return briefing_service.get_session_briefing(
                 conn,

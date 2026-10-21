@@ -17,10 +17,6 @@ Db = Callable[[], AbstractContextManager[Connection]]
 def register(mcp: FastMCP, db: Db) -> None:
     @mcp.tool()
     def refresh_technologies(project_id: str) -> dict[str, Any]:
-        """Deterministically scan repository dependencies (Python, Node, Go, Rust, Docker).
-
-        Updates project technologies. Reads only within the project's repository up to 2 directories deep.
-        Offline, no network, no LLMs.
-        """
+        """Scan and update repository dependencies (Python, Node, Go, Rust, Docker)."""
         with db() as conn:
             return technology_service.refresh_technologies(conn, project_id=project_id)

@@ -22,7 +22,7 @@ Db = Callable[[], AbstractContextManager[Connection]]
 def register(mcp: FastMCP, db: Db, settings: Settings) -> None:
     @mcp.tool()
     def start_project(name: ShortText, repo_path: ShortText) -> dict[str, Any]:
-        """Register the project you are working in (idempotent per repo_path). Returns project id."""
+        """Register the workspace project (idempotent per repo_path). Returns project ID."""
         with db() as conn:
             return capture_service.start_project(conn, name, repo_path)
 
@@ -30,19 +30,16 @@ def register(mcp: FastMCP, db: Db, settings: Settings) -> None:
     def start_skill_session(
         project_id: str,
         summary: LongText,
-        rationale: LongText,
+        files: Annotated[list[FilePath], Field(max_length=50)] | None = None,
+        rationale: LongText | None = None,
         skills: Annotated[list[SkillId], Field(min_length=0, max_length=8)] = [],  # noqa: B006
         intent_id: str | None = None,
         commit_sha: str | None = None,
-        files: Annotated[list[FilePath], Field(max_length=20)] | None = None,
     ) -> dict[str, Any]:
-        """Declare what you are about to build. Skills are optional — pass skills=[] for daily work.
-        Does not count as learning exposure until a matching git commit verifies it.
-        Pass a stable intent_id so retries are idempotent; pass commit_sha to explain an
-        already-made 'unexplained' commit."""
+        """Declare what you plan to build before coding, or explain a commit. Matched with git commits."""
         with db() as conn:
             result = capture_service.start_skill_session(
-                conn, project_id, skills, summary, rationale, intent_id, commit_sha, files
+                conn, project_id, skills, summary, rationale or "", intent_id, commit_sha, files
             )
             if commit_sha:
                 reconcile_service.reconcile(conn, project_id, settings.abandon_days)
@@ -56,27 +53,13 @@ def register(mcp: FastMCP, db: Db, settings: Settings) -> None:
         tradeoffs: LongText,
         intent_id: str | None = None,
     ) -> dict[str, Any]:
-        """Record a meaningful design choice, the alternatives rejected, and the trade-offs."""
+        """Record an architectural or design decision with alternatives and trade-offs."""
         with db() as conn:
             return capture_service.log_decision(conn, project_id, choice, alternatives, tradeoffs, intent_id)
 
     @mcp.tool()
-    def flag_misunderstanding(
-        skill: SkillId,
-        pattern: ShortText,
-        confidence: Literal["low", "medium", "high"] = "medium",
-    ) -> dict[str, Any]:
-        """DEPRECATED: not used by the per-project flow. See tour/review/interview instead.
-        Flag a recurring mistake the LEARNER made (not the AI), e.g. 'patches the defining
-        module instead of the importing module'. Only flag what you actually observed."""
-        with db() as conn:
-            return capture_service.flag_misunderstanding(conn, skill, pattern, confidence)
-
-    @mcp.tool()
     def ingest_queue(project_id: str) -> dict[str, Any]:
-        """Ingest queued git commits (written by the post-commit hook), then reconcile them
-        with declared intents. Returns commits still unexplained, with suggested skills —
-        explain each via start_skill_session(commit_sha=...)."""
+        """Ingest queued git commits and reconcile them with declared learning intents."""
         with db() as conn:
             project = capture_service.require_project(conn, project_id)
             stats = queue.ingest(conn, settings, project_id, Path(project["repo_path"]))

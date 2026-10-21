@@ -381,6 +381,7 @@ def list_items(
     status: str | None = None,
     limit: int = 30,
     cursor: str | None = None,
+    detailed: bool = False,
 ) -> dict[str, Any]:
     """List knowledge items for a project, bounded summary <= 160 chars."""
     require_project(conn, project_id)
@@ -431,23 +432,24 @@ def list_items(
             if latest_exp and "self_rating" in latest_exp.keys()
             else None
         )
-        items.append(
-            {
-                "id": item_id,
-                "key": r["key"],
-                "title": r["title"],
-                "kind": r["kind"],
-                "band": r["band"],
-                "status": r["status"],
-                "depth": r["depth"],
-                "summary": summary_short,
-                "files": files,
-                "tags": tags,
-                "self_rating": self_rating,
-                "baseline_commit": r["baseline_commit"],
-                "baseline_committed_at": r["baseline_committed_at"],
-            }
-        )
+        item_dict: dict[str, Any] = {
+            "key": r["key"],
+            "title": r["title"],
+            "kind": r["kind"],
+            "band": r["band"],
+            "status": r["status"],
+            "depth": r["depth"],
+            "summary": summary_short,
+            "file_count": len(files),
+            "tags": tags,
+            "self_rating": self_rating,
+        }
+        if detailed:
+            item_dict["id"] = item_id
+            item_dict["files"] = files
+            item_dict["baseline_commit"] = r["baseline_commit"]
+            item_dict["baseline_committed_at"] = r["baseline_committed_at"]
+        items.append(item_dict)
 
     next_cursor = selected_rows[-1]["key"] if has_more and selected_rows else None
 
