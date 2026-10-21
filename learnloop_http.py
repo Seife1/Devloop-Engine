@@ -641,7 +641,24 @@ if (Test-Path ".vscode") {{
     }}
 }}
 
-# 6. Visual & Audio Confirmation
+# 6. Inject MCP into Cursor workspace (.cursor/mcp.json)
+try {{
+    $cursorDir = ".cursor"
+    if (-not (Test-Path $cursorDir)) {{ New-Item -ItemType Directory -Path $cursorDir -Force | Out-Null }}
+    $cursorPath = Join-Path $cursorDir "mcp.json"
+    $ccfg = if (Test-Path $cursorPath) {{ Get-Content $cursorPath -Raw | ConvertFrom-Json }} else {{ [pscustomobject]@{{}} }}
+    if (-not $ccfg.mcpServers) {{ $ccfg | Add-Member -Name "mcpServers" -MemberType NoteProperty -Value ([pscustomobject]@{{}}) }}
+    $cursorDef = [pscustomobject]@{{
+        url = "{base_url}/sse"
+    }}
+    $ccfg.mcpServers | Add-Member -Name "learnloop" -MemberType NoteProperty -Value $cursorDef -Force
+    $ccfg | ConvertTo-Json -Depth 10 | Set-Content -Path $cursorPath -Encoding utf8
+    Write-Host "  [OK] Injected LearnLoop into Cursor ($cursorPath)" -ForegroundColor Green
+}} catch {{
+    Write-Host "  [!] Cursor config update skipped: $_" -ForegroundColor Yellow
+}}
+
+# 7. Visual & Audio Confirmation
 try {{
     [System.Media.SystemSounds]::Asterisk.Play()
     $wshell = New-Object -ComObject WScript.Shell
@@ -747,6 +764,20 @@ if os.path.exists(".vscode"):
         print("  [OK] Injected LearnLoop into VS Code (.vscode/settings.json)")
     except Exception as e:
         print(f"  [!] VS Code settings update skipped: {{e}}")
+
+# 5. Inject MCP into Cursor workspace (.cursor/mcp.json)
+try:
+    os.makedirs(".cursor", exist_ok=True)
+    cp = ".cursor/mcp.json"
+    cdata = json.load(open(cp)) if os.path.exists(cp) else {{}}
+    cdata.setdefault("mcpServers", {{}})["learnloop"] = {{
+        "url": "{base_url}/sse"
+    }}
+    with open(cp, "w") as f:
+        json.dump(cdata, f, indent=2)
+    print("  [OK] Injected LearnLoop into Cursor (.cursor/mcp.json)")
+except Exception as e:
+    print(f"  [!] Cursor settings update skipped: {{e}}")
 PYEOF
 
 echo "Successfully integrated LearnLoop MCP and Rules on the fly!"
