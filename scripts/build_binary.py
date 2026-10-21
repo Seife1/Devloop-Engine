@@ -57,6 +57,7 @@ def main() -> int:
         "learnloop.persistence.db_resilience",
         "learnloop.persistence.migrations.migration_014_mcp_native_helpers",
         "learnloop.taxonomy.loader",
+        "learnloop.mcp.tools.cluster",
     ]
 
     excludes = [

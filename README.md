@@ -23,12 +23,12 @@ short, targeted practice to close the gap.
 > 3. **Explain it back:** Check `.learn/concepts.md` and explain components in your own words.
 
 ```
-Agent --intent--> start_skill_session --\
-                                         +--> reconcile --> verified exposure --> find_gaps
-git post-commit --> .learn/queue --------/                                         (+ your attempts => mastery)
+Agent --intent--> track_intent(action="start_session") --\
+                                                         +--> track_intent(action="reconcile") --> verified exposure
+git post-commit --> .learn/queue -----------------------/                                         (+ your attempts => mastery)
 
-Agent/Learner --> register_knowledge_item --> concepts.md
-git commits   --> staleness detection     --> list_stale_items
+Agent/Learner --> manage_knowledge(action="register") --> concepts.md
+git commits   --> staleness detection                 --> manage_knowledge(action="list", stale_only=True)
 ```
 
 ## 🚀 Quick Start (Zero-Dependency One-Liner)
@@ -149,41 +149,45 @@ python learnloop_http.py
 - `GET /api/events` - Server-Sent Events stream
 - `GET /health` - Health check
 
-## 🛠️ Tools (v2.0.0)
+## 🛠️ MCP Tools (Domain Clustered)
 
-### Learning & Tracking:
-- `start_skill_session` - Start work session with intent tracking
-- `get_session_briefing` - Get session-start update
-- `get_project_tour` - Architecture walkthrough
-- `log_decision` - Log design decisions
+LearnLoop uses **4 high-level domain tools** designed for minimal token overhead (-45% schema tokens compared to individual tools). `project_id` is automatically resolved from your workspace.
 
-### Knowledge Management:
-- `register_knowledge_item` - Register concepts for spaced repetition
-- `record_explanation` - Record explanations with self-rating
-- `review_due` - Get items due for review
-- `record_review` - Record review outcomes
-- `snooze_review` - Snooze review items
+### 1. `track_intent` (Active Coding & Git Verification)
+- `start_session`: Start a work session with target files, summary, and intent tracking.
+- `log_decision`: Log architectural decisions with alternatives considered and trade-offs.
+- `reconcile`: Verify what the AI actually built against git commits in `.learn/queue`.
+- `init_project`: Optional initial project handshake (auto-detected by default).
 
-### Git Integration:
-- `ingest_queue` - Process commit queue
-- `list_stale_items` - List items needing review due to changes
-- `get_project_readiness` - Get project readiness level
+### 2. `manage_reviews` (Spaced Repetition & Catch-Up)
+- `briefing`: Calm, session-start briefing showing recent activity and items due.
+- `due`: Query concepts and decisions currently due for spaced repetition review.
+- `record`: Record quiz/review outcomes (rating 0.0 to 1.0) to update repetition intervals.
+- `snooze`: Temporarily postpone an item's review schedule.
 
-### Insights & Discovery:
-- `add_did_you_know` - Add technical insights
-- `refresh_technologies` - Refresh technology detection
+### 3. `manage_knowledge` (Knowledge Catalog & Explanations)
+- `register`: Catalog new components, architectural decisions, concepts, or bug-fixes.
+- `list`: Browse registered knowledge items (compact by default, optional `detailed=True` or `stale_only=True`).
+- `explain`: Record developer explain-backs with self-ratings to demonstrate mastery.
+- `prompt`: Generate structured prompt questions for explaining a specific component.
+- `readiness`: Check project readiness score (1 to 5) across exposure and mastery.
+
+### 4. `explore_project` (Codebase Exploration & Insights)
+- `tour`: Structural architectural walkthrough highlighting entry points and data flows.
+- `detect_tech`: Scan and refresh repository technology stack detection.
+- `add_fact`: Add a verified, high-signal technical insight or "did you know".
 
 ## 🎯 How It Works
 
-### With AI Assistants (after integration):
-1. **Session Start**: AI calls `get_session_briefing` automatically
-2. **Architecture**: AI calls `get_project_tour` for walkthroughs  
-3. **Work**: AI calls `start_skill_session` before coding
-4. **Decisions**: AI calls `log_decision` for alternatives
-5. **After Commits**: AI calls `ingest_queue` to track work
-6. **Knowledge**: AI offers `register_knowledge_item` for key concepts
-7. **Reviews**: AI helps with `review_due` and `record_review`
-8. **Insights**: AI adds `add_did_you_know` for technical facts
+### With AI Assistants (Automatic Zero-Config):
+1. **Session Start**: AI calls `manage_reviews(action="briefing")` for context.
+2. **Architecture**: AI calls `explore_project(action="tour")` when asked for walkthroughs.
+3. **Before Coding**: AI calls `track_intent(action="start_session", files=[...], summary="...")`.
+4. **Architectural Choices**: AI calls `track_intent(action="log_decision", ...)` to document trade-offs.
+5. **After Commits**: Non-blocking git hook logs commit $\rightarrow$ AI calls `track_intent(action="reconcile")`.
+6. **Knowledge Catalog**: AI calls `manage_knowledge(action="register", ...)` for new components.
+7. **Spaced Reviews**: AI tests the learner via `manage_reviews(action="due")` and records responses.
+8. **Technical Discoveries**: AI adds verified findings via `explore_project(action="add_fact", ...)`.
 
 ### Git Integration:
 - Post-commit hooks track AI work automatically
