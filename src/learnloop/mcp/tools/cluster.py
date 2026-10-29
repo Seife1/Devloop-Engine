@@ -59,20 +59,36 @@ Db = Callable[[], AbstractContextManager[Connection]]
 
 
 def resolve_project_id(conn: Connection, project_id: str | None = None) -> str:
-    """Resolve project_id from argument or newest active project."""
+    """Resolve project_id from argument, current workspace directory, or newest active project."""
     if project_id and project_id.strip():
         return project_id.strip()
+
+    # 1. Match current working directory against registered project repositories
     try:
+        cwd = Path.cwd().resolve()
+        cwd_str = str(cwd)
         row = conn.execute(
-            "SELECT id FROM projects ORDER BY last_accessed DESC, created_at DESC LIMIT 1"
+            "SELECT id FROM projects WHERE repo_path=? COLLATE NOCASE LIMIT 1",
+            (cwd_str,),
         ).fetchone()
+        if not row:
+            row = conn.execute(
+                "SELECT id FROM projects WHERE repo_path=? COLLATE NOCASE LIMIT 1",
+                (str(Path.cwd()),),
+            ).fetchone()
         if row:
             return str(row["id"])
     except Exception:
         pass
-    row = conn.execute("SELECT id FROM projects ORDER BY created_at DESC LIMIT 1").fetchone()
-    if row:
-        return str(row["id"])
+
+    # 2. Fall back to newest project by created_at
+    try:
+        row = conn.execute("SELECT id FROM projects ORDER BY created_at DESC LIMIT 1").fetchone()
+        if row:
+            return str(row["id"])
+    except Exception:
+        pass
+
     raise ValueError("No project registered in LearnLoop. Call track_intent with action='init_project' first.")
 
 
@@ -300,7 +316,7 @@ def register(mcp: FastMCP, db: Db, settings: Settings) -> None:
 
             if action == "tour":
                 return tour_service.get_project_tour(
-                    conn, project_id=pid, max_uncovered=max_uncovered, include_protocol=False
+                    conn, project_id=pid, max_uncovered=max_uncovered, include_protocol=True
                 )
 
             elif action == "refresh_tech":

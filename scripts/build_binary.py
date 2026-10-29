@@ -30,7 +30,7 @@ def main() -> int:
 
     # Static data files to package inside the single binary
     datas = [
-        f"{src_dir / 'learnloop' / 'dashboard' / 'static' / 'app.css'}{sep}learnloop/dashboard/static",
+        f"{src_dir / 'learnloop' / 'dashboard' / 'static'}{sep}learnloop/dashboard/static",
         f"{src_dir / 'learnloop' / 'persistence' / 'migrations'}{sep}learnloop/persistence/migrations",
         f"{src_dir / 'learnloop' / 'taxonomy' / 'skills.yaml'}{sep}learnloop/taxonomy",
     ]
@@ -43,6 +43,12 @@ def main() -> int:
         "platformdirs",
         "yaml",
         "sqlite3",
+        "fastapi",
+        "uvicorn",
+        "starlette",
+        "sse_starlette",
+        "python_multipart",
+        "webview",
         "learnloop",
         "learnloop.cli",
         "learnloop.config",
@@ -51,7 +57,7 @@ def main() -> int:
         "learnloop.gui",
         "learnloop.integrator",
         "learnloop.dashboard.server",
-        "learnloop.dashboard.markdown",
+        "learnloop.http_server",
         "learnloop.persistence.db",
         "learnloop.persistence.async_db",
         "learnloop.persistence.db_resilience",

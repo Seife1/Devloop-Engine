@@ -38,11 +38,15 @@ def test_cmd_init_in_git_repo(tmp_path: Path):
         mode = hook_file.stat().st_mode
         assert mode & stat.S_IXUSR
 
-    # Check queue, gitignore, and starter concepts guide
-    assert (tmp_path / ".learn" / "queue").is_dir()
-    assert (tmp_path / ".learn" / ".gitignore").read_text("utf-8") == "queue/\n"
-    assert (tmp_path / ".learn" / "concepts.md").is_file()
-    assert "AI Illusion of Competence" in (tmp_path / ".learn" / "concepts.md").read_text("utf-8")
+    from learnloop.config import get_workspace_storage_dir
+
+    # Check queue and starter concepts guide in isolated storage (Ghost Mode)
+    storage_dir = get_workspace_storage_dir(tmp_path)
+    assert (storage_dir / "queue").is_dir()
+    assert (storage_dir / "concepts.md").is_file()
+    assert "AI Illusion of Competence" in (storage_dir / "concepts.md").read_text("utf-8")
+    # Verify ZERO workspace pollution in repository
+    assert not (tmp_path / ".learn").exists()
 
 
 def test_cmd_init_idempotent(tmp_path: Path):
@@ -74,9 +78,24 @@ def test_cmd_init_foreign_hook_refusal(tmp_path: Path):
 
 
 def test_cmd_init_non_git_repo(tmp_path: Path):
+    from learnloop.config import get_workspace_storage_dir
+
     rc = cmd_init(tmp_path)
     assert rc == 1
-    assert (tmp_path / ".learn" / "queue").is_dir()
+    storage_dir = get_workspace_storage_dir(tmp_path)
+    assert (storage_dir / "queue").is_dir()
+    assert not (tmp_path / ".learn").exists()
+
+
+def test_cmd_init_legacy_repo_preserved(tmp_path: Path):
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    legacy_learn = tmp_path / ".learn"
+    legacy_learn.mkdir()
+
+    assert cmd_init(tmp_path) == 0
+    assert (legacy_learn / "queue").is_dir()
+    assert (legacy_learn / "concepts.md").is_file()
 
 
 def test_hook_template_constant():

@@ -1,10 +1,13 @@
 # LearnLoop
 
+![Version](https://img.shields.io/badge/version-0.6.4-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
+
 An MCP server that shows you where your AI coding agent did work you can't yet do alone, then gives you
 short, targeted practice to close the gap.
 
-> ### 🔒 100% Local-First & Zero Data Sharing
-> **Your data never leaves your machine.**
+> ### 🔒 100% Local-First & Zero Workspace Pollution ("Ghost Mode")
+> **Your repository and your data stay clean and private.**
+> - **Zero Repo Pollution:** LearnLoop runs completely in the background without injecting `.learn/` folders or creating PR/git clutter. Workspace artifacts (commit queues, concept logs, terminal scripts) are isolated in `~/.learnloop/workspaces/<hash>/`.
 > - **Local SQLite DB:** Your learning logs, review history, and commit tracking stay entirely on your disk.
 > - **Local Dashboard:** Runs strictly on `http://127.0.0.1:8765` in read-only mode with zero external CDN dependencies.
 > - **Zero Telemetry:** NO data is transmitted to external servers, cloud metrics, or third parties—not even the creator.
@@ -31,89 +34,141 @@ Agent/Learner --> manage_knowledge(action="register") --> concepts.md
 git commits   --> staleness detection                 --> manage_knowledge(action="list", stale_only=True)
 ```
 
-## 🚀 Quick Start (Zero-Dependency One-Liner)
+### 💡 Dual-Loop Learning: Dashboard vs. IDE
 
-**No Python, Node, or configuration required!** LearnLoop auto-detects your IDE and configures everything in 30 seconds:
+LearnLoop operates across two complementary learning surfaces:
 
-### Windows (PowerShell):
+1. **Local Dashboard (Mission Control):**
+   - Visualizes your SuperMemo-2 (SM-2) retention curve, project readiness score (0-100), and unreviewed commit queue.
+   - Flags **Stale Invariants** whenever new Git commits modify code you previously explained.
+   - Provides quick 2-minute self-grading card decks.
+
+2. **Your IDE (Interactive AI Sparring Partner):**
+   - **Why learning inside your IDE is superior:** Your AI coding assistant (Cursor, Windsurf, VS Code, Claude, Antigravity) reads your active codebase, AST, and recent Git diffs. It doesn't just show flashcards—it **challenges your architectural decisions**, tests boundary conditions, and spots subtle misunderstandings in real time.
+   - **How to spar with LearnLoop in your IDE chat:**
+     - `/review` (or *"Review my due concepts"*): Pulls items due today under SM-2 (`manage_reviews(action="due")`) and tests your understanding one question at a time.
+     - `/interview` (or *"Interview me on this project"*): Adopts a tech-lead persona and drills deeply into your architectural trade-offs, edge cases, and failure modes.
+     - `/tour` (or *"Tour the codebase"*): Walks you through cognitive bands (Basic &rarr; Intermediate &rarr; Advanced) with comprehension checkpoints at each level.
+     - `/catch-up` (or *"Catch me up"*): Gives you a 2-minute briefing on recent commits, drifted invariants, and pending review cards.
+
+---
+
+## 🚀 Quick Start (Local Clone Installation)
+
+**No external cloud dependencies required!** LearnLoop auto-detects your IDE and configures everything in 30 seconds:
+
+### Windows (Local PowerShell):
 ```powershell
-irm https://learnloop.dev/setup.ps1 | iex
+.\setup.ps1
 ```
 
-### macOS & Linux (Terminal):
+### macOS & Linux (Local Terminal):
 ```bash
-curl -fsSL https://learnloop.dev/setup.sh | bash
+./setup.sh
 ```
 
 ### Python Developers (pip / uv):
 ```bash
 pip install -e ".[dev]"
-learnloop init --integrate
+learnloop init
 ```
 
-### What This Does Automatically:
-- ✅ **Detects your IDE** (VS Code, Cursor, Claude, WindSurf, Zed)
-- ✅ **Configures MCP settings** for AI assistants
-- ✅ **Adds LearnLoop rules** to IDE configs
-- ✅ **Creates terminal shortcuts** (`learnloop-tools`)
-- ✅ **Sets up environment aliases** (`llb`, `llr`, `lld`)
+> **🌐 Dynamic Web Installer:** When hosting the website or accessing your deployed documentation, copy-paste the auto-detected one-liner (`irm https://<your-host>/setup.ps1 | iex` or `curl -fsSL https://<your-host>/setup.sh | bash`) from the website download dock—the command automatically adapts to whichever domain or port is serving it.
 
-### Terminal Usage (Anywhere):
+### What This Does Automatically (Zero Project Pollution):
+- 🎯 **Session-Aware IDE Detection**: Automatically identifies the exact editor hosting your current terminal session (`VS Code`, `Cursor`, `Windsurf`, `Claude`, `Zed`, or `Antigravity`).
+- 🔒 **Clean Isolation**: Only writes configurations for your active editor. It will **never** dump unwanted rules or configs for other editors into your repository.
+- ⚙️ **Configures MCP & Rules**: Sets up the Model Context Protocol server configuration and canonical LearnLoop companion instructions.
+- 🛡️ **Ghost Mode Git Hook**: Installs the non-blocking post-commit verification hook and adds `.learn/` to `.git/info/exclude` to guarantee 100% zero workspace clutter.
+
+---
+
+## 🖥️ Viewing Both Sites
+
+LearnLoop includes two distinct, rich web applications for different workflows:
+
+| Site | URL | Tech Stack | How to Run | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| **Local Dashboard** *(Mission Control)* | `http://127.0.0.1:8765` | FastAPI + Next.js static / HTML5 | `learnloop dashboard`<br>*(or `python -m learnloop.dashboard`)* | Private, local-first analytics: SuperMemo-2 retention curves, project readiness (0-100), commit queue, live stale invariant alerts, and interactive setup wizard (`/setup`). |
+| **Marketing & Docs Web Portal** | `http://localhost:3000` | Next.js 16 + React 19 + TailwindCSS | `cd website && npm run dev` | Public product website: interactive dual-mode execution showcase (AI-autonomous vs developer-initiated), 4-cluster tool matrix, terminal simulations, and comprehensive documentation. |
+
+> [!TIP]
+> **Native Desktop Window**: You can also launch the dashboard inside a native Microsoft Edge WebView2 desktop app window by running:
+> ```bash
+> learnloop gui
+> # or
+> learnloop dashboard --gui
+> ```
+
+---
+
+## 🧪 End-to-End Testing & Verification Walkthrough
+
+To verify LearnLoop end-to-end from environment health to live AI pairing and UI inspection, follow these steps:
+
+### 1. Verify Health & Dependencies
 ```bash
-# Get session briefing
-learnloop-tools briefing
+# 1. Run diagnostic self-check (validates SQLite, migrations, seed taxonomy)
+learnloop doctor
 
-# Start work session
-learnloop-tools start-session "Implement feature" "file1.py,file2.py"
-
-# Review knowledge
-learnloop-tools review
-
-# Open dashboard
-learnloop-tools dashboard
-
-# See all commands
-learnloop-tools help
+# 2. Scan active project technologies (detects Python, NPM, Go, Rust ecosystems)
+learnloop techscan
 ```
 
-## 🔧 Manual Setup (Optional)
-
-If you prefer manual configuration:
-
+### 2. Launch & Inspect Both Sites
+Open two terminal windows to run both web applications simultaneously:
 ```bash
-pip install -e ".[dev]"
-learnloop doctor                  # creates the DB, seeds the skill taxonomy, checks hooks
-cd your-project && learnloop init # creates .learn/, installs the post-commit hook
-learnloop backfill                # backfills pre-existing commits into .learn/queue
+# Terminal 1: Launch Local Mission Control Dashboard (Port 8765)
+learnloop dashboard
+
+# Terminal 2: Launch Marketing & Documentation Web Portal (Port 3000)
+cd website
+npm run dev
 ```
+- Open `http://127.0.0.1:8765` to inspect your personal learning progress, review queue, and setup wizard (`/setup`).
+- Open `http://localhost:3000` to explore the marketing web portal and dual-mode execution breakdown.
 
-For IDE integration:
+### 3. Test the Active AI Pairing Loop (Zero Workspace Pollution)
+In your AI-assisted IDE (VS Code, Cursor, Windsurf, Claude Code, or Antigravity):
+1. **Declare Intent**: Before writing code, the AI silently calls:
+   `track_intent(action="start_session", summary="Implement feature X", files=["src/example.py"])`
+2. **Commit Code**: Make a standard Git commit:
+   ```bash
+   git commit -m "feat(core): implement feature X"
+   ```
+   *The post-commit hook records commit metadata into `~/.learnloop/workspaces/<hash>/queue/` without polluting your project.*
+3. **Reconcile**: The AI reconciles Git proof with intent:
+   `track_intent(action="reconcile")`
+4. **Verify Zero Pollution**: Run `git status` in your project root. **Zero `.learn/` files or untracked folders will appear.**
 
+### 4. Run the Full Automated Test Suite
 ```bash
-# Auto-integrate with detected IDE
-learnloop integrate --ide auto
+# Run 336 unit tests with pytest
+pytest tests/unit -v
 
-# Or specify IDE
-learnloop integrate --ide vscode
-learnloop integrate --ide cursor
-learnloop integrate --ide claude
+# Run queue ingestion and reconciliation integration tests
+pytest tests/test_queue_ingestion.py -v
 ```
 
-## 📋 CLI Commands
+---
+
+## 🔧 CLI Commands
 
 ### Core Commands:
-- `learnloop gui [--port 8765] [--route /setup|/]`: Launch native Microsoft Edge WebView2 desktop application window
-- `learnloop setup [--port 8765] [--browser] [--no-browser]`: Interactive 3-step setup wizard
-- `learnloop dashboard [--port 8765] [--gui]`: Web dashboard on `127.0.0.1:8765` (optional `--gui` window)
-- `learnloop init [--repo .] [--integrate]`: Initialize `.learn/` with optional IDE integration
-- `learnloop integrate [--ide auto|vscode|cursor|claude|windsurf|zed|all] [--terminal] [--env] [--all]`: Universal integration
-- `learnloop record-commit [--repo .]`: Record recent commit metadata (called by git hook)
-- `learnloop backfill [--repo .] [--limit 50]`: Ingest existing commit history
-- `learnloop concepts [--repo .]`: Regenerate `.learn/concepts.md`
-- `learnloop review [--repo .]`: Interactive spaced repetition review
-- `learnloop briefing [--repo .]`: Session-start briefing
-- `learnloop doctor`: Verify database, taxonomy, hooks
-- `learnloop techscan [--repo .]`: Scan repository dependencies
+- `learnloop init [--repo .] [--ide auto|vscode|cursor|claude|windsurf|zed|agents|all] [--all] [--no-integrate] [--in-repo]`:
+  Initialize `.learn/` and post-commit hook. By default (`--ide auto`), detects your active host editor and configures **only** that IDE with zero repository pollution.
+- `learnloop setup [--port 8765] [--browser] [--no-browser]`: Interactive 3-step setup wizard (web or desktop window).
+- `learnloop gui [--port 8765] [--route /setup|/]`: Launch native Microsoft Edge WebView2 desktop application window.
+- `learnloop dashboard [--port 8765] [--gui]`: Web dashboard on `127.0.0.1:8765` (optional `--gui` window).
+- `learnloop integrate [--repo .] [--ide auto|vscode|cursor|claude|windsurf|zed|agents|all] [--force] [--terminal] [--env] [--all]`:
+  Targeted or universal IDE integration utility.
+- `learnloop record-commit [--repo .]`: Record recent commit metadata (called by git hook).
+- `learnloop backfill [--repo .] [--limit 50]`: Ingest existing commit history.
+- `learnloop concepts [--repo .]`: Regenerate `.learn/concepts.md`.
+- `learnloop review [--repo .]`: Interactive spaced repetition review.
+- `learnloop briefing [--repo .]`: Session-start briefing.
+- `learnloop doctor`: Verify database, taxonomy, hooks, and migrations.
+- `learnloop techscan [--repo .]`: Scan repository dependencies.
 
 ### Terminal Shortcuts (after `learnloop integrate --terminal`):
 - `learnloop-tools briefing`: Get session update
@@ -358,4 +413,38 @@ python -m black src/ tests/
 python -m learnloop.dashboard
 ```
 
-Logs go to stderr only; never `print()`.
+Logs go to stderr only; never `print()`.
+
+
+## 📋 Recent Updates
+
+### 2026-10-29 (v0.6.4)
+- **Terminal-First ASCII Architecture Specification**: Streamlined the "One protocol. Every editor on your machine." section (`CodeFlow.tsx`) to showcase a dedicated, high-contrast ASCII architecture specification with instant 1-click clipboard copying, eliminating image overhead and toggle tabs.
+
+### 2026-10-29 (v0.6.3)
+- **Empirical Token Efficiency Benchmark**: Measured and verified exact token usage across 4 frontier model tokenizers (Claude 3.5 Sonnet, GPT-4o / o1, Gemini 1.5/2.0 Pro, and DeepSeek-V3 / Llama 3) across each of LearnLoop's 4 domain-clustered tools.
+- **Interactive Marketing Web Benchmark Showcase**: Integrated interactive `TokenBenchmark` component into homepage Bento Grid and Developer Documentation (`/docs`), featuring live model tabs, schema overhead meters, typical payload footprints, and empirical proof of up to 24% baseline prompt savings.
+
+### 2026-10-29 (v0.6.2)
+- **Dynamic Installation Origin**: Decoupled setup scripts from hardcoded domain references across the marketing website (`DownloadSection.tsx`) and developer documentation (`QuickstartCommands.tsx`) using the new client-side `useOrigin` hook. Commands now adapt in real-time to match whatever host or port serves the page (`window.location.origin` or `NEXT_PUBLIC_SITE_URL`).
+- **Local Clone Installation First**: Reoriented root `README.md` quickstart instructions to prioritize local scripts (`.\setup.ps1` and `./setup.sh`) and local pip development, eliminating external domain dependencies for repository contributors.
+- **Hero Horizon Contrast & Accessibility**: Replaced parent section mask with an isolated background overlay, preserving the signature luminous bottom curved horizon while elevating the CTA dock and buttons to 100% opacity with solid dark contrast.
+
+### 2026-10-28 (v0.6.1)
+- **Visual Architecture Flow Diagram**: Replaced the ASCII-only canvas in the "One protocol. Every editor on your machine." section with a high-definition visual architecture diagram featuring glowing protocol buses, central engine topology, and dual view-toggle (Visual Flow vs. ASCII Spec) for maximum developer clarity.
+- **Hero Curve Shadow & Dark Glass Dock**: Restored the signature dramatic bottom curved mask shadow transitioning seamlessly into the light page below, while framing the CTA buttons inside an elevated frosted dark glass dock (`bg-black/75 backdrop-blur-xl border border-white/20`) for razor-sharp focus and zero wash-out.
+- **Alternating Dark & Light Section Rhythm**: Implemented the rhythmic alternating section background pattern across the homepage: Hero (Dark with bottom curve) → PrivacyCore (White) → BentoGrid (Dark) → ExecutionModes (White) → CodeFlow (Dark) → DownloadSection (White) → Footer (Dark).
+- **Dedicated OS Platform Switcher**: Streamlined the download switcher to focus exclusively on target OS binaries (Windows, macOS, Linux) with 1-click commands (PowerShell, CMD, Bash) and direct standalone executable downloads.
+- **Automated MCP Setup Documentation**: Aligned the documentation portal (/docs) and landing page to explicitly highlight that running the installer or `learnloop init` automatically detects the active IDE and configures MCP server settings and AI companion instructions—zero manual JSON editing required.
+
+### 2026-10-28 (v0.6.0)
+- **100% Zero-Workspace-Pollution "Ghost Mode"**: Workspace artifacts (commit queue, concept journals, terminal scripts) are now routed by default to isolated OS user-data storage (`~/.learnloop/workspaces/<project_slug_hash>/`), completely eliminating workspace directory pollution, `.gitignore` churn, and Git PR noise for team projects.
+- **Git Hook Local Isolation Safeguard**: Automatic post-commit hook setup now appends local exclusions to `.git/info/exclude`, providing git-level protection against accidental tracking without modifying tracked repository files.
+- **Seamless Legacy Backwards-Compatibility**: Retains full backwards compatibility with existing repositories that contain legacy `.learn/` folders, preserving existing files and tests without breaking changes.
+
+### 2026-10-28 (v0.5.3)
+- **Marketing Website Dual-Mode Execution Showcase**: Added interactive dual-mode execution breakdown (ExecutionModes.tsx) to the homepage and documentation, visually distinguishing AI-autonomous background pairing hygiene (~80% of calls) from developer-initiated interactive sparring (/review, /interview, /tour).
+- **Cluster Summary Matrix**: Added responsive execution comparison matrix detailing trigger drivers, automation rules, and sample actions across all 4 tool clusters.
+- **IDE Socratic Sparring Alignment**: Refined dashboard prompt chips across Review Queue, Overview, and Knowledge Catalog to emphasize native LearnLoop MCP prompts (/review, /interview, /tour, /catch-up) and natural conversational triggers.
+- **Real-Time Code Drift Calculation**: Integrated dynamic commit drift detection in HTTP API and dashboard concept catalog with live stale invariant badges.
+- **Standalone Binary Packaging**: Streamlined static asset packaging with PyInstaller bundling of Next.js web application into standalone executable.

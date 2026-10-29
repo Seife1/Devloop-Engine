@@ -13,7 +13,7 @@ import sqlite3
 from pathlib import Path
 
 from learnloop.capture.redaction import is_ignored, redact
-from learnloop.config import Settings
+from learnloop.config import Settings, get_workspace_storage_dir
 from learnloop.domain import clock
 
 log = logging.getLogger(__name__)
@@ -22,7 +22,12 @@ MAX_FILES_BACKFILL = 5000
 
 
 def queue_dir(repo: Path) -> Path:
-    return repo / ".learn" / "queue"
+    legacy = repo / ".learn" / "queue"
+    if legacy.is_dir():
+        return legacy
+    d = get_workspace_storage_dir(repo) / "queue"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def write_queue_entry(
@@ -60,7 +65,7 @@ def ingest(conn: sqlite3.Connection, settings: Settings, project_id: str, repo: 
     Requirements: 7.1, 24.7
     
     This function implements commit queue processing:
-    1. Read JSON files from .learn/queue/
+    1. Read JSON files from queue directory (isolated user storage or legacy .learn/queue/)
     2. Parse commit metadata with error handling
     3. Create commit records in database
     4. Create Queue_Entry records for reconciliation tracking
@@ -70,61 +75,66 @@ def ingest(conn: sqlite3.Connection, settings: Settings, project_id: str, repo: 
     matched with intents. They are marked as processed after reconciliation.
     """
     stats = {"ingested": 0, "duplicates": 0, "rejected": 0}
-    d = queue_dir(repo)
-    if not d.is_dir():
-        return stats
-    for path in sorted(d.glob("*.json"))[: settings.max_queue_files]:
-        try:
-            if path.stat().st_size > settings.max_queue_file_bytes:
-                raise ValueError("queue file too large")
-            e = json.loads(path.read_text("utf-8"))
-            sha, committed_at = str(e["sha"]), clock.iso(clock.parse(e["committed_at"]))
-            files = [f for f in e["files"] if isinstance(f, str) and not is_ignored(f)]
-            origin = str(e.get("origin", "hook"))
-            if origin not in ("hook", "backfill"):
-                origin = "hook"
-            kind = str(e.get("kind", "commit"))
-            if kind not in ("commit", "snapshot"):
-                kind = "commit"
+    target_dirs = [queue_dir(repo)]
+    legacy_dir = repo / ".learn" / "queue"
+    if legacy_dir.is_dir() and legacy_dir not in target_dirs:
+        target_dirs.append(legacy_dir)
 
-            # One snapshot per project: new snapshot replaces previous snapshot row
-            verb = "REPLACE" if kind == "snapshot" else "IGNORE"
-            if kind == "snapshot":
-                conn.execute("DELETE FROM commits WHERE project_id=? AND kind='snapshot'", (project_id,))
-            cur = conn.execute(
-                f"INSERT OR {verb} INTO commits "
-                "(sha, project_id, message, files, committed_at, origin, kind) "
-                "VALUES (?,?,?,?,?,?,?)",
-                (
-                    sha,
-                    project_id,
-                    redact(str(e["message"]))[:500],
-                    json.dumps(files),
-                    committed_at,
-                    origin,
-                    kind,
-                ),
-            )
+    for d in target_dirs:
+        if not d.is_dir():
+            continue
+        for path in sorted(d.glob("*.json"))[: settings.max_queue_files]:
+            try:
+                if path.stat().st_size > settings.max_queue_file_bytes:
+                    raise ValueError("queue file too large")
+                e = json.loads(path.read_text("utf-8"))
+                sha, committed_at = str(e["sha"]), clock.iso(clock.parse(e["committed_at"]))
+                files = [f for f in e["files"] if isinstance(f, str) and not is_ignored(f)]
+                origin = str(e.get("origin", "hook"))
+                if origin not in ("hook", "backfill"):
+                    origin = "hook"
+                kind = str(e.get("kind", "commit"))
+                if kind not in ("commit", "snapshot"):
+                    kind = "commit"
 
-            if cur.rowcount:
-                # Create Queue_Entry record for reconciliation (Requirement 7.1)
-                # This enables tracking which commits have been processed/matched with intents
-                import uuid
-                queue_entry_id = str(uuid.uuid4())
-                conn.execute(
-                    "INSERT OR IGNORE INTO queue_entries "
-                    "(id, project_id, commit_sha, processed, created_at) "
-                    "VALUES (?, ?, ?, 0, datetime('now'))",
-                    (queue_entry_id, project_id, sha),
+                # One snapshot per project: new snapshot replaces previous snapshot row
+                verb = "REPLACE" if kind == "snapshot" else "IGNORE"
+                if kind == "snapshot":
+                    conn.execute("DELETE FROM commits WHERE project_id=? AND kind='snapshot'", (project_id,))
+                cur = conn.execute(
+                    f"INSERT OR {verb} INTO commits "
+                    "(sha, project_id, message, files, committed_at, origin, kind) "
+                    "VALUES (?,?,?,?,?,?,?)",
+                    (
+                        sha,
+                        project_id,
+                        redact(str(e["message"]))[:500],
+                        json.dumps(files),
+                        committed_at,
+                        origin,
+                        kind,
+                    ),
                 )
-                stats["ingested"] += 1
-            else:
-                stats["duplicates"] += 1
 
-            conn.commit()
-            path.unlink()
-        except Exception as exc:  # noqa: BLE001 - one bad file must not block the rest
-            log.warning("rejecting queue file %s: %s", path.name, exc)
-            path.rename(path.with_suffix(".failed"))
-            stats["rejected"] += 1
+                if cur.rowcount:
+                    # Create Queue_Entry record for reconciliation (Requirement 7.1)
+                    # This enables tracking which commits have been processed/matched with intents
+                    import uuid
+                    queue_entry_id = str(uuid.uuid4())
+                    conn.execute(
+                        "INSERT OR IGNORE INTO queue_entries "
+                        "(id, project_id, commit_sha, processed, created_at) "
+                        "VALUES (?, ?, ?, 0, datetime('now'))",
+                        (queue_entry_id, project_id, sha),
+                    )
+                    stats["ingested"] += 1
+                else:
+                    stats["duplicates"] += 1
+
+                conn.commit()
+                path.unlink()
+            except Exception as exc:  # noqa: BLE001 - one bad file must not block the rest
+                log.warning("rejecting queue file %s: %s", path.name, exc)
+                path.rename(path.with_suffix(".failed"))
+                stats["rejected"] += 1
     return stats

@@ -27,8 +27,10 @@ class LearnLoopIntegrator:
     """Universal integration for all IDEs and terminals."""
     
     def __init__(self, project_root: Optional[Path] = None):
+        from learnloop.config import get_workspace_storage_dir
+
         self.project_root = Path(project_root) if project_root else Path.cwd()
-        self.learnloop_dir = self.project_root / ".learn"
+        self.learnloop_dir = get_workspace_storage_dir(self.project_root)
         self.integrations_dir = Path(__file__).parent / "integrations"
         
         # IDE config locations
@@ -164,13 +166,75 @@ class LearnLoopIntegrator:
             },
         }
 
+    def detect_active_ide(self) -> Optional[str]:
+        """Detect the exact IDE hosting the current terminal session, or project marker."""
+        env = os.environ
+        term = env.get("TERM_PROGRAM", "").lower()
+        cwd = env.get("VSCODE_CWD", "").lower()
+        ipc = env.get("VSCODE_GIT_IPC_HANDLE", "").lower()
+
+        # 1. Cursor terminal
+        if (
+            "cursor" in term
+            or "cursor" in cwd
+            or "cursor" in ipc
+            or "CURSOR_TRACE_ID" in env
+            or "CURSOR_VERSION" in env
+        ):
+            return "cursor"
+
+        # 2. Windsurf terminal
+        if (
+            "windsurf" in term
+            or "windsurf" in cwd
+            or "windsurf" in ipc
+            or "WINDSURF_VERSION" in env
+        ):
+            return "windsurf"
+
+        # 3. Antigravity IDE terminal
+        if "ANTIGRAVITY_AGENT" in env or "antigravity" in cwd:
+            return "agents"
+
+        # 4. VS Code terminal
+        if term == "vscode" or "VSCODE_PID" in env or "microsoft vs code" in cwd or "code" in cwd:
+            return "vscode"
+
+        # 5. Zed terminal
+        if "zed" in term or "ZED_TERM" in env:
+            return "zed"
+
+        # 6. Claude Code terminal
+        if "CLAUDE_CODE" in env or "CLAUDE_PROJECT_DIR" in env:
+            return "claude"
+
+        # 7. Project-level marker files
+        if (self.project_root / ".vscode").exists():
+            return "vscode"
+        if (self.project_root / ".cursor").exists() or (self.project_root / ".cursorrules").exists():
+            return "cursor"
+        if (self.project_root / ".windsurf").exists() or (self.project_root / ".windsurfrules").exists():
+            return "windsurf"
+        if (self.project_root / "CLAUDE.md").exists():
+            return "claude"
+        if (self.project_root / ".zed").exists():
+            return "zed"
+        if (self.project_root / "AGENTS.md").exists() or (self.project_root / "GEMINI.md").exists():
+            return "agents"
+
+        return None
+
     def detect_ide(self) -> List[str]:
-        """Detect which IDEs are being used."""
-        status = self.detect_ide_status()
-        detected = [k for k, v in status.items() if v["detected"]]
-        if "any" not in detected:
-            detected.append("any")
-        return detected
+        """Detect the specific active IDE for this terminal or project.
+        
+        Returns only the active IDE to avoid polluting projects with configs
+        for editors the user is not actively working in.
+        """
+        active = self.detect_active_ide()
+        if active:
+            return [active]
+        return ["agents"]
+
     
     def get_mcp_config(self, ide: str) -> Dict[str, Any]:
         """Get MCP configuration for specific IDE."""
@@ -220,14 +284,17 @@ You are working with a learner who builds projects with AI and must be confident
         if ide == "windsurf":
             return self._integrate_windsurf(force)
         
-        # Get config paths for json-based IDEs (vscode, zed, any)
+        if ide == "vscode":
+            return self._integrate_vscode(force)
+        
+        # Get config paths for json-based IDEs (zed, any)
         config_paths = self.ide_configs.get(ide, [])
         
         for config_path in config_paths:
             if not config_path.parent.exists():
                 config_path.parent.mkdir(parents=True, exist_ok=True)
             
-            if ide in ["vscode", "zed"]:
+            if ide == "zed":
                 success = self._integrate_json_config(config_path, ide, force)
             elif ide == "any":
                 success = self._integrate_generic_rules(config_path, force)
@@ -240,6 +307,20 @@ You are working with a learner who builds projects with AI and must be confident
         
         print(f"  ❌ No suitable config location found for {ide}")
         return False
+
+    def _integrate_vscode(self, force: bool) -> bool:
+        """Integrate VS Code settings and MCP configuration."""
+        settings_path = self.project_root / ".vscode" / "settings.json"
+        self._integrate_json_config(settings_path, "vscode", force)
+        print(f"  ✅ Integrated: {settings_path}")
+
+        mcp_path = self.project_root / ".vscode" / "mcp.json"
+        try:
+            self._integrate_json_config(mcp_path, "vscode", force)
+            print(f"  ✅ Integrated: {mcp_path}")
+        except Exception:
+            pass
+        return True
 
     def _integrate_agents_rules(self, force: bool) -> bool:
         """Integrate universal agent rules (AGENTS.md & GEMINI.md)."""
@@ -526,7 +607,8 @@ Set-Alias lld Open-LearnLoopDashboard
         # Detect IDEs
         if parsed_args.ide == "auto":
             detected_ides = self.detect_ide()
-            print(f"📋 Detected IDEs: {', '.join(detected_ides)}")
+            ide_label = "IDE" if len(detected_ides) == 1 else "IDEs"
+            print(f"📋 Detected {ide_label}: {', '.join(detected_ides)}")
             ides_to_integrate = detected_ides
         elif parsed_args.ide == "all":
             ides_to_integrate = list(self.ide_configs.keys())
@@ -551,9 +633,14 @@ Set-Alias lld Open-LearnLoopDashboard
         print("\n✅ Integration Complete!")
         print("\n📋 Next Steps:")
         print("1. Restart your IDE for MCP config to take effect")
-        print("2. Use: learnloop-tools [command] from terminal")
-        print("3. Or use aliases: llb (briefing), llr (review), lld (dashboard)")
-        print("4. Work with AI as usual - LearnLoop will track automatically")
+        step_idx = 2
+        if parsed_args.terminal:
+            print(f"{step_idx}. Use: learnloop-tools [command] from terminal")
+            step_idx += 1
+        if parsed_args.env:
+            print(f"{step_idx}. Or use aliases: llb (briefing), llr (review), lld (dashboard)")
+            step_idx += 1
+        print(f"{step_idx}. Work with AI as usual - LearnLoop will track automatically")
         
         return True
 

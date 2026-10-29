@@ -33,9 +33,10 @@
 - **Summary**: The command-line interface providing learnloop (stdio MCP server), init (hook installer), record-commit, backfill, and doctor.
 
 ### FastMCP Server Wiring (`server.mcp`)
-- **Kind**: component | **Status**: unexplained | **Depth**: 1/5 (what)
+- **Kind**: component | **Status**: explained | **Depth**: 1/5 (what)
 - **Files**: `src/learnloop/server.py`
 - **Summary**: Assembles and runs the FastMCP stdio server, exposing capture, knowledge items, tour, and teaching tools.
+- **Latest explanation** (score 1.0): "Because having a 20 tools is much bigger for LLm's context window and again create a confusion too, so, it's grouped into 4 cluster we can manage from them"
 
 ### <script>alert(1)</script> (`test.xss`)
 - **Kind**: concept | **Status**: unexplained | **Depth**: 1/5 (what)
@@ -45,9 +46,10 @@
 ## Intermediate
 
 ### Zero-Dependency Standalone Binary & Universal Installer (`distribution.standalone_binary`)
-- **Kind**: component | **Status**: unexplained | **Depth**: 1/5 (what)
+- **Kind**: component | **Status**: explained | **Depth**: 3/5 (why)
 - **Files**: `src/learnloop/cli.py`, `src/learnloop/config.py`
 - **Summary**: Standalone zero-dependency binary packaging via PyInstaller and 1-line cross-platform installers (setup.ps1 / setup.sh) delivering 100% local-first SQLite and automated IDE integration.
+- **Latest explanation** (score 1.0): "because FastMCP uses decorators and dynamic tool registrations so to be allow dynamic installer they are included to --hidden imports"
 
 ### SQLite Schema Migrations & Backups (`persistence.migrations`)
 - **Kind**: component | **Status**: unexplained | **Depth**: 1/5 (what)

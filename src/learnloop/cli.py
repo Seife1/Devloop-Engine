@@ -82,9 +82,17 @@ def cmd_dashboard(port: int = 8765, use_gui: bool = False) -> int:
         if is_gui_available():
             return launch_desktop_gui(port=port, route="/", hide_console=True)
 
-    from learnloop.dashboard.server import run_dashboard_server
+    try:
+        import uvicorn
+        from learnloop.http_server import app
 
-    return run_dashboard_server(port=port)
+        sys.stdout.write(f"LearnLoop dashboard running at http://127.0.0.1:{port}/\n")
+        sys.stdout.flush()
+        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+        return 0
+    except Exception as exc:
+        sys.stderr.write(f"LearnLoop dashboard failed to start: {exc}\n")
+        return 1
 
 
 def cmd_gui(port: int = 8765, route: str = "/setup", hide_console: bool = True) -> int:
@@ -96,7 +104,7 @@ def cmd_gui(port: int = 8765, route: str = "/setup", hide_console: bool = True) 
 def cmd_http(host: str = "0.0.0.0", port: int = 8000, reload: bool = False) -> int:
     try:
         import uvicorn
-        from learnloop_http import app
+        from learnloop.http_server import app
     except ImportError as exc:
         sys.stderr.write(
             f"HTTP dependencies not installed ({exc}).\n"
@@ -117,7 +125,6 @@ def cmd_setup(port: int = 8765, open_browser: bool = True, use_gui: bool = True)
 
     import threading
     import time
-    from learnloop.dashboard.server import run_dashboard_server
 
     if open_browser:
         def _launch_browser():
@@ -130,7 +137,7 @@ def cmd_setup(port: int = 8765, open_browser: bool = True, use_gui: bool = True)
 
         threading.Thread(target=_launch_browser, daemon=True).start()
 
-    return run_dashboard_server(port=port)
+    return cmd_dashboard(port=port)
 
 
 def cmd_record_commit(repo: Path) -> int:
@@ -321,35 +328,68 @@ def cmd_briefing(repo: Path) -> int:
         return 1
 
 
-def cmd_init(repo: Path, integrate: bool = False, in_repo: bool = False) -> int:
+def cmd_init(
+    repo: Path,
+    integrate: bool = True,
+    in_repo: bool = False,
+    ide: str = "auto",
+    all_integrations: bool = False,
+) -> int:
+    from learnloop.config import get_workspace_storage_dir
     from learnloop.journal.concept_log import init_concept_log
 
-    learn = repo / ".learn"
+    learn = repo / ".learn" if (in_repo or (repo / ".learn").is_dir()) else get_workspace_storage_dir(repo)
     (learn / "queue").mkdir(parents=True, exist_ok=True)
-    (learn / ".gitignore").write_text("queue/\n", encoding="utf-8")
+    if (learn / ".gitignore").parent == (repo / ".learn"):
+        (learn / ".gitignore").write_text("queue/\n", encoding="utf-8")
     init_concept_log(repo)
 
+    def _do_integrate():
+        if not integrate:
+            return
+        from learnloop.integrator import LearnLoopIntegrator
+
+        integrator = LearnLoopIntegrator(project_root=repo)
+        if all_integrations or ide == "all":
+            integrator.run(["--all"])
+        else:
+            integrator.run(["--ide", ide])
+
+    from learnloop.config import Settings
+    from learnloop.persistence.db import connect
+    from learnloop.services import capture_service
+
     if in_repo:
-        from learnloop.persistence.db import connect
         db_file = learn / "learnloop.db"
         conn = connect(db_file)
         conn.close()
         sys.stderr.write(f"Initialised in-repo database: {db_file}\n")
 
+    # Register project in SQLite database
+    settings = Settings.load()
+    conn = connect(settings.db_path)
+    try:
+        existing_id = _find_project_id(conn, repo)
+        if not existing_id:
+            proj = capture_service.start_project(conn, repo.name, str(repo.resolve()))
+            sys.stderr.write(f"Registered project '{repo.name}' (ID: {proj['id']}) in LearnLoop.\n")
+        else:
+            sys.stderr.write(f"Project '{repo.name}' already registered (ID: {existing_id}).\n")
+    except Exception as reg_err:
+        sys.stderr.write(f"Note on registration: {reg_err}\n")
+    finally:
+        conn.close()
+
     hook = repo / ".git" / "hooks" / "post-commit"
     if not (repo / ".git").is_dir():
         sys.stderr.write("Notice: Not a git repository root; created .learn/concepts.md only.\n")
         sys.stderr.write("Tip: Run `git init` and make your first commit to activate LearnLoop tracking.\n")
-        if integrate:
-            from learnloop.integrator import LearnLoopIntegrator
-            LearnLoopIntegrator().run(["--all"])
+        _do_integrate()
         return 1
     body = _hook_text()
     if hook.exists() and HOOK_MARKER not in hook.read_text("utf-8"):
         sys.stderr.write(f"{hook} already exists and isn't ours; add `learnloop record-commit` manually.\n")
-        if integrate:
-            from learnloop.integrator import LearnLoopIntegrator
-            LearnLoopIntegrator().run(["--all"])
+        _do_integrate()
         return 1
     hook.parent.mkdir(parents=True, exist_ok=True)
     hook.write_bytes(body.encode("utf-8"))
@@ -357,17 +397,16 @@ def cmd_init(repo: Path, integrate: bool = False, in_repo: bool = False) -> int:
     sys.stderr.write(f"Initialised {learn} and installed post-commit hook.\n")
     sys.stderr.write("Tip: Run `git commit` as you work so LearnLoop can track what your AI builds!\n")
 
-    if integrate:
-        from learnloop.integrator import LearnLoopIntegrator
-        LearnLoopIntegrator().run(["--all"])
+    _do_integrate()
 
     return 0
 
 
-def cmd_integrate(args: list[str]) -> int:
+def cmd_integrate(args: list[str], repo: Path | None = None) -> int:
     try:
         from learnloop.integrator import LearnLoopIntegrator
-        integrator = LearnLoopIntegrator()
+
+        integrator = LearnLoopIntegrator(project_root=repo)
         integrator.run(args)
         return 0
     except Exception as exc:  # noqa: BLE001
@@ -477,7 +516,19 @@ def main(argv: list[str] | None = None) -> None:
 
     init_p = sub.add_parser("init", help="Initialize LearnLoop in project")
     init_p.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
-    init_p.add_argument("--integrate", action="store_true", help="Auto-integrate with IDEs")
+    init_p.add_argument("--no-integrate", dest="integrate", action="store_false", help="Skip automatic IDE integration")
+    init_p.set_defaults(integrate=True)
+    init_p.add_argument(
+        "--ide",
+        choices=["auto", "vscode", "cursor", "claude", "windsurf", "zed", "agents", "all"],
+        default="auto",
+        help="Target IDE for integration (default: auto-detect)",
+    )
+    init_p.add_argument(
+        "--all",
+        action="store_true",
+        help="Integrate all IDEs, terminal wrappers, and shell environments",
+    )
     init_p.add_argument("--in-repo", action="store_true", help="Store SQLite DB inside .learn/ folder")
 
     for name in ("record-commit", "concepts", "review", "briefing", "techscan"):
@@ -505,6 +556,7 @@ def main(argv: list[str] | None = None) -> None:
     gui_p.add_argument("--no-hide-console", action="store_true", help="Keep console window visible")
 
     integ = sub.add_parser("integrate", help="Integrate with IDEs or terminal")
+    integ.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
     integ.add_argument(
         "--ide",
         choices=["auto", "vscode", "cursor", "claude", "windsurf", "zed", "agents", "all"],
@@ -523,7 +575,13 @@ def main(argv: list[str] | None = None) -> None:
 
     args = p.parse_args(argv)
     if args.cmd == "init":
-        code = cmd_init(args.repo, integrate=args.integrate, in_repo=args.in_repo)
+        code = cmd_init(
+            args.repo,
+            integrate=args.integrate,
+            in_repo=args.in_repo,
+            ide=args.ide,
+            all_integrations=args.all,
+        )
     elif args.cmd == "http":
         code = cmd_http(host=args.host, port=args.port, reload=args.reload)
     elif args.cmd == "setup":
@@ -546,7 +604,7 @@ def main(argv: list[str] | None = None) -> None:
             integ_args.append("--env")
         if args.all:
             integ_args.append("--all")
-        code = cmd_integrate(integ_args)
+        code = cmd_integrate(integ_args, repo=args.repo)
     elif args.cmd == "record-commit":
         code = cmd_record_commit(args.repo)
     elif args.cmd == "backfill":

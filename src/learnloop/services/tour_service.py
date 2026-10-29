@@ -12,7 +12,7 @@ from learnloop.services.knowledge_service import get_all_known_paths
 from learnloop.services.profile_service import get_effective_profile
 
 TOUR_PROTOCOL = """\
-Project Tour Protocol:
+Project Tour Protocol (Active / Socratic Walkthrough):
 1. Read real project files in your IDE to ground your explanations.
 2. Walk bands in strict order: Basic first (what the project does, entry point, folder purposes, \
 request/data flow in plain words), then Intermediate, then Advanced.
@@ -20,7 +20,9 @@ request/data flow in plain words), then Intermediate, then Advanced.
 4. Call register_knowledge_item for each concept you teach, citing real project files.
 5. Adapt language: use simple analogies and short sentences for school/beginner levels.
 6. Never skip the learner's questions; answer thoroughly before moving on.
-7. Offer a 2-minute pause between bands.
+7. End each band with a reflective checkpoint: prompt ONE targeted question grounded in the code \
+just covered. If the learner answers, call manage_knowledge(action='explain') to log their understanding; \
+if they say 'continue' or 'skip', advance immediately to the next band.
 8. Park off-topic questions for later without needing any special tool.\
 """
 

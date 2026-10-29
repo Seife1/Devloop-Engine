@@ -118,15 +118,10 @@ def test_start_skill_session_v2_creates_record_in_db(test_server_with_db):
 
 
 def test_tool_parameters_match_schema(test_server_with_db):
-    """Test that tool parameters match the expected schema."""
-    from learnloop.mcp.tools import intent
+    """Test that clustered tools can be inspected and registered."""
+    from learnloop.mcp.tools import cluster
     import inspect
     
-    # Get the function signature
-    sig = inspect.signature(intent._generate_session_id)
-    
-    # Verify the function exists
-    assert callable(intent._generate_session_id)
-    
-    # The tool registration should work without errors
-    # (already tested by fixture setup)
+    # Verify cluster module has registration function
+    assert hasattr(cluster, "register")
+    assert callable(cluster.register)

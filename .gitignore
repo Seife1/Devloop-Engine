@@ -1,11 +1,34 @@
+# Environments
 .venv/
+venv/
+env/
+
+# Python cache & artifacts
 __pycache__/
+*.py[cod]
+*$py.class
 *.egg-info/
+*.egg
+build/
+dist/
+*.spec
+
+# Testing & Coverage
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
-dist/
-build/
-*.spec
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+
+# Editor & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+
+# LearnLoop temporary
 test-project/
 .learn/queue/

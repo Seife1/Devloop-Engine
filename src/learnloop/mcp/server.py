@@ -262,28 +262,21 @@ class LearnLoopMCPServer:
         return technologies
     
     async def _bootstrap_learn_directory(self, workspace_path: Path) -> None:
-        """Initialize .learn/ directory structure for new project.
+        """Initialize workspace learning directory structure (zero repo pollution).
         
-        Creates:
-        - .learn/ directory
-        - .learn/queue/ directory for commit queue entries
-        - .learn/.gitignore to exclude queue files
-        - .learn/concepts.md with template
-        
-        Requirements:
-        - 1.3: Initialize .learn/ directory structure
-        - 1.4: Create .learn/queue/ directory
-        - 5.2: Write .learn/.gitignore file
-        - 5.3: Initialize concepts.md with template
+        Creates storage in isolated user data dir (or legacy .learn/ if present):
+        - queue/ directory for commit queue entries
+        - concepts.md with template
         
         Args:
-            workspace_path: Project workspace directory
+            workspace_path: Path to workspace root.
         """
-        learn_dir = workspace_path / ".learn"
+        from learnloop.config import get_workspace_storage_dir
+        learn_dir = get_workspace_storage_dir(workspace_path)
         
         # Create directories
-        learn_dir.mkdir(exist_ok=True)
-        (learn_dir / "queue").mkdir(exist_ok=True)
+        learn_dir.mkdir(parents=True, exist_ok=True)
+        (learn_dir / "queue").mkdir(parents=True, exist_ok=True)
         
         # Create .gitignore
         gitignore_path = learn_dir / ".gitignore"

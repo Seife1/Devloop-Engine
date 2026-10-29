@@ -136,6 +136,20 @@ class GitIntegrationService:
         return '\n'.join(result_lines)
 
     @staticmethod
+    def _ensure_git_info_exclude(git_dir: Path) -> None:
+        """Ensure local repository .git/info/exclude contains .learn/ to prevent git pollution."""
+        try:
+            info_dir = git_dir / "info"
+            info_dir.mkdir(parents=True, exist_ok=True)
+            exclude_file = info_dir / "exclude"
+            current_exclude = exclude_file.read_text(encoding="utf-8") if exclude_file.is_file() else ""
+            if ".learn" not in current_exclude:
+                with exclude_file.open("a", encoding="utf-8") as f:
+                    f.write("\n# LearnLoop local isolation\n.learn/\n.learnloop_rules.md\n")
+        except Exception as exc:
+            log.debug(f"Could not update .git/info/exclude: {exc}")
+
+    @staticmethod
     def install_hook(git_root: Path, python_path: str | None = None) -> dict[str, Any]:
         """Install or update post-commit hook.
         
@@ -167,6 +181,9 @@ class GitIntegrationService:
                 "message": "Not a git repository",
                 "hook_path": None,
             }
+
+        # Ensure .git/info/exclude ignores .learn to guarantee zero workspace pollution
+        GitIntegrationService._ensure_git_info_exclude(git_dir)
 
         # Ensure hooks directory exists
         hooks_dir = git_dir / "hooks"

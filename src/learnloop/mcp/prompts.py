@@ -3,7 +3,6 @@ from __future__ import annotations
 from mcp.server.fastmcp import FastMCP
 
 from learnloop.services.briefing_service import BRIEFING_PROTOCOL
-from learnloop.services.lesson_service import TEACHING_PROTOCOL
 from learnloop.services.review_service import REVIEW_PROTOCOL
 from learnloop.services.tour_service import TOUR_PROTOCOL
 
@@ -14,8 +13,8 @@ Mock Interview Protocol:
 3. Wait for the learner's own response before following up or evaluating.
 4. Drill deeper with realistic follow-up questions: edge cases, failure modes, scalability, alternatives.
 5. Grade each answer objectively against a clear rubric (0.0 to 1.0).
-6. Record each outcome using record_review(
-   project_id=..., key=..., question=..., learner_answer=..., score=...
+6. Record each outcome using manage_reviews(
+   action="record", key=..., question=..., learner_answer=..., score=...
 ).
 7. Conclude after 3 to 5 questions with concise, actionable feedback.\
 """
@@ -45,8 +44,8 @@ Verification & Recording Rules:
 2. Using your OWN web tools, retrieve and verify an official documentation page, RFC, historical
    archive, or authoritative source.
 3. Formulate the insight in your own engaging words (maximum 300 characters). Never invent or guess URLs.
-4. Call add_did_you_know(
-     project_id=...,
+4. Call explore_project(
+     action="add_fact",
      topic=...,
      fact=...,
      source_url=...,
@@ -61,26 +60,9 @@ Verification & Recording Rules:
 
 
 def register(mcp: FastMCP) -> None:
-    @mcp.prompt(
-        name="teach-me",
-        description="DEPRECATED: not used by per-project flow. Use tour, review, or interview instead.",
-    )
-    def teach_me(project_id: str = "", skill: str = "") -> str:
-        args = []
-        if project_id:
-            args.append(f"project_id={project_id!r}")
-        if skill:
-            args.append(f"skill={skill!r}")
-        call = f"get_teaching_context({', '.join(args)})"
-        return (
-            f"DEPRECATED: Prefer tour, review, or mock-interview for per-project confidence.\n"
-            f"Run a LearnLoop lesson. First call {call}, then follow its `instructions` exactly.\n\n"
-            f"{TEACHING_PROTOCOL}"
-        )
-
     @mcp.prompt(name="tour", description="Start an interactive tour of the project from basics to advanced")
     def tour(project_id: str = "") -> str:
-        call = f"get_project_tour(project_id={project_id!r})" if project_id else "get_project_tour()"
+        call = f"explore_project(action='tour', project_id={project_id!r})" if project_id else "explore_project(action='tour')"
         return (
             f"Run an interactive project tour. First call {call}, then follow its `protocol` exactly.\n\n"
             f"{TOUR_PROTOCOL}"
@@ -88,7 +70,7 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.prompt(name="catch-up", description="Deliver a quick session-start briefing on what changed")
     def catch_up(project_id: str = "") -> str:
-        call = f"get_session_briefing(project_id={project_id!r})" if project_id else "get_session_briefing()"
+        call = f"manage_reviews(action='briefing', project_id={project_id!r})" if project_id else "manage_reviews(action='briefing')"
         return (
             f"Run a LearnLoop session catch-up briefing. First call {call},\n"
             f"then follow its `protocol` exactly.\n\n"
@@ -97,10 +79,10 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.prompt(name="review", description="Run today's spaced repetition review of knowledge items")
     def review(project_id: str = "") -> str:
-        call = f"review_due(project_id={project_id!r})" if project_id else "review_due()"
+        call = f"manage_reviews(action='due', project_id={project_id!r})" if project_id else "manage_reviews(action='due')"
         return (
             f"Run a LearnLoop spaced review session. First call {call}, then follow its `protocol` exactly.\n"
-            f"For each item reviewed, record the score and explanation using record_review(...).\n\n"
+            f"For each item reviewed, record the score and explanation using manage_reviews(action='record', ...).\n\n"
             f"{REVIEW_PROTOCOL}"
         )
 
@@ -109,7 +91,7 @@ def register(mcp: FastMCP) -> None:
         args = f"project_id={project_id!r}" if project_id else ""
         return (
             f"Conduct a mock technical interview based on project knowledge items.\n"
-            f"First call get_learner_profile() and review_due({args}) or list_knowledge_items({args}).\n\n"
+            f"First call manage_knowledge(action='list', {args}) or manage_reviews(action='due', {args}).\n\n"
             f"{INTERVIEW_PROTOCOL}"
         )
 
@@ -118,9 +100,9 @@ def register(mcp: FastMCP) -> None:
         description="Discover and record a captivating, verified insight (modern specs, origin lore, pop-culture/media crossovers)",
     )
     def did_you_know(project_id: str = "") -> str:
-        call = f"refresh_technologies(project_id={project_id!r})" if project_id else "refresh_technologies()"
+        call = f"explore_project(action='refresh_tech', project_id={project_id!r})" if project_id else "explore_project(action='refresh_tech')"
         return (
             f"Discover and record an engaging, verified insight (living evolution, origin lore, or cultural crossovers).\n"
-            f"First check project technologies with {call} or list_items().\n\n"
+            f"First check project technologies with {call} or manage_knowledge(action='list').\n\n"
             f"{DID_YOU_KNOW_PROTOCOL}"
         )

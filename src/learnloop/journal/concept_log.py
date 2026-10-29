@@ -37,13 +37,12 @@ STARTER_CONCEPT_GUIDE = """\
 
 
 def is_safe_to_write_concepts(repo_path: Path | str) -> tuple[bool, Path | None, str]:
-    """Validate safety requirements for writing .learn/concepts.md.
+    """Validate safety requirements for writing concepts.md.
 
-    Requirements:
-    1. repo_path exists and is a directory.
-    2. repo_path is a git repo (.git dir) OR already contains .learn/ dir.
-    3. .learn is not a symlink.
-    4. The resolved target is exactly <repo>/.learn/concepts.md.
+    Ghost Mode (Zero-Pollution Guarantee):
+    1. If repo contains an existing .learn/ directory, concepts.md is written to <repo>/.learn/concepts.md.
+    2. Otherwise, concepts.md is written to user_data_dir("learnloop")/workspaces/<slug>/concepts.md,
+       leaving the workspace 100% clean with zero files or folders created in the repository.
     """
     try:
         repo = Path(repo_path).resolve()
@@ -57,16 +56,23 @@ def is_safe_to_write_concepts(repo_path: Path | str) -> tuple[bool, Path | None,
         if not (is_git or has_learn):
             return False, None, f"repo_path is neither a git repository nor contains .learn/: {repo}"
 
-        if learn_dir.exists() and learn_dir.is_symlink():
-            return False, None, f".learn directory is a symlink: {learn_dir}"
+        if has_learn:
+            if learn_dir.is_symlink():
+                return False, None, f".learn directory is a symlink: {learn_dir}"
 
-        learn_dir.mkdir(parents=True, exist_ok=True)
-        target = (learn_dir / "concepts.md").resolve()
-        expected = (repo / ".learn" / "concepts.md").resolve()
+            learn_dir.mkdir(parents=True, exist_ok=True)
+            target = (learn_dir / "concepts.md").resolve()
+            expected = (repo / ".learn" / "concepts.md").resolve()
 
-        if target != expected:
-            return False, None, f"Target path mismatch ({target} != {expected})"
+            if target != expected:
+                return False, None, f"Target path mismatch ({target} != {expected})"
 
+            return True, target, ""
+
+        # Ghost Mode: isolated user storage directory
+        from learnloop.config import get_workspace_storage_dir
+        storage_dir = get_workspace_storage_dir(repo)
+        target = (storage_dir / "concepts.md").resolve()
         return True, target, ""
     except Exception as exc:  # noqa: BLE001
         return False, None, str(exc)

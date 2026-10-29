@@ -1,37 +1,50 @@
 # 🚀 LearnLoop Universal Integration
 
-**No more copying files!** LearnLoop now works in ANY IDE/terminal automatically.
+**Zero repo pollution. Zero configuration.** LearnLoop automatically detects your active IDE session and configures only the tools you need.
 
 ## 🔧 One-Command Setup
 
 ```bash
 # In your project directory
-learnloop integrate --all
+learnloop init
 ```
 
 This automatically:
-1. ✅ Detects your IDE (VS Code, Cursor, Claude, WindSurf, Zed)
-2. ✅ Configures MCP settings
-3. ✅ Adds LearnLoop rules
-4. ✅ Creates terminal shortcuts
-5. ✅ Sets up environment aliases
+1. 🎯 **Detects your active IDE**: Inspects runtime session signatures (`VS Code`, `Cursor`, `Windsurf`, `Claude`, `Zed`, or `Antigravity`).
+2. 🔒 **Configures ONLY that IDE**: Creates exact MCP settings and companion rules for your active editor without touching or dumping files for other editors.
+3. 🛡️ **Installs git hook**: Non-blocking post-commit tracking in `.learn/`.
+
+---
 
 ## 🎯 How It Works
 
-### For IDEs:
-```bash
-# Auto-detects and configures
-learnloop integrate --ide auto
+### Session-Aware Detection (Default)
+When you run `learnloop init` from your editor's integrated terminal:
+- **VS Code**: Configures `.vscode/settings.json` and `.vscode/mcp.json`.
+- **Cursor**: Configures `.cursorrules` and `.cursor/mcp.json`.
+- **Windsurf**: Configures `.windsurfrules` and `.windsurf/mcp_config.json`.
+- **Claude Code / Desktop**: Configures `CLAUDE.md` and Claude Desktop config.
+- **Zed**: Configures `.zed/settings.json`.
+- **Antigravity / Universal**: Configures `AGENTS.md` and `GEMINI.md`.
 
-# Or specify IDE
-learnloop integrate --ide vscode
-learnloop integrate --ide cursor
-learnloop integrate --ide claude
+### Explicit Overrides (Optional)
+If you ever want to force a specific IDE integration or run from an external terminal:
+```bash
+# Explicit target
+learnloop init --ide vscode
+learnloop init --ide cursor
+learnloop init --ide windsurf
+learnloop init --ide claude
+
+# Skip integration entirely
+learnloop init --no-integrate
+
+# Full development setup (integrates all IDEs and creates shell wrappers)
+learnloop init --all
 ```
 
-### For Terminal:
+### Terminal Shortcuts (Optional, via `learnloop integrate --terminal`)
 ```bash
-# Creates shortcut commands
 learnloop integrate --terminal
 
 # Now use:
@@ -41,139 +54,73 @@ learnloop-tools review        # Review knowledge
 learnloop-tools dashboard     # Open dashboard
 ```
 
-### Environment Aliases:
-```bash
-# Source environment (adds aliases)
-source .learn/environment.sh  # Linux/Mac
-. .\learn\LearnLoop.ps1       # Windows
+---
 
-# Now use:
-llb  # Get briefing (alias)
-llr  # Start review
-lld  # Open dashboard
-```
+## 📋 IDE Support Matrix
 
-## 📋 IDE Support
+| IDE | Live Session Detection | MCP Config | Companion Rules | Repo Pollution |
+|-----|:---------------------:|:----------:|:---------------:|:--------------:|
+| **VS Code** | ✅ (`TERM_PROGRAM`, `VSCODE_PID`) | `.vscode/settings.json` + `mcp.json` | Built-in | ❌ None (only VS Code) |
+| **Cursor** | ✅ (`CURSOR_TRACE_ID`, `CURSOR_VERSION`) | `.cursor/mcp.json` | `.cursorrules` | ❌ None (only Cursor) |
+| **Windsurf** | ✅ (`WINDSURF_VERSION`, Codeium path) | `.windsurf/mcp_config.json` | `.windsurfrules` | ❌ None (only Windsurf) |
+| **Claude Desktop / Code** | ✅ (`CLAUDE_CODE`, `CLAUDE_PROJECT_DIR`) | `claude_desktop_config.json` | `CLAUDE.md` | ❌ None (only Claude) |
+| **Zed** | ✅ (`TERM_PROGRAM=zed`, `ZED_TERM`) | `.zed/settings.json` | Built-in | ❌ None (only Zed) |
+| **Antigravity / Agents** | ✅ (`ANTIGRAVITY_AGENT=1`) | Native IDE MCP | `AGENTS.md` + `GEMINI.md` | ❌ None (only Agents) |
 
-| IDE | Auto-detection | MCP Config | Rules Integration |
-|-----|----------------|------------|-------------------|
-| VS Code | ✅ | ✅ | ✅ |
-| Cursor | ✅ | ✅ | ✅ |
-| Claude Desktop | ✅ | ✅ | ✅ |
-| WindSurf | ✅ | ✅ | ✅ |
-| Zed | ✅ | ✅ | ✅ |
-| Any Terminal | ✅ | ✅ | ✅ |
-
-## 🚀 Quick Start (Any Project)
-
-```bash
-# 1. Navigate to your project
-cd your-project
-
-# 2. Initialize LearnLoop
-learnloop init --integrate
-
-# OR manually:
-learnloop init
-learnloop integrate --all
-
-# 3. Work with AI as usual
-#    - AI writes code
-#    - You commit: git commit -m "AI did X"
-#    - LearnLoop tracks automatically
-
-# 4. Get insights
-learnloop-tools briefing    # Terminal
-llb                         # Alias (after sourcing)
-# OR use IDE's AI with MCP integration
-```
+---
 
 ## 🔍 What Gets Created
 
-### IDE Configuration:
-- **VS Code/Zed**: `.vscode/settings.json` with MCP config
-- **Cursor**: `.cursorrules` with LearnLoop rules
-- **Claude**: `CLAUDE.md` with LearnLoop rules
-- **WindSurf**: `.windsurfrules` with LearnLoop rules
-- **Generic**: `.learnloop_rules.md` (works anywhere)
+When running `learnloop init` in your project:
+- **In VS Code**: `.vscode/settings.json` and `.vscode/mcp.json`
+- **In Cursor**: `.cursorrules` and `.cursor/mcp.json`
+- **In Windsurf**: `.windsurfrules` and `.windsurf/mcp_config.json`
+- **In Claude**: `CLAUDE.md` (and updates global Claude Desktop JSON if installed)
+- **In Zed**: `.zed/settings.json`
+- **In Antigravity / Standalone**: `AGENTS.md` and `GEMINI.md`
+- **Git Hook**: `.learn/hooks/post-commit` (verifies code you and your AI build)
+- **Concepts Journal**: `.learn/concepts.md` (tracks explained components)
 
-### Terminal Tools:
-- `learnloop-tools` - Command wrapper (Linux/Mac/Windows)
-- `.learn/environment.sh` - Shell aliases
-- `.learn/LearnLoop.ps1` - PowerShell aliases
+*Note: Terminal wrappers (`tools.sh`, `tools.bat`) and shell profiles (`environment.sh`, `LearnLoop.ps1`) are **not** created by default to keep projects completely clean. They are only created if you explicitly pass `--all` or `--terminal`.*
 
-## 🎮 Usage Examples
+---
 
-### From Terminal:
-```bash
-# Start work session
-learnloop-tools start-session "Implement auth" "auth.py,models.py"
+## 🎮 How AI Assistants Work With LearnLoop
 
-# Get daily update
-learnloop-tools briefing
+LearnLoop uses 4 domain-clustered MCP tools with minimal token overhead:
 
-# Review what you've learned
-learnloop-tools review
+1. **Session Start**: AI calls `manage_reviews(action="briefing")` for context.
+2. **Architecture**: AI calls `explore_project(action="tour")` when asked for walkthroughs.
+3. **Active Coding**: AI calls `track_intent(action="start_session", files=[...], summary="...")` before implementing.
+4. **Architectural Decisions**: AI calls `track_intent(action="log_decision", ...)` to document trade-offs.
+5. **After Commits**: Git post-commit hook logs commits $\rightarrow$ AI calls `track_intent(action="reconcile")`.
+6. **Knowledge Catalog**: AI calls `manage_knowledge(action="register", ...)` for new components.
+7. **Spaced Reviews**: AI tests the learner via `manage_reviews(action="due")` and records responses.
 
-# Register knowledge
-echo '{"key":"jwt-auth","title":"JWT Authentication","summary":"Implement JWT auth in FastAPI","files":["auth.py"]}' | learnloop-tools register
-```
-
-### From IDE (after integration):
-1. **Session Start**: AI calls `get_session_briefing` automatically
-2. **Architecture**: AI calls `get_project_tour` for walkthroughs
-3. **Work**: AI calls `start_skill_session` before coding
-4. **Decisions**: AI calls `log_decision` for alternatives
-5. **After Commits**: AI calls `ingest_queue` to track work
-
-## 🔄 Update Integration
-
-```bash
-# Update if LearnLoop changes
-learnloop integrate --force
-
-# Add new IDE support
-learnloop integrate --ide new-ide
-
-# Just terminal tools
-learnloop integrate --terminal
-```
+---
 
 ## ❓ Troubleshooting
 
-**IDE not detecting?**
+**Want to re-run or force overwrite?**
 ```bash
-# Force specific IDE
-learnloop integrate --ide vscode --force
-
-# Check if config created
-ls -la .vscode/settings.json  # VS Code
-cat .cursorrules              # Cursor
+learnloop integrate --ide auto --force
 ```
 
-**Terminal tools not working?**
+**Using an external terminal (e.g. Windows Terminal or Bash outside of your IDE)?**
+LearnLoop automatically checks your repo for markers (`.vscode`, `.cursor`, `.windsurf`, etc.) or you can pass the target explicitly:
 ```bash
-# Make executable (Linux/Mac)
-chmod +x .learn/tools.sh
-
-# Add to PATH temporarily
-export PATH="$PATH:$(pwd)/.learn"
-
-# Or use full path
-./.learn/tools.sh briefing
+learnloop init --ide vscode
 ```
 
-**MCP not working in IDE?**
-1. Restart IDE after integration
-2. Check IDE supports MCP servers
-3. Verify `learnloop` command works in terminal
+**MCP server not responding in IDE?**
+1. Restart your editor so it reloads the MCP config.
+2. Run `learnloop doctor` to verify SQLite database, skills taxonomy, and schema migrations.
+3. Verify `learnloop` is accessible on your system PATH (`where.exe learnloop` or `which learnloop`).
+
+---
 
 ## 🎯 The Goal
 
-**Zero friction, maximum learning.** You focus on building with AI, LearnLoop handles:
-- Tracking what AI builds
-- Reinforcing what you learn
-- Showing progress
-- Preparing you to explain your code
+**Zero friction, zero repository pollution, maximum learning.** You focus on building with AI; LearnLoop quietly tracks what your AI builds and prepares you to defend your code.
 
-No manual file copying. No complex setup. Just `learnloop integrate --all` and start learning! 🚀
+Just `learnloop init` and start coding! 🚀

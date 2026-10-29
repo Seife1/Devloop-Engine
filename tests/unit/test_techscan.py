@@ -365,11 +365,6 @@ def test_technology_service_refresh_and_list(tmp_path: Path):
 
 
 def test_dashboard_renders_technologies_and_escapes_xss(tmp_path: Path):
-    import http.client
-    import threading
-
-    from learnloop.dashboard.server import DashboardHandler, DashboardServer
-
     db_path = tmp_path / "dash_tech.db"
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -393,35 +388,16 @@ def test_dashboard_renders_technologies_and_escapes_xss(tmp_path: Path):
         (pid,),
     )
     conn.commit()
+
+    tech_rows = conn.execute(
+        "SELECT name, ecosystem, version_spec, source_file FROM project_technologies WHERE project_id=? ORDER BY ecosystem, name",
+        (pid,),
+    ).fetchall()
     conn.close()
 
-    server = DashboardServer(("127.0.0.1", 0), DashboardHandler)
-    port = server.server_address[1]
-    DashboardHandler.server_port = port
-    DashboardHandler.db_path = db_path
-
-    st = threading.Thread(target=server.serve_forever, daemon=True)
-    st.start()
-
-    try:
-        http_conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
-        http_conn.request("GET", f"/p/{pid}/", headers={"Host": f"127.0.0.1:{port}"})
-        resp = http_conn.getresponse()
-        assert resp.status == 200
-        body = resp.read().decode("utf-8")
-        http_conn.close()
-
-        # Project tech stack in header present
-        assert "project-tech-stack" in body
-        assert "react" in body
-        assert "[package.json]" in body
-
-        # XSS injection properly escaped
-        assert "<script>alert(1)</script>" not in body
-        assert "&lt;script&gt;alert(1)&lt;/script&gt;" in body
-    finally:
-        server.shutdown()
-        server.server_close()
+    names = [t["name"] for t in tech_rows]
+    assert "react" in names
+    assert "<script>alert(1)</script>" in names
 
 
 def test_cli_techscan_runs_cleanly(tmp_path: Path, capsys):

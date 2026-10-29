@@ -7,13 +7,12 @@ free from external browser tabs and console clutter.
 from __future__ import annotations
 
 import os
+import socket
 import sys
 import threading
 import time
 from pathlib import Path
 from typing import Any
-
-from learnloop.dashboard.server import create_dashboard_server
 
 
 def is_gui_available() -> bool:
@@ -70,6 +69,18 @@ def get_webview2_cache_dir() -> Path:
     return cache_dir
 
 
+def _find_available_port(start_port: int, max_attempts: int = 20) -> int:
+    """Find an available port starting from start_port."""
+    for p in range(start_port, start_port + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", p))
+                return p
+            except OSError:
+                continue
+    return start_port
+
+
 def launch_desktop_gui(
     port: int = 8765,
     route: str = "/setup",
@@ -89,16 +100,27 @@ def launch_desktop_gui(
     if hide_console:
         hide_console_window()
 
-    # 2. Start the local server
+    # 2. Start the local FastAPI server via Uvicorn
+    actual_port = _find_available_port(port)
     try:
-        server, actual_port = create_dashboard_server(port=port, db_path=db_path)
+        import uvicorn
+        from learnloop.http_server import app
+
+        config = uvicorn.Config(
+            app=app,
+            host="127.0.0.1",
+            port=actual_port,
+            log_level="warning",
+        )
+        server = uvicorn.Server(config=config)
+        server_thread = threading.Thread(target=server.run, daemon=True)
+        server_thread.start()
+        # Brief pause to ensure socket listening
+        time.sleep(0.3)
     except Exception as exc:
         show_console_window()
         sys.stderr.write(f"LearnLoop GUI server failed to start: {exc}\n")
         return 1
-
-    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
-    server_thread.start()
 
     url = f"http://127.0.0.1:{actual_port}{route}"
 
@@ -126,11 +148,7 @@ def launch_desktop_gui(
             webview.start(gui=gui_engine)
 
             # Window was closed by user -> shutdown server and exit cleanly
-            try:
-                server.shutdown()
-                server.server_close()
-            except Exception:
-                pass
+            server.should_exit = True
             return 0
         except Exception as exc:
             # Native window creation failed; fall back to browser
@@ -154,10 +172,6 @@ def launch_desktop_gui(
     except KeyboardInterrupt:
         pass
     finally:
-        try:
-            server.shutdown()
-            server.server_close()
-        except Exception:
-            pass
+        server.should_exit = True
 
     return 0

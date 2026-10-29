@@ -47,23 +47,27 @@ if ($userPath -notlike "*$binDir*") {
     Write-Host "  [OK] Added ~/.learnloop/bin to User PATH" -ForegroundColor Green
 }
 
-# Run init and auto-integration in current repository
-Write-Host "[2/4] Initializing LearnLoop & local SQLite database..." -ForegroundColor Cyan
-& $exePath init --integrate
-
-Write-Host "[3/4] Ingesting AI Companion rules into current project..." -ForegroundColor Cyan
-Write-Host "  [OK] AGENTS.md, .cursorrules & .windsurfrules ready" -ForegroundColor Green
-
-Write-Host "[4/4] Verification check..." -ForegroundColor Cyan
+# Verification check
+Write-Host "[2/2] Verifying installation..." -ForegroundColor Cyan
 & $exePath doctor
 
 Write-Host ""
 Write-Host "  +-------------------------------------------------------------+" -ForegroundColor Green
 Write-Host "  |                 INSTALLATION COMPLETE                       |" -ForegroundColor Green
 Write-Host "  +-------------------------------------------------------------+" -ForegroundColor Green
-Write-Host "  * IDEs Configured: Cursor, VS Code, Windsurf, Claude, Zed" -ForegroundColor White
-Write-Host "  * Git Tracking:    Automatic via non-blocking post-commit hook" -ForegroundColor White
+Write-Host "  * Executable:      $exePath" -ForegroundColor White
+Write-Host "  * User PATH:       ~/.learnloop/bin permanently added" -ForegroundColor White
 Write-Host "  * Privacy:         100% Local SQLite - Zero telemetry sent    " -ForegroundColor White
-Write-Host "  * Dashboard:       Run 'learnloop dashboard' to launch UI     " -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  To initialize LearnLoop on any project, simply navigate to it:" -ForegroundColor Cyan
+Write-Host "      cd /path/to/your/project" -ForegroundColor White
+Write-Host "      learnloop init" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  Available CLI commands inside initialized projects:" -ForegroundColor Cyan
+Write-Host "      learnloop briefing    # Session catch-up" -ForegroundColor White
+Write-Host "      learnloop review      # Spaced repetition check" -ForegroundColor White
+Write-Host "      learnloop concepts    # View concepts catalog" -ForegroundColor White
+Write-Host "      learnloop dashboard   # Launch local web dashboard" -ForegroundColor White
+Write-Host "      learnloop gui         # Launch native desktop window" -ForegroundColor White
 Write-Host "  +-------------------------------------------------------------+" -ForegroundColor Green
 Write-Host ""

@@ -54,6 +54,8 @@ def test_concept_log_idempotent_and_redacted(tmp_path: Path):
 
 
 def test_safe_writes_validations(tmp_path: Path):
+    from learnloop.config import get_workspace_storage_dir
+
     # 1. Nonexistent path
     nonexistent = tmp_path / "no_such_dir"
     safe, target, _ = is_safe_to_write_concepts(nonexistent)
@@ -66,13 +68,23 @@ def test_safe_writes_validations(tmp_path: Path):
     safe, target, _ = is_safe_to_write_concepts(plain_dir)
     assert not safe
 
-    # 3. Valid git repo
+    # 3. Valid git repo (Ghost Mode: isolated user data storage, leaves repo clean)
     git_repo = tmp_path / "git_repo"
     git_repo.mkdir()
     (git_repo / ".git").mkdir()
     safe, target, _ = is_safe_to_write_concepts(git_repo)
     assert safe
-    assert target == (git_repo / ".learn" / "concepts.md").resolve()
+    assert target == (get_workspace_storage_dir(git_repo) / "concepts.md").resolve()
+    assert not (git_repo / ".learn").exists()
+
+    # 3b. Legacy git repo with pre-existing .learn directory
+    legacy_repo = tmp_path / "legacy_repo"
+    legacy_repo.mkdir()
+    (legacy_repo / ".git").mkdir()
+    (legacy_repo / ".learn").mkdir()
+    safe, target, _ = is_safe_to_write_concepts(legacy_repo)
+    assert safe
+    assert target == (legacy_repo / ".learn" / "concepts.md").resolve()
 
     # 4. Symlinked .learn directory
     symlink_repo = tmp_path / "symlink_repo"
@@ -91,6 +103,8 @@ def test_safe_writes_validations(tmp_path: Path):
 
 
 def test_regenerate_concept_log_writes_atomic(tmp_path: Path):
+    from learnloop.config import get_workspace_storage_dir
+
     repo = tmp_path / "repo"
     repo.mkdir()
     (repo / ".git").mkdir()
@@ -109,8 +123,9 @@ def test_regenerate_concept_log_writes_atomic(tmp_path: Path):
 
     written = regenerate_concept_log(conn, "p1", repo)
     assert written is True
-    concepts_file = repo / ".learn" / "concepts.md"
+    concepts_file = get_workspace_storage_dir(repo) / "concepts.md"
     assert concepts_file.is_file()
+    assert not (repo / ".learn").exists()
     content = concepts_file.read_text("utf-8")
     assert "### Core Title (`core`)" in content
     assert "AI Illusion of Competence" in content
@@ -118,16 +133,18 @@ def test_regenerate_concept_log_writes_atomic(tmp_path: Path):
 
 
 def test_init_concept_log_day_one(tmp_path: Path):
+    from learnloop.config import get_workspace_storage_dir
     from learnloop.journal.concept_log import init_concept_log
 
     repo = tmp_path / "new_repo"
     repo.mkdir()
     (repo / ".git").mkdir()
 
-    # First call: writes starter guide
+    # First call: writes starter guide to user storage, leaves workspace clean
     assert init_concept_log(repo) is True
-    guide_path = repo / ".learn" / "concepts.md"
+    guide_path = get_workspace_storage_dir(repo) / "concepts.md"
     assert guide_path.is_file()
+    assert not (repo / ".learn").exists()
     text = guide_path.read_text("utf-8")
     assert "AI Illusion of Competence" in text
     assert "Commit early & often" in text

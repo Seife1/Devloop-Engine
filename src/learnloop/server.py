@@ -8,19 +8,7 @@ from mcp.server.fastmcp import FastMCP
 
 from learnloop.config import Settings
 from learnloop.mcp import prompts
-from learnloop.mcp.tools import (
-    capture,
-    facts,
-    intent,
-    knowledge,
-    practice,
-    profile,
-    review,
-    skills,
-    teaching,
-    technologies,
-    tour,
-)
+from learnloop.mcp.tools import cluster
 from learnloop.persistence.db import connect
 
 
@@ -36,26 +24,6 @@ def build_server(settings: Settings | None = None) -> FastMCP:
             conn.close()
 
     mcp = FastMCP("learnloop")
-    
-    # Register the 4 modern Domain-Clustered tools (default)
-    from learnloop.mcp.tools import cluster
     cluster.register(mcp, db, settings)
-
-    # Legacy individual tools: register only when LEARNLOOP_LEGACY_TOOLS=1 (default off)
-    import os
-
-    if os.environ.get("LEARNLOOP_LEGACY_TOOLS") == "1":
-        capture.register(mcp, db, settings)
-        intent.register(mcp, db, settings)
-        profile.register(mcp, db)
-        knowledge.register(mcp, db)
-        technologies.register(mcp, db)
-        facts.register(mcp, db)
-        tour.register(mcp, db)
-        review.register(mcp, db)
-        skills.register(mcp, db)
-        practice.register(mcp, db)
-        teaching.register(mcp, db)
-
     prompts.register(mcp)
     return mcp

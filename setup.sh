@@ -82,22 +82,26 @@ case ":$PATH:" in
     ;;
 esac
 
-echo -e "\033[36m[2/4] Initializing LearnLoop & local SQLite database...\033[0m"
-"$EXE_PATH" init --integrate
-
-echo -e "\033[36m[3/4] Ingesting AI Companion rules into current project...\033[0m"
-echo -e "\033[32m  [OK] AGENTS.md, .cursorrules & .windsurfrules ready\033[0m"
-
-echo -e "\033[36m[4/4] Verification check...\033[0m"
+echo -e "\033[36m[2/2] Verifying installation...\033[0m"
 "$EXE_PATH" doctor
 
 echo ""
 echo -e "\033[32m  +-------------------------------------------------------------+\033[0m"
 echo -e "\033[32m  |                 INSTALLATION COMPLETE                       |\033[0m"
 echo -e "\033[32m  +-------------------------------------------------------------+\033[0m"
-echo -e "\033[1;37m  * IDEs Configured: Cursor, VS Code, Windsurf, Claude, Zed\033[0m"
-echo -e "\033[1;37m  * Git Tracking:    Automatic via non-blocking post-commit hook\033[0m"
+echo -e "\033[1;37m  * Executable:      $EXE_PATH\033[0m"
+echo -e "\033[1;37m  * User PATH:       ~/.learnloop/bin permanently added\033[0m"
 echo -e "\033[1;37m  * Privacy:         100% Local SQLite - Zero telemetry sent    \033[0m"
-echo -e "\033[36m  * Dashboard:       Run 'learnloop dashboard' to launch UI     \033[0m"
+echo ""
+echo -e "\033[36m  To initialize LearnLoop on any project, simply navigate to it:\033[0m"
+echo -e "\033[1;37m      cd /path/to/your/project\033[0m"
+echo -e "\033[33m      learnloop init\033[0m"
+echo ""
+echo -e "\033[36m  Available CLI commands inside initialized projects:\033[0m"
+echo -e "\033[1;37m      learnloop briefing    # Session catch-up\033[0m"
+echo -e "\033[1;37m      learnloop review      # Spaced repetition check\033[0m"
+echo -e "\033[1;37m      learnloop concepts    # View concepts catalog\033[0m"
+echo -e "\033[1;37m      learnloop dashboard   # Launch local web dashboard\033[0m"
+echo -e "\033[1;37m      learnloop gui         # Launch native desktop window\033[0m"
 echo -e "\033[32m  +-------------------------------------------------------------+\033[0m"
 echo ""
