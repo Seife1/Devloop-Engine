@@ -32,3 +32,7 @@ Thumbs.db
 # LearnLoop temporary
 test-project/
 .learn/queue/
+
+# Compiled standalone distribution binaries (releases hosted on GitHub Release CDN)
+website/public/downloads/*.exe
+website/public/downloads/learnloop-*
