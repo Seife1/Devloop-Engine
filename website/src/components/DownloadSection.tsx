@@ -41,13 +41,13 @@ export default function DownloadSection() {
       commands: [
         {
           label: "PowerShell (Recommended One-Liner)",
-          cmd: `irm ${origin}/setup.ps1 | iex`,
+          cmd: `& ([scriptblock]::Create((iwr -useb "${origin}/setup.ps1").Content))`,
           hint: "Installs binary to ~/.learnloop/bin and auto-configures your active editor (Cursor, VS Code, Windsurf).",
         },
         {
           label: "Command Prompt (cmd.exe)",
-          cmd: `curl -fsSL ${origin}/setup.ps1 -o setup.ps1 && powershell -ExecutionPolicy Bypass -File setup.ps1`,
-          hint: "Downloads and executes the installer via standard Windows Command Prompt.",
+          cmd: `powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb ${origin}/setup.ps1 | iex"`,
+          hint: "Executes the installer script via Windows Command Prompt.",
         },
         {
           label: "Git Bash / WSL",

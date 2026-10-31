@@ -13,8 +13,8 @@ export default function QuickstartCommands() {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  const psCmd = `irm ${origin}/setup.ps1 | iex`;
-  const cmdCmd = `curl -fsSL ${origin}/setup.ps1 -o setup.ps1 && powershell -ExecutionPolicy Bypass -File setup.ps1`;
+  const psCmd = `& ([scriptblock]::Create((iwr -useb "${origin}/setup.ps1").Content))`;
+  const cmdCmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb ${origin}/setup.ps1 | iex"`;
   const shCmd = `curl -fsSL ${origin}/setup.sh | bash`;
 
   return (
