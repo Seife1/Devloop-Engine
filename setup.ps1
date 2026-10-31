@@ -24,7 +24,7 @@ if (Test-Path $localDist) {
     Copy-Item -Path $localDist -Destination $exePath -Force
 } else {
     Write-Host "[1/4] Downloading standalone binary for Windows (x64)..." -ForegroundColor Cyan
-    $releaseUrl = "https://github.com/seife1/learnloop/releases/latest/download/learnloop-windows-x64.exe"
+    $releaseUrl = "https://github.com/Seife1/Devloop-Engine/releases/latest/download/learnloop-windows-x64.exe"
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $releaseUrl -OutFile $exePath -UseBasicParsing

@@ -45,7 +45,7 @@ if [ -f "$LOCAL_DIST" ]; then
   cp "$LOCAL_DIST" "$EXE_PATH"
 else
   echo -e "\033[36m[1/4] Downloading standalone binary for $OS ($ARCH)...\033[0m"
-  RELEASE_URL="https://github.com/seife1/learnloop/releases/latest/download/$ASSET_NAME"
+  RELEASE_URL="https://github.com/Seife1/Devloop-Engine/releases/latest/download/$ASSET_NAME"
   if curl -fsSL "$RELEASE_URL" -o "$EXE_PATH"; then
     echo "  [OK] Downloaded $ASSET_NAME"
   else
