@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { copyToClipboard } from "@/hooks/clipboard";
 
 export default function CodeFlow() {
   const [copied, setCopied] = useState(false);
@@ -30,10 +31,12 @@ export default function CodeFlow() {
 |   Only verified code passes         |  |      or project .learn/     |
 +-------------------------------------+  +-----------------------------+`;
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(asciiDiagram);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    const success = await copyToClipboard(asciiDiagram);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   return (
@@ -75,7 +78,7 @@ export default function CodeFlow() {
 
             <button
               type="button"
-              onClick={copyToClipboard}
+              onClick={handleCopy}
               className="text-[11px] font-mono px-3 py-1 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 hover:text-white transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <span>{copied ? "✓ Copied" : "📋 Copy Spec"}</span>

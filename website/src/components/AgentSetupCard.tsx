@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useOrigin } from "@/hooks/useOrigin";
+import { copyToClipboard } from "@/hooks/clipboard";
 
 export default function AgentSetupCard() {
   const [copied, setCopied] = useState(false);
@@ -10,10 +11,12 @@ export default function AgentSetupCard() {
 
   const promptText = `Set up LearnLoop for me: ${origin}/prompt.md`;
 
-  const copyPrompt = () => {
-    navigator.clipboard.writeText(promptText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+  const copyPrompt = async () => {
+    const success = await copyToClipboard(promptText);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
   };
 
   return (

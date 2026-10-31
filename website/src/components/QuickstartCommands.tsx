@@ -2,15 +2,18 @@
 
 import { useState } from "react";
 import { useOrigin } from "@/hooks/useOrigin";
+import { copyToClipboard } from "@/hooks/clipboard";
 
 export default function QuickstartCommands() {
   const origin = useOrigin("https://<your-host>");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const copy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+  const copy = async (text: string, key: string) => {
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+    }
   };
 
   const psCmd = `& ([scriptblock]::Create((iwr -useb "${origin}/setup.ps1").Content))`;

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useOrigin } from "@/hooks/useOrigin";
+import { copyToClipboard } from "@/hooks/clipboard";
 
 type PlatformKey = "windows" | "macos" | "linux";
 
@@ -23,10 +24,12 @@ export default function DownloadSection() {
     }
   }, []);
 
-  const copyToClipboard = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+  const handleCopy = async (text: string, key: string) => {
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+    }
   };
 
   const platforms = {
@@ -192,7 +195,7 @@ export default function DownloadSection() {
                     </div>
 
                     <button
-                      onClick={() => copyToClipboard(cmdItem.cmd, copyId)}
+                      onClick={() => handleCopy(cmdItem.cmd, copyId)}
                       className="shrink-0 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-[10px] text-white tracking-wider uppercase font-semibold transition-colors rounded cursor-pointer"
                       title="Copy command"
                     >
