@@ -60,8 +60,18 @@ else
     elif command -v pip >/dev/null 2>&1; then
       pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
       exit 0
+    elif command -v python3 >/dev/null 2>&1; then
+      python3 -m pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
+      exit 0
     else
-      echo "  Error: Failed to download binary and no Python/uv found."
+      echo -e "\033[36m  Bootstrapping ultra-fast standalone engine via uv...\033[0m"
+      curl -LsSf https://astral.sh/uv/install.sh | sh
+      export PATH="$HOME/.local/bin:$PATH"
+      if command -v uv >/dev/null 2>&1; then
+        uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force
+        exit 0
+      fi
+      echo "  Error: Could not install binary or bootstrap environment."
       exit 1
     fi
   fi
