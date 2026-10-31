@@ -41,42 +41,46 @@ export default function AgentSetupCard() {
           onClick={copyPrompt}
           className="group relative inline-flex items-center justify-center gap-3 px-5 py-3 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 hover:border-emerald-400/50 transition-all duration-200 text-white font-sans text-xs sm:text-sm font-medium shadow-sm hover:shadow-[0_0_20px_rgba(16,185,129,0.2)] active:scale-[0.98]"
         >
-          {/* Agent Brand Icons */}
+          {/* Official Agent Brand Icons Matching Cloudflare's Exact Design */}
           <div className="flex items-center -space-x-1.5">
-            {/* Claude / Anthropic Asterisk */}
+            {/* Claude / Anthropic Official Sunburst / Asterisk SVG */}
             <span
-              title="Claude Code & Desktop"
-              className="w-5 h-5 rounded-full bg-[#D97706]/20 border border-[#D97706]/40 flex items-center justify-center text-[10px] text-[#F59E0B]"
+              title="Claude Code & Claude Desktop"
+              className="w-5 h-5 rounded-full bg-[#CC6B49]/15 border border-[#CC6B49]/40 flex items-center justify-center p-0.5 overflow-hidden shadow-sm backdrop-blur-sm"
             >
-              ✳
+              <svg viewBox="0 0 24 24" fill="#D97757" className="w-3.5 h-3.5">
+                <path d="M4.5 10.5C3.67 10.5 3 11.17 3 12s.67 1.5 1.5 1.5h15c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5h-15zm2.74-5.24a1.5 1.5 0 00-2.12 2.12l10.6 10.6a1.5 1.5 0 002.12-2.12l-10.6-10.6zm10.6 0a1.5 1.5 0 00-2.12 0l-10.6 10.6a1.5 1.5 0 002.12 2.12l10.6-10.6a1.5 1.5 0 000-2.12zM12 3c-.83 0-1.5.67-1.5 1.5v15c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-15C13.5 3.67 12.83 3 12 3z" />
+              </svg>
             </span>
-            {/* Cursor */}
+
+            {/* OpenAI / ChatGPT Swirl SVG */}
+            <span
+              title="OpenAI / ChatGPT / Codex"
+              className="w-5 h-5 rounded-full bg-[#10A37F]/15 border border-[#10A37F]/40 flex items-center justify-center p-0.5 overflow-hidden shadow-sm backdrop-blur-sm"
+            >
+              <svg viewBox="0 0 24 24" fill="#10A37F" className="w-3 h-3">
+                <path d="M22.28 9.53a5.98 5.98 0 0 0-.52-4.91 6.05 6.05 0 0 0-6.51-2.9A6.07 6.07 0 0 0 10.5.5a6.05 6.05 0 0 0-5.77 4.19 6.04 6.04 0 0 0-3.93 2.87 6.06 6.06 0 0 0 .74 7.07 5.98 5.98 0 0 0 .51 4.91 6.05 6.05 0 0 0 6.52 2.9A6.05 6.05 0 0 0 13.3 23.5a6.05 6.05 0 0 0 5.78-4.19 6.04 6.04 0 0 0 3.93-2.87 6.05 6.05 0 0 0-.73-6.91zm-8.99 12.44a4.54 4.54 0 0 1-2.92-1.06l.15-.08 4.88-2.82a.77.77 0 0 0 .39-.67v-6.88l2.07 1.2a.08.08 0 0 1 .04.06v5.7a4.56 4.56 0 0 1-4.61 4.55zm-8.8-3.95a4.55 4.55 0 0 1-.55-3.07l.15.09 4.88 2.82a.76.76 0 0 0 .77 0l5.96-3.44v2.39a.08.08 0 0 1-.03.07l-4.94 2.85a4.56 4.56 0 0 1-6.24-1.71zm-1.84-9.3a4.54 4.54 0 0 1 2.37-2l-.01.17v5.63a.76.76 0 0 0 .38.66l5.96 3.44-2.07 1.2a.08.08 0 0 1-.07 0l-4.94-2.85a4.56 4.56 0 0 1-1.62-6.25zM17.7 11.5l-5.96-3.44 2.07-1.2a.08.08 0 0 1 .07 0l4.94 2.85a4.56 4.56 0 0 1-1.12 8.24v-5.78a.76.76 0 0 0-.39-.67h.39zm3.56-2.58a4.54 4.54 0 0 1 .55 3.07l-.15-.09-4.88-2.82a.76.76 0 0 0-.77 0L10.05 12.5V10.1a.08.08 0 0 1 .03-.07l4.94-2.85a4.56 4.56 0 0 1 6.24 1.74zm-9.52-5.9a4.54 4.54 0 0 1 2.92 1.06l-.15.09-4.88 2.82a.76.76 0 0 0-.39.66v6.88l-2.07-1.2a.08.08 0 0 1-.04-.07v-5.7a4.56 4.56 0 0 1 4.61-4.54z" />
+              </svg>
+            </span>
+
+            {/* Cursor Official Isometric Box SVG */}
             <span
               title="Cursor"
-              className="w-5 h-5 rounded-full bg-[#3B82F6]/20 border border-[#3B82F6]/40 flex items-center justify-center text-[10px] text-[#60A5FA]"
+              className="w-5 h-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center p-0.5 overflow-hidden shadow-sm backdrop-blur-sm"
             >
-              ▲
+              <svg viewBox="0 0 24 24" fill="none" className="w-3 h-3">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#FFFFFF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </span>
-            {/* Windsurf */}
+
+            {/* GitHub Copilot / Octocat Robot SVG */}
             <span
-              title="Windsurf / Devin"
-              className="w-5 h-5 rounded-full bg-[#06B6D4]/20 border border-[#06B6D4]/40 flex items-center justify-center text-[10px] text-[#22D3EE]"
+              title="GitHub Copilot & VS Code"
+              className="w-5 h-5 rounded-full bg-[#8B5CF6]/15 border border-[#8B5CF6]/40 flex items-center justify-center p-0.5 overflow-hidden shadow-sm backdrop-blur-sm"
             >
-              ◈
-            </span>
-            {/* Antigravity / Gemini */}
-            <span
-              title="Antigravity / Gemini"
-              className="w-5 h-5 rounded-full bg-[#10B981]/20 border border-[#10B981]/40 flex items-center justify-center text-[10px] text-[#34D399]"
-            >
-              ✦
-            </span>
-            {/* Copilot */}
-            <span
-              title="VS Code & Copilot"
-              className="w-5 h-5 rounded-full bg-[#8B5CF6]/20 border border-[#8B5CF6]/40 flex items-center justify-center text-[10px] text-[#A78BFA]"
-            >
-              ●
+              <svg viewBox="0 0 24 24" fill="#A78BFA" className="w-3.5 h-3.5">
+                <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.58 9.58 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z" />
+              </svg>
             </span>
           </div>
 
