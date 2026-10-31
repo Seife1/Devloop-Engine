@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import AgentSetupCard from "./AgentSetupCard";
 
 export default function Hero() {
   return (
@@ -30,12 +31,15 @@ export default function Hero() {
         </p>
 
         {/* Value explanation */}
-        <p className="max-w-xl text-sm sm:text-base text-zinc-200 font-sans leading-relaxed mb-12">
+        <p className="max-w-xl text-sm sm:text-base text-zinc-200 font-sans leading-relaxed mb-4">
           An autonomous cognitive sidecar that connects to AI IDEs & Editors. It silently tracks architectural decisions, maintains your knowledge catalog, and tests your mastery through spaced repetition.
         </p>
 
+        {/* Build with your favorite AI agent card */}
+        <AgentSetupCard />
+
         {/* Elevated Frosted Dark Glass Dock - Sharp, Focused CTA Buttons over Curve */}
-        <div className="inline-flex flex-col sm:flex-row items-center gap-3 sm:gap-4 p-2 sm:p-2.5 rounded-2xl bg-[#0B0F19] border border-white/20 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+        <div className="mt-10 inline-flex flex-col sm:flex-row items-center gap-3 sm:gap-4 p-2 sm:p-2.5 rounded-2xl bg-[#0B0F19] border border-white/20 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
           <Link
             href="/#download"
             className="w-full sm:w-auto px-7 py-3.5 bg-white text-[#0B0F19] font-sans font-semibold text-xs tracking-wider uppercase hover:bg-emerald-400 hover:text-black transition-all duration-200 shadow-md rounded-xl text-center"

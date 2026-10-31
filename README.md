@@ -1,6 +1,6 @@
 # LearnLoop
 
-![Version](https://img.shields.io/badge/version-0.6.4-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Version](https://img.shields.io/badge/version-0.7.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 An MCP server that shows you where your AI coding agent did work you can't yet do alone, then gives you
 short, targeted practice to close the gap.
@@ -417,6 +417,11 @@ Logs go to stderr only; never `print()`.
 
 
 ## 📋 Recent Updates
+
+### 2026-10-31 (v0.7.0)
+- **Universal Autonomous Agent Setup (`prompt.md`)**: Published self-executing instruction manual ([`prompt.md`](prompt.md) and [`website/public/prompt.md`](website/public/prompt.md)) enabling any frontier coding agent (Claude Code, Cursor, Windsurf, Claude Desktop, Antigravity, VS Code / Copilot, Zed) to autonomously configure LearnLoop globally via `uvx` directly from GitHub with zero repo cloning, zero PyPI overhead, and automatic companion rule injection.
+- **Self-Testing & Interactive Verification Protocol**: Integrated an automated post-install loop into `prompt.md` where the agent tests MCP tool availability (`manage_reviews(action="briefing")`), prompts the developer if an IDE reload is required, and confirms workspace git commit tracking.
+- **Hero "Build With Your Favorite AI Agent" Card**: Featured an interactive 1-click prompt setup card in the marketing website Hero (`AgentSetupCard.tsx`) with brand badges for Claude, Cursor, Windsurf, Antigravity, and Copilot matching modern cloud developer standards.
 
 ### 2026-10-29 (v0.6.4)
 - **Terminal-First ASCII Architecture Specification**: Streamlined the "One protocol. Every editor on your machine." section (`CodeFlow.tsx`) to showcase a dedicated, high-contrast ASCII architecture specification with instant 1-click clipboard copying, eliminating image overhead and toggle tabs.
