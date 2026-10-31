@@ -49,8 +49,19 @@ else
   if curl -fsSL "$RELEASE_URL" -o "$EXE_PATH"; then
     echo "  [OK] Downloaded $ASSET_NAME"
   else
-    if [ ! -f "$EXE_PATH" ]; then
-      echo "  Error: Failed to download release binary."
+    echo "  Notice: Release binary asset not yet built for $ASSET_NAME."
+    echo -e "\033[33m  Falling back to direct Python/uv package engine...\033[0m"
+    if command -v uv >/dev/null 2>&1; then
+      uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force
+      exit 0
+    elif command -v pip3 >/dev/null 2>&1; then
+      pip3 install --user "git+https://github.com/Seife1/Devloop-Engine.git"
+      exit 0
+    elif command -v pip >/dev/null 2>&1; then
+      pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
+      exit 0
+    else
+      echo "  Error: Failed to download binary and no Python/uv found."
       exit 1
     fi
   fi
