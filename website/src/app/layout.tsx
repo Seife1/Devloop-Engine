@@ -42,6 +42,11 @@ export const metadata: Metadata = {
     title: "LearnLoop — MCP Server Engine",
     description: "Close the gap between what AI builds and what you can defend.",
   },
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+  },
 };
 
 export default function RootLayout({

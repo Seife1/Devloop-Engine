@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" fill="none">
+  <!-- Dark circular canvas with subtle glow border -->
+  <rect width="44" height="44" rx="10" fill="#0B0F19"/>
+  <rect x="0.5" y="0.5" width="43" height="43" rx="9.5" stroke="#10B981" stroke-opacity="0.25"/>
+
+  <!-- Left rounded bracket -->
+  <path
+    d="M 19 8 L 13 8 A 6 6 0 0 0 7 14 L 7 30 A 6 6 0 0 0 13 36 L 19 36"
+    stroke="#10B981"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Right bracket with loop apex -->
+  <path
+    d="M 23 8 L 27 8 A 6 6 0 0 1 33 14 L 33 18 A 3.5 3.5 0 0 0 37.5 21.5 L 38 22 L 37.5 22.5 A 3.5 3.5 0 0 0 33 26 L 33 30 A 6 6 0 0 1 27 36 L 23 36"
+    stroke="#10B981"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Inner Prompt / Sparring Chevron › -->
+  <polyline
+    points="15,15 22,22 15,29"
+    stroke="#FCFCFD"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
