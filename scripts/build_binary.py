@@ -130,6 +130,10 @@ def main() -> int:
             print(f"Stderr: {test_run.stderr.strip()}")
         if test_run.stdout:
             print(f"Stdout: {test_run.stdout.strip()}")
+        if test_run.returncode != 0:
+            sys.stderr.write(f"\n[ERROR] Verification self-check failed with exit code {test_run.returncode}!\n")
+            return test_run.returncode
+        print("\n[OK] Built binary verification self-check passed successfully.")
         return 0
     else:
         sys.stderr.write(f"Expected binary {built_path} not found.\n")

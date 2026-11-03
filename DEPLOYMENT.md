@@ -21,7 +21,7 @@
 ## Docker Deployment
 
 ```dockerfile
-FROM python:3.13-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -33,11 +33,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create non-root user
-RUN useradd -m -u 1000 learnloop
+RUN mkdir -p /data && useradd -m -u 1000 learnloop && chown -R learnloop:learnloop /data /app
 USER learnloop
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8000 8765
 
 # Start server
 CMD ["python", "learnloop_http.py"]

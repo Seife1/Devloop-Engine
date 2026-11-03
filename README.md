@@ -1,6 +1,6 @@
 # LearnLoop
 
-![Version](https://img.shields.io/badge/version-0.7.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Version](https://img.shields.io/badge/version-0.7.1-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 An MCP server that shows you where your AI coding agent did work you can't yet do alone, then gives you
 short, targeted practice to close the gap.
@@ -417,6 +417,12 @@ Logs go to stderr only; never `print()`.
 
 
 ## 📋 Recent Updates
+
+### 2026-11-03 (v0.7.1)
+- **Remote Setup Script Syntax Repair**: Resolved critical syntax error in `/setup.sh` endpoint within `http_server.py`, ensuring safe multi-IDE configuration (Windsurf, Devin, VS Code, Cursor) inside a single Python heredoc without premature process termination.
+- **Cross-Platform Installer Hardening**: Refactored `setup.sh` and `setup.ps1` to detect Linux ARM64 systems early, provide robust fallback to `uv tool install` and `pip install --user`, ensure persistent PATH configuration in `~/.bashrc`/`~/.zshrc`, and apply macOS Gatekeeper / ad-hoc code-signing mitigations.
+- **Production Container Infrastructure**: Added official root `Dockerfile` (Python 3.12-slim, non-root `learnloop` user, `/data` volume) and pinned `requirements.txt` aligning with `DEPLOYMENT.md` cloud deployment guides.
+- **CI/CD Build Verification & GLIBC Compatibility**: Hardened `scripts/build_binary.py` to propagate verification failures to GitHub Actions, updated Linux runner to `ubuntu-22.04` for backwards GLIBC compatibility, and resolved absolute binary paths in `integrator.py` for GUI IDEs.
 
 ### 2026-10-31 (v0.7.0)
 - **Universal Autonomous Agent Setup (`prompt.md`)**: Published self-executing instruction manual ([`prompt.md`](prompt.md) and [`website/public/prompt.md`](website/public/prompt.md)) enabling any frontier coding agent (Claude Code, Cursor, Windsurf, Claude Desktop, Antigravity, VS Code / Copilot, Zed) to autonomously configure LearnLoop globally via `uvx` directly from GitHub with zero repo cloning, zero PyPI overhead, and automatic companion rule injection.

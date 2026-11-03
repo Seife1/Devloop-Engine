@@ -29,7 +29,7 @@ jobs:
             target: darwin-x64
             binary_name: learnloop
             release_name: learnloop-darwin-x64
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             target: linux-x64
             binary_name: learnloop
             release_name: learnloop-linux-x64
@@ -58,6 +58,9 @@ jobs:
           mkdir -p release_assets
           mv "dist/${{ matrix.binary_name }}" "release_assets/${{ matrix.release_name }}"
           chmod +x "release_assets/${{ matrix.release_name }}" || true
+          if [[ "${{ matrix.os }}" =~ macos ]]; then
+            codesign -s - "release_assets/${{ matrix.release_name }}" 2>/dev/null || true
+          fi
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4

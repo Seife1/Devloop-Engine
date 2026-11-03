@@ -17,23 +17,74 @@ if (-not (Test-Path $binDir)) {
 }
 
 $exePath = Join-Path $binDir "learnloop.exe"
-$localDist = Join-Path $PSScriptRoot "dist\learnloop.exe"
+$localDist = if ($PSScriptRoot) { Join-Path $PSScriptRoot "dist\learnloop.exe" } else { $null }
 
-if (Test-Path $localDist) {
+$installed = $false
+
+if ($localDist -and (Test-Path $localDist)) {
     Write-Host "[1/4] Using locally built binary from dist..." -ForegroundColor Yellow
     Copy-Item -Path $localDist -Destination $exePath -Force
+    $installed = $true
 } else {
     Write-Host "[1/4] Downloading standalone binary for Windows (x64)..." -ForegroundColor Cyan
     $releaseUrl = "https://github.com/Seife1/Devloop-Engine/releases/latest/download/learnloop-windows-x64.exe"
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $releaseUrl -OutFile $exePath -UseBasicParsing
+        $installed = $true
     } catch {
-        Write-Host "  Note: GitHub Release binary not yet reached, checking local paths..." -ForegroundColor DarkGray
-        if (-not (Test-Path $exePath)) {
-            Write-Host "  Error downloading binary: $_" -ForegroundColor Red
-            exit 1
+        Write-Host "  Notice: GitHub Release binary not yet reachable." -ForegroundColor DarkGray
+    }
+}
+
+if (-not $installed) {
+    Write-Host "  Falling back to direct Python/uv package engine..." -ForegroundColor Yellow
+    $pyInstalled = $false
+    if (Get-Command uv -ErrorAction SilentlyContinue) {
+        & uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force
+        $pyInstalled = $true
+    } elseif (Get-Command pip -ErrorAction SilentlyContinue) {
+        & pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
+        $pyInstalled = $true
+    } elseif (Get-Command python -ErrorAction SilentlyContinue) {
+        & python -m pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
+        $pyInstalled = $true
+    } else {
+        Write-Host "  Bootstrapping ultra-fast standalone engine via uv..." -ForegroundColor Cyan
+        try {
+            irm https://astral.sh/uv/install.ps1 | iex
+            $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
+            if (Get-Command uv -ErrorAction SilentlyContinue) {
+                & uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force
+                $pyInstalled = $true
+            }
+        } catch {
+            Write-Host "  Failed to bootstrap uv: $_" -ForegroundColor DarkGray
         }
+    }
+
+    if (-not $pyInstalled) {
+        Write-Host "  Error: Could not install binary or bootstrap environment." -ForegroundColor Red
+        exit 1
+    }
+
+    # Locate generated learnloop.exe and copy to $exePath
+    $candidates = @(
+        (Join-Path $env:USERPROFILE ".local\bin\learnloop.exe"),
+        (Join-Path $env:APPDATA "Python\Scripts\learnloop.exe")
+    )
+    $found = $null
+    foreach ($cand in $candidates) {
+        if (Test-Path $cand) {
+            $found = $cand
+            break
+        }
+    }
+    if (-not $found -and (Get-Command learnloop -ErrorAction SilentlyContinue)) {
+        $found = (Get-Command learnloop).Source
+    }
+    if ($found -and (Test-Path $found)) {
+        Copy-Item -Path $found -Destination $exePath -Force
     }
 }
 
@@ -41,8 +92,13 @@ Write-Host "  [OK] Installed executable to $exePath" -ForegroundColor Green
 
 # Add to User PATH if missing
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($userPath -notlike "*$binDir*") {
-    [Environment]::SetEnvironmentVariable("Path", "$userPath;$binDir", "User")
+if ([string]::IsNullOrWhiteSpace($userPath)) {
+    [Environment]::SetEnvironmentVariable("Path", $binDir, "User")
+    $env:Path = "$env:Path;$binDir"
+    Write-Host "  [OK] Added ~/.learnloop/bin to User PATH" -ForegroundColor Green
+} elseif ($userPath -notlike "*$binDir*") {
+    $trimmed = $userPath.TrimEnd(";")
+    [Environment]::SetEnvironmentVariable("Path", "$trimmed;$binDir", "User")
     $env:Path = "$env:Path;$binDir"
     Write-Host "  [OK] Added ~/.learnloop/bin to User PATH" -ForegroundColor Green
 }

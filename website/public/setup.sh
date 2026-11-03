@@ -16,6 +16,9 @@ echo ""
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"
 
+DOWNLOAD_BINARY=true
+ASSET_NAME=""
+
 case "$OS" in
   darwin)
     if [ "$ARCH" = "arm64" ]; then
@@ -25,7 +28,12 @@ case "$OS" in
     fi
     ;;
   linux)
-    ASSET_NAME="learnloop-linux-x64"
+    if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
+      ASSET_NAME="learnloop-linux-x64"
+    else
+      # Linux ARM64 (aarch64) or other architecture: pre-built binaries are x86_64; route to Python/uv
+      DOWNLOAD_BINARY=false
+    fi
     ;;
   *)
     echo "Unsupported OS: $OS"
@@ -40,44 +48,78 @@ EXE_PATH="$BIN_DIR/learnloop"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
 LOCAL_DIST="$SCRIPT_DIR/dist/learnloop"
 
+INSTALL_SUCCESS=false
+
 if [ -f "$LOCAL_DIST" ]; then
   echo -e "\033[33m[1/4] Using locally built binary from dist...\033[0m"
   cp "$LOCAL_DIST" "$EXE_PATH"
-else
+  INSTALL_SUCCESS=true
+elif [ "$DOWNLOAD_BINARY" = true ]; then
   echo -e "\033[36m[1/4] Downloading standalone binary for $OS ($ARCH)...\033[0m"
   RELEASE_URL="https://github.com/Seife1/Devloop-Engine/releases/latest/download/$ASSET_NAME"
   if curl -fsSL "$RELEASE_URL" -o "$EXE_PATH"; then
     echo "  [OK] Downloaded $ASSET_NAME"
+    INSTALL_SUCCESS=true
   else
-    echo "  Notice: Release binary asset not yet built for $ASSET_NAME."
-    echo -e "\033[33m  Falling back to direct Python/uv package engine...\033[0m"
+    echo "  Notice: Release binary asset not yet reachable for $ASSET_NAME."
+  fi
+fi
+
+if [ "$INSTALL_SUCCESS" = false ]; then
+  echo -e "\033[33m  Falling back to direct Python/uv package engine...\033[0m"
+  if command -v uv >/dev/null 2>&1; then
+    uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force
+    INSTALL_SUCCESS=true
+  elif command -v pip3 >/dev/null 2>&1; then
+    pip3 install --user "git+https://github.com/Seife1/Devloop-Engine.git"
+    INSTALL_SUCCESS=true
+  elif command -v pip >/dev/null 2>&1; then
+    pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
+    INSTALL_SUCCESS=true
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -m pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
+    INSTALL_SUCCESS=true
+  else
+    echo -e "\033[36m  Bootstrapping ultra-fast standalone engine via uv...\033[0m"
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
     if command -v uv >/dev/null 2>&1; then
       uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force
-      exit 0
-    elif command -v pip3 >/dev/null 2>&1; then
-      pip3 install --user "git+https://github.com/Seife1/Devloop-Engine.git"
-      exit 0
-    elif command -v pip >/dev/null 2>&1; then
-      pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
-      exit 0
-    elif command -v python3 >/dev/null 2>&1; then
-      python3 -m pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
-      exit 0
-    else
-      echo -e "\033[36m  Bootstrapping ultra-fast standalone engine via uv...\033[0m"
-      curl -LsSf https://astral.sh/uv/install.sh | sh
-      export PATH="$HOME/.local/bin:$PATH"
-      if command -v uv >/dev/null 2>&1; then
-        uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force
-        exit 0
-      fi
-      echo "  Error: Could not install binary or bootstrap environment."
-      exit 1
+      INSTALL_SUCCESS=true
     fi
+  fi
+
+  if [ "$INSTALL_SUCCESS" = false ]; then
+    echo "  Error: Could not install binary or bootstrap environment."
+    exit 1
+  fi
+
+  # Link or copy installed Python/uv binary to $EXE_PATH
+  RESOLVED_BIN="$(command -v learnloop 2>/dev/null || true)"
+  if [ -z "$RESOLVED_BIN" ]; then
+    for candidate in "$HOME/.local/bin/learnloop" "$HOME/Library/Python/3.*/bin/learnloop"; do
+      for c in $candidate; do
+        if [ -f "$c" ]; then
+          RESOLVED_BIN="$c"
+          break 2
+        fi
+      done
+    done
+  fi
+
+  if [ -n "$RESOLVED_BIN" ] && [ -f "$RESOLVED_BIN" ]; then
+    cp "$RESOLVED_BIN" "$EXE_PATH"
   fi
 fi
 
 chmod +x "$EXE_PATH"
+
+# macOS Gatekeeper and Code Signing safeguards
+if [ "$OS" = "darwin" ]; then
+  xattr -d com.apple.quarantine "$EXE_PATH" 2>/dev/null || true
+  codesign -s - "$EXE_PATH" 2>/dev/null || true
+fi
+
 echo -e "\033[32m  [OK] Installed executable to $EXE_PATH\033[0m"
 
 # Add to PATH if missing

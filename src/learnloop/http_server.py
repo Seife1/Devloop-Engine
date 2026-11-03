@@ -1367,35 +1367,41 @@ HOOKEOF
     echo "  [OK] Installed Git post-commit hook (automatic tracking on every git commit)"
 fi
 
-# 3. Inject MCP server configuration into Windsurf if installed
-if [ -d "$HOME/.codeium/windsurf" ]; then
-    WINDSURF_CONFIG="$HOME/.codeium/windsurf/mcp_config.json"
-    python3 - << 'PYEOF'
+# 3. Configure IDEs (Windsurf, Devin, VS Code, Cursor)
+if command -v python3 >/dev/null 2>&1; then
+python3 - << 'PYEOF'
 import json, os
-p = os.path.expanduser("~/.codeium/windsurf/mcp_config.json")
-data = json.load(open(p)) if os.path.exists(p) else {{}}
-data.setdefault("mcpServers", {{}})["learnloop"] = {{
-    "serverUrl": "{base_url}/mcp"
-}}
-with open(p, "w") as f:
-    json.dump(data, f, indent=2)
-print("  [OK] Injected LearnLoop into Windsurf")
-PYEOF
-fi
+
+# Windsurf
+wp = os.path.expanduser("~/.codeium/windsurf/mcp_config.json")
+if os.path.exists(os.path.dirname(wp)):
+    try:
+        wdata = json.load(open(wp)) if os.path.exists(wp) else {{}}
+        wdata.setdefault("mcpServers", {{}})["learnloop"] = {{
+            "serverUrl": "{base_url}/mcp"
+        }}
+        with open(wp, "w") as f:
+            json.dump(wdata, f, indent=2)
+        print("  [OK] Injected LearnLoop into Windsurf")
+    except Exception as e:
+        print(f"  [!] Windsurf settings update skipped: {{e}}")
 
 # Devin Desktop on Linux/Mac
 dp = os.path.expanduser("~/.devin/mcp.json")
 if os.path.exists(os.path.dirname(dp)):
-    ddata = json.load(open(dp)) if os.path.exists(dp) else {{}}
-    ddata.setdefault("mcpServers", {{}})["learnloop"] = {{
-        "type": "streamable-http",
-        "url": "{base_url}/mcp"
-    }}
-    with open(dp, "w") as f:
-        json.dump(ddata, f, indent=2)
-    print("  [OK] Injected LearnLoop into Devin Desktop")
+    try:
+        ddata = json.load(open(dp)) if os.path.exists(dp) else {{}}
+        ddata.setdefault("mcpServers", {{}})["learnloop"] = {{
+            "type": "streamable-http",
+            "url": "{base_url}/mcp"
+        }}
+        with open(dp, "w") as f:
+            json.dump(ddata, f, indent=2)
+        print("  [OK] Injected LearnLoop into Devin Desktop")
+    except Exception as e:
+        print(f"  [!] Devin settings update skipped: {{e}}")
 
-# 4. Inject MCP into VS Code workspace if .vscode exists
+# VS Code workspace if .vscode exists
 if os.path.exists(".vscode"):
     vp = ".vscode/settings.json"
     try:
@@ -1410,7 +1416,7 @@ if os.path.exists(".vscode"):
     except Exception as e:
         print(f"  [!] VS Code settings update skipped: {{e}}")
 
-# 5. Inject MCP into Cursor workspace (.cursor/mcp.json)
+# Cursor workspace (.cursor/mcp.json)
 try:
     os.makedirs(".cursor", exist_ok=True)
     cp = ".cursor/mcp.json"
@@ -1424,6 +1430,7 @@ try:
 except Exception as e:
     print(f"  [!] Cursor settings update skipped: {{e}}")
 PYEOF
+fi
 
 echo "Successfully integrated LearnLoop MCP and Rules on the fly!"
 echo "Every 'git commit' will now track automatically without manual prompting!"

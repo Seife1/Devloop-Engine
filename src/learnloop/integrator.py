@@ -236,12 +236,31 @@ class LearnLoopIntegrator:
         return ["agents"]
 
     
+    @staticmethod
+    def _resolve_command() -> str:
+        """Resolve the safest executable command or path for the MCP server across OS platforms."""
+        bin_name = "learnloop.exe" if sys.platform == "win32" else "learnloop"
+        custom_bin = Path.home() / ".learnloop" / "bin" / bin_name
+        if custom_bin.exists():
+            return str(custom_bin)
+
+        which_bin = shutil.which("learnloop")
+        if which_bin:
+            return which_bin
+
+        local_bin = Path.home() / ".local" / "bin" / bin_name
+        if local_bin.exists():
+            return str(local_bin)
+
+        return "learnloop"
+
     def get_mcp_config(self, ide: str) -> Dict[str, Any]:
         """Get MCP configuration for specific IDE."""
+        cmd = self._resolve_command()
         return {
             "mcpServers": {
                 "learnloop": {
-                    "command": "learnloop",
+                    "command": cmd,
                     "args": []
                 }
             }
