@@ -416,46 +416,18 @@ python -m learnloop.dashboard
 Logs go to stderr only; never `print()`.
 
 
-## 📋 Recent Updates
+## 🤝 Contributing
 
-### 2026-11-03 (v0.7.1)
-- **Remote Setup Script Syntax Repair**: Resolved critical syntax error in `/setup.sh` endpoint within `http_server.py`, ensuring safe multi-IDE configuration (Windsurf, Devin, VS Code, Cursor) inside a single Python heredoc without premature process termination.
-- **Cross-Platform Installer Hardening**: Refactored `setup.sh` and `setup.ps1` to detect Linux ARM64 systems early, provide robust fallback to `uv tool install` and `pip install --user`, ensure persistent PATH configuration in `~/.bashrc`/`~/.zshrc`, and apply macOS Gatekeeper / ad-hoc code-signing mitigations.
-- **Production Container Infrastructure**: Added official root `Dockerfile` (Python 3.12-slim, non-root `learnloop` user, `/data` volume) and pinned `requirements.txt` aligning with `DEPLOYMENT.md` cloud deployment guides.
-- **CI/CD Build Verification & GLIBC Compatibility**: Hardened `scripts/build_binary.py` to propagate verification failures to GitHub Actions, updated Linux runner to `ubuntu-22.04` for backwards GLIBC compatibility, and resolved absolute binary paths in `integrator.py` for GUI IDEs.
+We welcome community contributions, bug reports, and architectural proposals!
 
-### 2026-10-31 (v0.7.0)
-- **Universal Autonomous Agent Setup (`prompt.md`)**: Published self-executing instruction manual ([`prompt.md`](prompt.md) and [`website/public/prompt.md`](website/public/prompt.md)) enabling any frontier coding agent (Claude Code, Cursor, Windsurf, Claude Desktop, Antigravity, VS Code / Copilot, Zed) to autonomously configure LearnLoop globally via `uvx` directly from GitHub with zero repo cloning, zero PyPI overhead, and automatic companion rule injection.
-- **Self-Testing & Interactive Verification Protocol**: Integrated an automated post-install loop into `prompt.md` where the agent tests MCP tool availability (`manage_reviews(action="briefing")`), prompts the developer if an IDE reload is required, and confirms workspace git commit tracking.
-- **Hero "Build With Your Favorite AI Agent" Card**: Featured an interactive 1-click prompt setup card in the marketing website Hero (`AgentSetupCard.tsx`) with brand badges for Claude, Cursor, Windsurf, Antigravity, and Copilot matching modern cloud developer standards.
+- Please review our [**Contributing Guide (CONTRIBUTING.md)**](CONTRIBUTING.md) for environment setup, test suites, and Conventional Commit guidelines.
+- LearnLoop is released under the [**MIT License**](LICENSE).
 
-### 2026-10-29 (v0.6.4)
-- **Terminal-First ASCII Architecture Specification**: Streamlined the "One protocol. Every editor on your machine." section (`CodeFlow.tsx`) to showcase a dedicated, high-contrast ASCII architecture specification with instant 1-click clipboard copying, eliminating image overhead and toggle tabs.
+---
 
-### 2026-10-29 (v0.6.3)
-- **Empirical Token Efficiency Benchmark**: Measured and verified exact token usage across 4 frontier model tokenizers (Claude 3.5 Sonnet, GPT-4o / o1, Gemini 1.5/2.0 Pro, and DeepSeek-V3 / Llama 3) across each of LearnLoop's 4 domain-clustered tools.
-- **Interactive Marketing Web Benchmark Showcase**: Integrated interactive `TokenBenchmark` component into homepage Bento Grid and Developer Documentation (`/docs`), featuring live model tabs, schema overhead meters, typical payload footprints, and empirical proof of up to 24% baseline prompt savings.
+## 📋 Changelog
 
-### 2026-10-29 (v0.6.2)
-- **Dynamic Installation Origin**: Decoupled setup scripts from hardcoded domain references across the marketing website (`DownloadSection.tsx`) and developer documentation (`QuickstartCommands.tsx`) using the new client-side `useOrigin` hook. Commands now adapt in real-time to match whatever host or port serves the page (`window.location.origin` or `NEXT_PUBLIC_SITE_URL`).
-- **Local Clone Installation First**: Reoriented root `README.md` quickstart instructions to prioritize local scripts (`.\setup.ps1` and `./setup.sh`) and local pip development, eliminating external domain dependencies for repository contributors.
-- **Hero Horizon Contrast & Accessibility**: Replaced parent section mask with an isolated background overlay, preserving the signature luminous bottom curved horizon while elevating the CTA dock and buttons to 100% opacity with solid dark contrast.
+LearnLoop follows strict [Semantic Versioning (SemVer 2.0.0)](https://semver.org/).
 
-### 2026-10-28 (v0.6.1)
-- **Visual Architecture Flow Diagram**: Replaced the ASCII-only canvas in the "One protocol. Every editor on your machine." section with a high-definition visual architecture diagram featuring glowing protocol buses, central engine topology, and dual view-toggle (Visual Flow vs. ASCII Spec) for maximum developer clarity.
-- **Hero Curve Shadow & Dark Glass Dock**: Restored the signature dramatic bottom curved mask shadow transitioning seamlessly into the light page below, while framing the CTA buttons inside an elevated frosted dark glass dock (`bg-black/75 backdrop-blur-xl border border-white/20`) for razor-sharp focus and zero wash-out.
-- **Alternating Dark & Light Section Rhythm**: Implemented the rhythmic alternating section background pattern across the homepage: Hero (Dark with bottom curve) → PrivacyCore (White) → BentoGrid (Dark) → ExecutionModes (White) → CodeFlow (Dark) → DownloadSection (White) → Footer (Dark).
-- **Dedicated OS Platform Switcher**: Streamlined the download switcher to focus exclusively on target OS binaries (Windows, macOS, Linux) with 1-click commands (PowerShell, CMD, Bash) and direct standalone executable downloads.
-- **Automated MCP Setup Documentation**: Aligned the documentation portal (/docs) and landing page to explicitly highlight that running the installer or `learnloop init` automatically detects the active IDE and configures MCP server settings and AI companion instructions—zero manual JSON editing required.
-
-### 2026-10-28 (v0.6.0)
-- **100% Zero-Workspace-Pollution "Ghost Mode"**: Workspace artifacts (commit queue, concept journals, terminal scripts) are now routed by default to isolated OS user-data storage (`~/.learnloop/workspaces/<project_slug_hash>/`), completely eliminating workspace directory pollution, `.gitignore` churn, and Git PR noise for team projects.
-- **Git Hook Local Isolation Safeguard**: Automatic post-commit hook setup now appends local exclusions to `.git/info/exclude`, providing git-level protection against accidental tracking without modifying tracked repository files.
-- **Seamless Legacy Backwards-Compatibility**: Retains full backwards compatibility with existing repositories that contain legacy `.learn/` folders, preserving existing files and tests without breaking changes.
-
-### 2026-10-28 (v0.5.3)
-- **Marketing Website Dual-Mode Execution Showcase**: Added interactive dual-mode execution breakdown (ExecutionModes.tsx) to the homepage and documentation, visually distinguishing AI-autonomous background pairing hygiene (~80% of calls) from developer-initiated interactive sparring (/review, /interview, /tour).
-- **Cluster Summary Matrix**: Added responsive execution comparison matrix detailing trigger drivers, automation rules, and sample actions across all 4 tool clusters.
-- **IDE Socratic Sparring Alignment**: Refined dashboard prompt chips across Review Queue, Overview, and Knowledge Catalog to emphasize native LearnLoop MCP prompts (/review, /interview, /tour, /catch-up) and natural conversational triggers.
-- **Real-Time Code Drift Calculation**: Integrated dynamic commit drift detection in HTTP API and dashboard concept catalog with live stale invariant badges.
-- **Standalone Binary Packaging**: Streamlined static asset packaging with PyInstaller bundling of Next.js web application into standalone executable.
+- **Latest Release**: **[v0.7.1](CHANGELOG.md#071---2026-11-03)** (2026-11-03) — Cross-platform distribution engine hardening, official Docker containerization, dynamic architecture routing (Linux ARM64/x64, macOS Apple Silicon/Intel, Windows), and clean terminal UX.
+- View the complete release history, migration notes, and architectural progression in [**CHANGELOG.md**](CHANGELOG.md).

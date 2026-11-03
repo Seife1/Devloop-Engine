@@ -1,9 +1,10 @@
-# Environments
+# Environments & Virtualenvs
 .venv/
 venv/
 env/
+ENV/
 
-# Python cache & artifacts
+# Python cache & build artifacts
 __pycache__/
 *.py[cod]
 *$py.class
@@ -13,7 +14,7 @@ build/
 dist/
 *.spec
 
-# Testing & Coverage
+# Testing, Type Checking & Coverage
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
@@ -22,17 +23,37 @@ dist/
 .coverage.*
 htmlcov/
 
-# Editor & OS files
+# Editor, IDE & OS artifacts
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 *.log
+.kiro/
 
-# LearnLoop temporary
+# Scratch & Temporary Testing Folders
+scratch/
 test-project/
-.learn/queue/
+
+# LearnLoop Local Workspace Storage & Artifacts (Ghost Mode)
+.learn/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.bak*
+
+# Node.js, Frontend Builds & Cloudflare Wrangler
+node_modules/
+.next/
+.wrangler/
 
 # Compiled standalone distribution binaries (releases hosted on GitHub Release CDN)
 website/public/downloads/*.exe
 website/public/downloads/learnloop-*
+
+# Local Environment Variables & Secrets
+.env
+.env.local
+.env.*.local

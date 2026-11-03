@@ -6,9 +6,32 @@ export const metadata = {
 export default function ChangelogPage() {
   const releases = [
     {
+      version: "v0.7.1",
+      date: "November 3, 2026",
+      tag: "Latest",
+      summary: "Cross-Platform Distribution Engine Hardening & Docker Containerization",
+      changes: [
+        "Resolved remote setup script syntax error in /setup.sh endpoint in http_server.py.",
+        "Hardened setup.sh and setup.ps1 with automatic uv/pip fallback, Linux ARM64 detection, and macOS Gatekeeper codesigning.",
+        "Added official production Dockerfile (Python 3.12-slim, non-root user, /data volume) and pinned requirements.txt.",
+        "Streamlined terminal installer output with silent dependency resolution and prominent next-step action prompts.",
+      ],
+    },
+    {
+      version: "v0.7.0",
+      date: "October 31, 2026",
+      tag: "Stable",
+      summary: "Universal Autonomous Agent Setup Protocol (prompt.md)",
+      changes: [
+        "Published self-executing instruction manual (prompt.md) enabling frontier coding agents to configure LearnLoop globally via uvx directly from GitHub.",
+        "Integrated automated post-install verification loop with self-testing checks (manage_reviews) and reload notices.",
+        "Featured interactive AgentSetupCard in website Hero with badges for Claude, Cursor, Windsurf, Antigravity, and Copilot.",
+      ],
+    },
+    {
       version: "v0.6.4",
       date: "October 29, 2026",
-      tag: "Latest",
+      tag: "Stable",
       summary: "Terminal-First ASCII Architecture Specification & Navigation Polish",
       changes: [
         "Streamlined the 'One protocol. Every editor on your machine.' section to showcase a dedicated, high-contrast ASCII architecture specification with instant 1-click clipboard copying.",
