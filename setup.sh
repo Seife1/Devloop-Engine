@@ -67,25 +67,42 @@ fi
 
 if [ "$INSTALL_SUCCESS" = false ]; then
   echo -e "\033[33m  Falling back to direct Python/uv package engine...\033[0m"
+
+  # 1. Primary: If uv is already installed, use it
   if command -v uv >/dev/null 2>&1; then
-    uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force
-    INSTALL_SUCCESS=true
-  elif command -v pip3 >/dev/null 2>&1; then
-    pip3 install --user "git+https://github.com/Seife1/Devloop-Engine.git"
-    INSTALL_SUCCESS=true
-  elif command -v pip >/dev/null 2>&1; then
-    pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
-    INSTALL_SUCCESS=true
-  elif command -v python3 >/dev/null 2>&1; then
-    python3 -m pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
-    INSTALL_SUCCESS=true
-  else
-    echo -e "\033[36m  Bootstrapping ultra-fast standalone engine via uv...\033[0m"
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
-    if command -v uv >/dev/null 2>&1; then
-      uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force
+    if uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force; then
       INSTALL_SUCCESS=true
+    fi
+  fi
+
+  # 2. Secondary: Bootstrap uv (zero dependencies, works on any modern Linux/macOS)
+  if [ "$INSTALL_SUCCESS" = false ]; then
+    echo -e "\033[36m  Bootstrapping ultra-fast standalone engine via uv...\033[0m"
+    if curl -LsSf https://astral.sh/uv/install.sh | sh; then
+      export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+      UV_BIN="$(command -v uv 2>/dev/null || echo "$HOME/.local/bin/uv")"
+      if [ -x "$UV_BIN" ]; then
+        if "$UV_BIN" tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force; then
+          INSTALL_SUCCESS=true
+        fi
+      fi
+    fi
+  fi
+
+  # 3. Tertiary: Fallback to pipx / pip3 / pip only if uv bootstrap failed
+  if [ "$INSTALL_SUCCESS" = false ]; then
+    if command -v pipx >/dev/null 2>&1; then
+      if pipx install "git+https://github.com/Seife1/Devloop-Engine.git"; then
+        INSTALL_SUCCESS=true
+      fi
+    elif command -v pip3 >/dev/null 2>&1; then
+      if pip3 install --user "git+https://github.com/Seife1/Devloop-Engine.git" 2>/dev/null || pip3 install --user --break-system-packages "git+https://github.com/Seife1/Devloop-Engine.git"; then
+        INSTALL_SUCCESS=true
+      fi
+    elif python3 -m pip --version >/dev/null 2>&1; then
+      if python3 -m pip install --user "git+https://github.com/Seife1/Devloop-Engine.git" 2>/dev/null || python3 -m pip install --user --break-system-packages "git+https://github.com/Seife1/Devloop-Engine.git"; then
+        INSTALL_SUCCESS=true
+      fi
     fi
   fi
 

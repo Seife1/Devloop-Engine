@@ -45,6 +45,11 @@
 
 ## Intermediate
 
+### Cross-Platform Distribution & Remote Setup Engine (`cross_platform_distribution_engine`)
+- **Kind**: component | **Status**: unexplained | **Depth**: 1/5 (what)
+- **Files**: `Dockerfile`, `setup.ps1`, `setup.sh`, `src/learnloop/http_server.py`
+- **Summary**: Cross-platform zero-dependency distribution pattern featuring resilient binary download, automated uv/pip fallback, GLIBC/Gatekeeper mitigations, and containerized deployment.
+
 ### Zero-Dependency Standalone Binary & Universal Installer (`distribution.standalone_binary`)
 - **Kind**: component | **Status**: explained | **Depth**: 3/5 (why)
 - **Files**: `src/learnloop/cli.py`, `src/learnloop/config.py`

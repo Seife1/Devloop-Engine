@@ -40,16 +40,15 @@ if ($localDist -and (Test-Path $localDist)) {
 if (-not $installed) {
     Write-Host "  Falling back to direct Python/uv package engine..." -ForegroundColor Yellow
     $pyInstalled = $false
+
+    # 1. Primary: If uv is installed, use it
     if (Get-Command uv -ErrorAction SilentlyContinue) {
         & uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force
         $pyInstalled = $true
-    } elseif (Get-Command pip -ErrorAction SilentlyContinue) {
-        & pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
-        $pyInstalled = $true
-    } elseif (Get-Command python -ErrorAction SilentlyContinue) {
-        & python -m pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
-        $pyInstalled = $true
-    } else {
+    }
+
+    # 2. Secondary: Bootstrap uv (zero dependencies, works on any Windows machine)
+    if (-not $pyInstalled) {
         Write-Host "  Bootstrapping ultra-fast standalone engine via uv..." -ForegroundColor Cyan
         try {
             irm https://astral.sh/uv/install.ps1 | iex
@@ -59,7 +58,21 @@ if (-not $installed) {
                 $pyInstalled = $true
             }
         } catch {
-            Write-Host "  Failed to bootstrap uv: $_" -ForegroundColor DarkGray
+            Write-Host "  Notice: uv bootstrap skipped: $_" -ForegroundColor DarkGray
+        }
+    }
+
+    # 3. Tertiary: Fallback to pip / python only if uv failed
+    if (-not $pyInstalled) {
+        if (Get-Command pip -ErrorAction SilentlyContinue) {
+            & pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
+            $pyInstalled = $true
+        } elseif (Get-Command python -ErrorAction SilentlyContinue) {
+            $hasPip = & python -m pip --version 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                & python -m pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
+                $pyInstalled = $true
+            }
         }
     }
 
