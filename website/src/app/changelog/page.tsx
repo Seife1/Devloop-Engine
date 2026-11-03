@@ -60,7 +60,7 @@ export default function ChangelogPage() {
       changes: [
         "Decoupled setup scripts from hardcoded domain references across the marketing website (DownloadSection.tsx) and developer documentation (QuickstartCommands.tsx) using the client-side useOrigin hook.",
         "Install commands dynamically adapt to whichever host or port serves the page (e.g. localhost, preview URLs, or production domains).",
-        "Reoriented root README.md quickstart instructions to prioritize local repository scripts (.\\setup.ps1 and ./setup.sh) and local pip development.",
+        String.raw`Reoriented root README.md quickstart instructions to prioritize local repository scripts (.\setup.ps1 and ./setup.sh) and local pip development.`,
         "Restored signature luminous bottom curved horizon on an isolated background layer with 100% opacity dark button dock.",
       ],
     },
@@ -139,8 +139,8 @@ export default function ChangelogPage() {
               <h2 className="font-serif text-xl text-white mb-4">{rel.summary}</h2>
 
               <ul className="space-y-2.5 text-xs sm:text-sm text-zinc-300 font-sans">
-                {rel.changes.map((change, i) => (
-                  <li key={i} className="flex items-start gap-2.5">
+                {rel.changes.map((change) => (
+                  <li key={change} className="flex items-start gap-2.5">
                     <span className="text-emerald-400 font-mono select-none font-bold">›</span>
                     <span className="leading-relaxed">{change}</span>
                   </li>
