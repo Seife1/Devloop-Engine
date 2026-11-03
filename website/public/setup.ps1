@@ -22,56 +22,66 @@ $localDist = if ($PSScriptRoot) { Join-Path $PSScriptRoot "dist\learnloop.exe" }
 $installed = $false
 
 if ($localDist -and (Test-Path $localDist)) {
-    Write-Host "[1/4] Using locally built binary from dist..." -ForegroundColor Yellow
+    Write-Host "[1/3] Using locally built binary from dist..." -ForegroundColor Cyan
     Copy-Item -Path $localDist -Destination $exePath -Force
     $installed = $true
 } else {
-    Write-Host "[1/4] Downloading standalone binary for Windows (x64)..." -ForegroundColor Cyan
+    Write-Host "[1/3] Checking standalone binary for Windows (x64)..." -ForegroundColor Cyan
     $releaseUrl = "https://github.com/Seife1/Devloop-Engine/releases/latest/download/learnloop-windows-x64.exe"
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $releaseUrl -OutFile $exePath -UseBasicParsing
+        Invoke-WebRequest -Uri $releaseUrl -OutFile $exePath -UseBasicParsing -ErrorAction Stop
+        Write-Host "      ✓ Downloaded standalone binary" -ForegroundColor Green
         $installed = $true
     } catch {
-        Write-Host "  Notice: GitHub Release binary not yet reachable." -ForegroundColor DarkGray
+        # Fall back to package engine silently
     }
 }
 
 if (-not $installed) {
-    Write-Host "  Falling back to direct Python/uv package engine..." -ForegroundColor Yellow
+    Write-Host "[1/3] Setting up environment..." -ForegroundColor Cyan
     $pyInstalled = $false
 
     # 1. Primary: If uv is installed, use it
     if (Get-Command uv -ErrorAction SilentlyContinue) {
-        & uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force
-        $pyInstalled = $true
+        Write-Host "[2/3] Installing LearnLoop engine (fetching packages, ~15s)..." -ForegroundColor Cyan
+        & uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force --quiet
+        if ($LASTEXITCODE -eq 0) {
+            $pyInstalled = $true
+            Write-Host "      ✓ LearnLoop installed successfully" -ForegroundColor Green
+        }
     }
 
-    # 2. Secondary: Bootstrap uv (zero dependencies, works on any Windows machine)
+    # 2. Secondary: Bootstrap uv silently
     if (-not $pyInstalled) {
-        Write-Host "  Bootstrapping ultra-fast standalone engine via uv..." -ForegroundColor Cyan
+        Write-Host "      • Bootstrapping standalone package engine (uv)..." -ForegroundColor DarkGray
         try {
-            irm https://astral.sh/uv/install.ps1 | iex
+            Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression | Out-Null
             $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
             if (Get-Command uv -ErrorAction SilentlyContinue) {
-                & uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force
-                $pyInstalled = $true
+                Write-Host "[2/3] Installing LearnLoop engine (fetching packages, ~15s)..." -ForegroundColor Cyan
+                & uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force --quiet
+                if ($LASTEXITCODE -eq 0) {
+                    $pyInstalled = $true
+                    Write-Host "      ✓ LearnLoop installed successfully" -ForegroundColor Green
+                }
             }
         } catch {
-            Write-Host "  Notice: uv bootstrap skipped: $_" -ForegroundColor DarkGray
+            # Skip to pip fallback
         }
     }
 
     # 3. Tertiary: Fallback to pip / python only if uv failed
     if (-not $pyInstalled) {
+        Write-Host "[2/3] Installing LearnLoop via package fallback..." -ForegroundColor Cyan
         if (Get-Command pip -ErrorAction SilentlyContinue) {
-            & pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
-            $pyInstalled = $true
+            & pip install --user "git+https://github.com/Seife1/Devloop-Engine.git" --quiet
+            if ($LASTEXITCODE -eq 0) { $pyInstalled = $true }
         } elseif (Get-Command python -ErrorAction SilentlyContinue) {
             $hasPip = & python -m pip --version 2>$null
             if ($LASTEXITCODE -eq 0) {
-                & python -m pip install --user "git+https://github.com/Seife1/Devloop-Engine.git"
-                $pyInstalled = $true
+                & python -m pip install --user "git+https://github.com/Seife1/Devloop-Engine.git" --quiet
+                if ($LASTEXITCODE -eq 0) { $pyInstalled = $true }
             }
         }
     }
@@ -101,24 +111,25 @@ if (-not $installed) {
     }
 }
 
-Write-Host "  [OK] Installed executable to $exePath" -ForegroundColor Green
-
 # Add to User PATH if missing
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ([string]::IsNullOrWhiteSpace($userPath)) {
     [Environment]::SetEnvironmentVariable("Path", $binDir, "User")
     $env:Path = "$env:Path;$binDir"
-    Write-Host "  [OK] Added ~/.learnloop/bin to User PATH" -ForegroundColor Green
 } elseif ($userPath -notlike "*$binDir*") {
     $trimmed = $userPath.TrimEnd(";")
     [Environment]::SetEnvironmentVariable("Path", "$trimmed;$binDir", "User")
     $env:Path = "$env:Path;$binDir"
-    Write-Host "  [OK] Added ~/.learnloop/bin to User PATH" -ForegroundColor Green
 }
 
 # Verification check
-Write-Host "[2/2] Verifying installation..." -ForegroundColor Cyan
-& $exePath doctor
+Write-Host "[3/3] Verifying installation & local database..." -ForegroundColor Cyan
+$docOut = & $exePath doctor 2>&1
+if ($docOut -match "ok") {
+    Write-Host "      ✓ Doctor check passed (local SQLite engine ready)" -ForegroundColor Green
+} else {
+    Write-Host $docOut
+}
 
 Write-Host ""
 Write-Host "  +-------------------------------------------------------------+" -ForegroundColor Green
@@ -128,15 +139,13 @@ Write-Host "  * Executable:      $exePath" -ForegroundColor White
 Write-Host "  * User PATH:       ~/.learnloop/bin permanently added" -ForegroundColor White
 Write-Host "  * Privacy:         100% Local SQLite - Zero telemetry sent    " -ForegroundColor White
 Write-Host ""
-Write-Host "  To initialize LearnLoop on any project, simply navigate to it:" -ForegroundColor Cyan
-Write-Host "      cd /path/to/your/project" -ForegroundColor White
-Write-Host "      learnloop init" -ForegroundColor Yellow
+Write-Host "  👉 TO ACTIVATE IN THIS CURRENT TERMINAL:" -ForegroundColor Yellow
+Write-Host "     `$env:Path = `"`$HOME\.learnloop\bin;`$env:Path`"" -ForegroundColor White
 Write-Host ""
-Write-Host "  Available CLI commands inside initialized projects:" -ForegroundColor Cyan
-Write-Host "      learnloop briefing    # Session catch-up" -ForegroundColor White
-Write-Host "      learnloop review      # Spaced repetition check" -ForegroundColor White
-Write-Host "      learnloop concepts    # View concepts catalog" -ForegroundColor White
-Write-Host "      learnloop dashboard   # Launch local web dashboard" -ForegroundColor White
-Write-Host "      learnloop gui         # Launch native desktop window" -ForegroundColor White
+Write-Host "  👉 TO INITIALIZE ON ANY PROJECT:" -ForegroundColor Cyan
+Write-Host "     cd \path\to\your\project" -ForegroundColor White
+Write-Host "     learnloop init" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  Commands inside initialized projects: briefing | review | concepts | dashboard | gui" -ForegroundColor DarkGray
 Write-Host "  +-------------------------------------------------------------+" -ForegroundColor Green
 Write-Host ""

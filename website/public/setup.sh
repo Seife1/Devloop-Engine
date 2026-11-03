@@ -31,7 +31,6 @@ case "$OS" in
     if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
       ASSET_NAME="learnloop-linux-x64"
     else
-      # Linux ARM64 (aarch64) or other architecture: pre-built binaries are x86_64; route to Python/uv
       DOWNLOAD_BINARY=false
     fi
     ;;
@@ -51,67 +50,52 @@ LOCAL_DIST="$SCRIPT_DIR/dist/learnloop"
 INSTALL_SUCCESS=false
 
 if [ -f "$LOCAL_DIST" ]; then
-  echo -e "\033[33m[1/4] Using locally built binary from dist...\033[0m"
+  echo -e "\033[36m[1/3] Using locally built binary from dist...\033[0m"
   cp "$LOCAL_DIST" "$EXE_PATH"
   INSTALL_SUCCESS=true
 elif [ "$DOWNLOAD_BINARY" = true ]; then
-  echo -e "\033[36m[1/4] Downloading standalone binary for $OS ($ARCH)...\033[0m"
+  echo -e "\033[36m[1/3] Downloading standalone binary for $OS ($ARCH)...\033[0m"
   RELEASE_URL="https://github.com/Seife1/Devloop-Engine/releases/latest/download/$ASSET_NAME"
-  if curl -fsSL "$RELEASE_URL" -o "$EXE_PATH"; then
-    echo "  [OK] Downloaded $ASSET_NAME"
+  if curl -fsSL "$RELEASE_URL" -o "$EXE_PATH" 2>/dev/null; then
+    echo -e "\033[32m      ✓ Downloaded $ASSET_NAME\033[0m"
     INSTALL_SUCCESS=true
-  else
-    echo "  Notice: Release binary asset not yet reachable for $ASSET_NAME."
   fi
 fi
 
 if [ "$INSTALL_SUCCESS" = false ]; then
-  echo -e "\033[33m  Falling back to direct Python/uv package engine...\033[0m"
+  echo -e "\033[36m[1/3] Setting up environment...\033[0m"
+  if ! command -v uv >/dev/null 2>&1; then
+    echo -e "      • Bootstrapping standalone package engine (uv)..."
+    curl -LsSf https://astral.sh/uv/install.sh 2>/dev/null | env CARGO_DIST_FORCE_INSTALL=true sh >/dev/null 2>&1 || true
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+  fi
 
-  # 1. Primary: If uv is already installed, use it
-  if command -v uv >/dev/null 2>&1; then
-    if uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force; then
+  UV_BIN="$(command -v uv 2>/dev/null || echo "$HOME/.local/bin/uv")"
+  if [ -x "$UV_BIN" ]; then
+    echo -e "\033[36m[2/3] Installing LearnLoop engine (fetching packages, ~15s)...\033[0m"
+    if "$UV_BIN" tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force --quiet 2>/dev/null; then
       INSTALL_SUCCESS=true
+      echo -e "\033[32m      ✓ LearnLoop installed successfully\033[0m"
     fi
   fi
 
-  # 2. Secondary: Bootstrap uv (zero dependencies, works on any modern Linux/macOS)
   if [ "$INSTALL_SUCCESS" = false ]; then
-    echo -e "\033[36m  Bootstrapping ultra-fast standalone engine via uv...\033[0m"
-    if curl -LsSf https://astral.sh/uv/install.sh | sh; then
-      export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
-      UV_BIN="$(command -v uv 2>/dev/null || echo "$HOME/.local/bin/uv")"
-      if [ -x "$UV_BIN" ]; then
-        if "$UV_BIN" tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force; then
-          INSTALL_SUCCESS=true
-        fi
-      fi
-    fi
-  fi
-
-  # 3. Tertiary: Fallback to pipx / pip3 / pip only if uv bootstrap failed
-  if [ "$INSTALL_SUCCESS" = false ]; then
+    echo -e "\033[36m[2/3] Installing LearnLoop via package fallback...\033[0m"
     if command -v pipx >/dev/null 2>&1; then
-      if pipx install "git+https://github.com/Seife1/Devloop-Engine.git"; then
-        INSTALL_SUCCESS=true
-      fi
+      pipx install "git+https://github.com/Seife1/Devloop-Engine.git" --quiet 2>/dev/null && INSTALL_SUCCESS=true
     elif command -v pip3 >/dev/null 2>&1; then
-      if pip3 install --user "git+https://github.com/Seife1/Devloop-Engine.git" 2>/dev/null || pip3 install --user --break-system-packages "git+https://github.com/Seife1/Devloop-Engine.git"; then
-        INSTALL_SUCCESS=true
-      fi
+      (pip3 install --user "git+https://github.com/Seife1/Devloop-Engine.git" --quiet 2>/dev/null || pip3 install --user --break-system-packages "git+https://github.com/Seife1/Devloop-Engine.git" --quiet 2>/dev/null) && INSTALL_SUCCESS=true
     elif python3 -m pip --version >/dev/null 2>&1; then
-      if python3 -m pip install --user "git+https://github.com/Seife1/Devloop-Engine.git" 2>/dev/null || python3 -m pip install --user --break-system-packages "git+https://github.com/Seife1/Devloop-Engine.git"; then
-        INSTALL_SUCCESS=true
-      fi
+      (python3 -m pip install --user "git+https://github.com/Seife1/Devloop-Engine.git" --quiet 2>/dev/null || python3 -m pip install --user --break-system-packages "git+https://github.com/Seife1/Devloop-Engine.git" --quiet 2>/dev/null) && INSTALL_SUCCESS=true
     fi
   fi
 
   if [ "$INSTALL_SUCCESS" = false ]; then
-    echo "  Error: Could not install binary or bootstrap environment."
+    echo -e "\033[31m  Error: Installation failed. Please ensure git and internet access are available.\033[0m"
     exit 1
   fi
 
-  # Link or copy installed Python/uv binary to $EXE_PATH
+  # Resolve target binary
   RESOLVED_BIN="$(command -v learnloop 2>/dev/null || true)"
   if [ -z "$RESOLVED_BIN" ]; then
     for candidate in "$HOME/.local/bin/learnloop" "$HOME/Library/Python/3.*/bin/learnloop"; do
@@ -131,39 +115,27 @@ fi
 
 chmod +x "$EXE_PATH"
 
-# macOS Gatekeeper and Code Signing safeguards
 if [ "$OS" = "darwin" ]; then
   xattr -d com.apple.quarantine "$EXE_PATH" 2>/dev/null || true
   codesign -s - "$EXE_PATH" 2>/dev/null || true
 fi
 
-echo -e "\033[32m  [OK] Installed executable to $EXE_PATH\033[0m"
-
-# Add to PATH if missing
-case ":$PATH:" in
-  *":$BIN_DIR:"*) ;;
-  *)
-    SHELL_PROFILE=""
-    if [ -n "${ZSH_VERSION:-}" ] || [ -f "$HOME/.zshrc" ]; then
-      SHELL_PROFILE="$HOME/.zshrc"
-    elif [ -f "$HOME/.bashrc" ]; then
-      SHELL_PROFILE="$HOME/.bashrc"
-    elif [ -f "$HOME/.profile" ]; then
-      SHELL_PROFILE="$HOME/.profile"
+# Add to PATH in all relevant shell profiles
+for profile in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
+  if [ -f "$profile" ]; then
+    if ! grep -q "$BIN_DIR" "$profile" 2>/dev/null; then
+      echo "export PATH=\"\$PATH:$BIN_DIR\"" >> "$profile"
     fi
+  fi
+done
 
-    if [ -n "$SHELL_PROFILE" ]; then
-      if ! grep -q "$BIN_DIR" "$SHELL_PROFILE" 2>/dev/null; then
-        echo "export PATH=\"\$PATH:$BIN_DIR\"" >> "$SHELL_PROFILE"
-        echo -e "\033[32m  [OK] Added ~/.learnloop/bin to $SHELL_PROFILE\033[0m"
-      fi
-    fi
-    export PATH="$PATH:$BIN_DIR"
-    ;;
-esac
-
-echo -e "\033[36m[2/2] Verifying installation...\033[0m"
-"$EXE_PATH" doctor
+echo -e "\033[36m[3/3] Verifying installation & local database...\033[0m"
+DOCTOR_OUT="$("$EXE_PATH" doctor 2>&1)" || true
+if echo "$DOCTOR_OUT" | grep -q "ok"; then
+  echo -e "\033[32m      ✓ Doctor check passed (local SQLite engine ready)\033[0m"
+else
+  echo "$DOCTOR_OUT"
+fi
 
 echo ""
 echo -e "\033[32m  +-------------------------------------------------------------+\033[0m"
@@ -173,15 +145,13 @@ echo -e "\033[1;37m  * Executable:      $EXE_PATH\033[0m"
 echo -e "\033[1;37m  * User PATH:       ~/.learnloop/bin permanently added\033[0m"
 echo -e "\033[1;37m  * Privacy:         100% Local SQLite - Zero telemetry sent    \033[0m"
 echo ""
-echo -e "\033[36m  To initialize LearnLoop on any project, simply navigate to it:\033[0m"
-echo -e "\033[1;37m      cd /path/to/your/project\033[0m"
-echo -e "\033[33m      learnloop init\033[0m"
+echo -e "\033[1;33m  👉 TO ACTIVATE IN THIS TERMINAL SESSION:\033[0m"
+echo -e "\033[1;37m     export PATH=\"\$HOME/.learnloop/bin:\$PATH\"\033[0m"
 echo ""
-echo -e "\033[36m  Available CLI commands inside initialized projects:\033[0m"
-echo -e "\033[1;37m      learnloop briefing    # Session catch-up\033[0m"
-echo -e "\033[1;37m      learnloop review      # Spaced repetition check\033[0m"
-echo -e "\033[1;37m      learnloop concepts    # View concepts catalog\033[0m"
-echo -e "\033[1;37m      learnloop dashboard   # Launch local web dashboard\033[0m"
-echo -e "\033[1;37m      learnloop gui         # Launch native desktop window\033[0m"
+echo -e "\033[36m  👉 TO INITIALIZE ON ANY PROJECT:\033[0m"
+echo -e "\033[1;37m     cd /path/to/your/project\033[0m"
+echo -e "\033[33m     learnloop init\033[0m"
+echo ""
+echo -e "\033[90m  Commands inside initialized projects: briefing | review | concepts | dashboard | gui\033[0m"
 echo -e "\033[32m  +-------------------------------------------------------------+\033[0m"
 echo ""
