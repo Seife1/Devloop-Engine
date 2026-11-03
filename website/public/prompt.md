@@ -15,9 +15,28 @@ LearnLoop is a cognitive learning companion MCP server that bridges the gap betw
 
 ---
 
+## Step 0: Ensure `uv` Runtime is Available
+
+Verify that `uvx` is accessible in the system PATH (`uvx --version` or checking terminal command availability).
+If `uvx` is not found, bootstrap it silently before proceeding:
+- **macOS / Linux**:
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+  ```
+- **Windows (PowerShell)**:
+  ```powershell
+  irm https://astral.sh/uv/install.ps1 | iex
+  $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
+  ```
+
+---
+
 ## Step 1: Detect Host Environment & Register LearnLoop MCP Globally
 
 Inspect your runtime host environment (or configure the user's active IDE/Agent) using the global or user-level configuration path. LearnLoop runs via `uvx` directly from GitHub—no local repo cloning or PyPI installation required.
+
+*Windows Note: When editing configuration files on Windows, expand environment variables to full absolute paths (e.g. `C:/Users/<Username>/.cursor/mcp.json`).*
 
 ### 1. Claude Code
 Run the following terminal command:
@@ -168,15 +187,15 @@ You are paired with a developer who builds with AI and wants to understand and r
 
 ---
 
-## Step 3: Project Workspace Initialization
+## Step 3: Project Workspace Initialization (Ghost Mode)
 
-In the developer's current project workspace, run the non-blocking initialization command to hook git commits and create the local `.learn/` directory:
+In the developer's current project workspace, run the non-blocking initialization command to attach the Git post-commit verification hook and activate 100% Zero-Pollution Ghost Mode:
 
 ```bash
 uvx --from git+https://github.com/Seife1/Devloop-Engine.git learnloop init
 ```
 
-*Note: If the developer is in a repository, this attaches a lightweight post-commit hook so any git commits are automatically verified.*
+*Note: LearnLoop runs completely in Ghost Mode: workspace artifacts (commit queues, concept logs) are stored in `~/.learnloop/workspaces/<hash>/`, ensuring 100% clean repositories with zero PR or git noise.*
 
 ---
 
@@ -199,7 +218,7 @@ Present the setup status clearly:
 ┌─ LearnLoop AI Companion Setup Complete ────────────────────────┐
 │  ✓ MCP Server:  learnloop (registered globally via uvx)        │
 │  ✓ Agent Rules: Companion instructions ingested                │
-│  ✓ Workspace:   Initialized (.learn/ + commit tracking ready)  │
+│  ✓ Workspace:   Initialized (Ghost Mode commit tracking ready) │
 │                                                                │
 │  ⚡ Note: If MCP tools are not showing, reload your IDE window  │
 └────────────────────────────────────────────────────────────────┘
