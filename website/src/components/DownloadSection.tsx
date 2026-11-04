@@ -38,9 +38,11 @@ export default function DownloadSection() {
       badge: "Detected on your PC",
       icon: "🪟",
       binaryName: "learnloop.exe",
+      installerName: "setup.ps1",
+      installerUrl: "/setup.ps1",
       downloadUrl: "https://github.com/Seife1/Devloop-Engine/releases/latest/download/learnloop-windows-x64.exe",
       size: "27.2 MB",
-      description: "Standalone compiled single executable with embedded SQLite and migrations. Zero Python installation or dependencies required.",
+      description: "Automated installer or standalone single executable with embedded SQLite. Zero Python installation or dependencies required.",
       commands: [
         {
           label: "PowerShell (Recommended One-Liner)",
@@ -64,18 +66,20 @@ export default function DownloadSection() {
       badge: "Universal Binary",
       icon: "🍎",
       binaryName: "learnloop-darwin",
-      downloadUrl: "https://github.com/Seife1/Devloop-Engine/releases/latest/download/learnloop-darwin-universal",
+      installerName: "setup.sh",
+      installerUrl: "/setup.sh",
+      downloadUrl: "https://github.com/Seife1/Devloop-Engine/releases/latest/download/learnloop-darwin-arm64",
       size: "24.8 MB",
-      description: "Universal Mach-O binary compiled for M1/M2/M3/M4 Apple Silicon and Intel Macs.",
+      description: "Automated installer or standalone Mach-O binary compiled for Apple Silicon (M1/M2/M3/M4) and Intel Macs.",
       commands: [
         {
           label: "Terminal (zsh / bash)",
           cmd: `curl -fsSL ${origin}/setup.sh | bash`,
-          hint: "Installs to ~/.local/bin and automatically injects MCP config into Cursor and Claude Desktop.",
+          hint: "Installs to ~/.learnloop/bin and automatically configures editor MCP settings.",
         },
         {
           label: "Manual Terminal Run",
-          cmd: "chmod +x learnloop-darwin && mv learnloop-darwin /usr/local/bin/learnloop",
+          cmd: "chmod +x learnloop-darwin && mv learnloop-darwin ~/.learnloop/bin/learnloop",
           hint: "Move the downloaded binary to your PATH manually.",
         },
       ],
@@ -85,14 +89,16 @@ export default function DownloadSection() {
       badge: "Linux ELF Binary",
       icon: "🐧",
       binaryName: "learnloop-linux-x64",
+      installerName: "setup.sh",
+      installerUrl: "/setup.sh",
       downloadUrl: "https://github.com/Seife1/Devloop-Engine/releases/latest/download/learnloop-linux-x64",
       size: "23.5 MB",
-      description: "Pre-compiled statically linked ELF binary for Ubuntu, Debian, Fedora, Arch, and Alpine.",
+      description: "Automated installer or pre-compiled statically linked ELF binary for Ubuntu, Debian, Fedora, Arch, and Alpine.",
       commands: [
         {
           label: "Bash / Zsh (One-Liner)",
           cmd: `curl -fsSL ${origin}/setup.sh | bash`,
-          hint: "Installs binary to ~/.local/bin and configures shell aliases.",
+          hint: "Installs binary to ~/.learnloop/bin with resilient package fallback.",
         },
         {
           label: "Daemon / Background Service",
@@ -158,16 +164,26 @@ export default function DownloadSection() {
               </p>
             </div>
 
-            <div className="flex flex-col sm:items-end justify-between gap-2 shrink-0">
-              <a
-                href={current.downloadUrl}
-                download
-                className="px-6 py-3.5 bg-[#0B0F19] hover:bg-emerald-600 text-white font-sans font-bold text-xs uppercase tracking-wider transition-all shadow-md rounded-lg text-center"
-              >
-                Download {current.binaryName}
-              </a>
+            <div className="flex flex-col sm:items-end justify-between gap-3 shrink-0">
+              <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
+                <a
+                  href={current.installerUrl}
+                  download={current.installerName}
+                  className="px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-sans font-bold text-xs uppercase tracking-wider transition-all shadow-md rounded-lg text-center flex items-center justify-center gap-2"
+                >
+                  <span>⚡ Download {current.installerName}</span>
+                </a>
+                <a
+                  href={current.downloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-5 py-3 bg-[#0B0F19] hover:bg-zinc-800 text-zinc-100 font-sans font-bold text-xs uppercase tracking-wider transition-all shadow-md rounded-lg text-center border border-zinc-700"
+                >
+                  Binary ({current.binaryName})
+                </a>
+              </div>
               <span className="text-[11px] font-mono text-zinc-500 text-center sm:text-right">
-                {current.size} • SHA256 verified
+                {current.size} • 100% Local • Zero Telemetry
               </span>
             </div>
           </div>

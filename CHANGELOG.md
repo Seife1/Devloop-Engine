@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.4] - 2026-11-04
+
+### Fixed
+- **Website Download 404 Prevention**: Replaced single fragile GitHub release link with dual options: direct download of verified one-shot installer scripts (`/setup.sh` on Linux/macOS, `/setup.ps1` on Windows) served directly from website public directory (guaranteed HTTP 200), alongside direct binary release asset links.
+- **macOS Release Asset Routing**: Corrected macOS download URL to target `learnloop-darwin-arm64` matching CI workflow release outputs rather than non-existent universal binary.
+- **Shell Profile Fallback**: Enhanced `setup.sh` to guarantee `export PATH="$PATH:$BIN_DIR"` is written to `~/.profile` when minimal Linux environments lack `.bashrc` or `.zshrc`.
+
+---
+
 ## [0.7.3] - 2026-11-04
 
 ### Changed

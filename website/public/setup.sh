@@ -121,13 +121,19 @@ if [ "$OS" = "darwin" ]; then
 fi
 
 # Add to PATH in all relevant shell profiles
+PROFILE_UPDATED=false
 for profile in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
   if [ -f "$profile" ]; then
+    PROFILE_UPDATED=true
     if ! grep -q "$BIN_DIR" "$profile" 2>/dev/null; then
       echo "export PATH=\"\$PATH:$BIN_DIR\"" >> "$profile"
     fi
   fi
 done
+
+if [ "$PROFILE_UPDATED" = false ]; then
+  echo "export PATH=\"\$PATH:$BIN_DIR\"" >> "$HOME/.profile"
+fi
 
 echo -e "\033[36m[3/3] Verifying installation & local database...\033[0m"
 DOCTOR_OUT="$("$EXE_PATH" doctor 2>&1)" || true
