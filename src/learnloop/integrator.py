@@ -26,44 +26,114 @@ import subprocess
 class LearnLoopIntegrator:
     """Universal integration for all IDEs and terminals."""
     
-    def __init__(self, project_root: Optional[Path] = None):
+    def __init__(self, project_root: Optional[Path] = None, in_repo: bool = False):
         from learnloop.config import get_workspace_storage_dir
 
         self.project_root = Path(project_root) if project_root else Path.cwd()
+        self.in_repo = in_repo
         self.learnloop_dir = get_workspace_storage_dir(self.project_root)
         self.integrations_dir = Path(__file__).parent / "integrations"
         
-        # IDE config locations
-        self.ide_configs = {
-            "vscode": [
-                self.project_root / ".vscode" / "settings.json",
-                Path.home() / ".vscode" / "settings.json",
-            ],
-            "cursor": [
-                self.project_root / ".cursorrules",
-                self.project_root / ".cursor" / "mcp.json",
-                Path.home() / ".cursorrules",
-            ],
-            "claude": [
-                self.project_root / "CLAUDE.md",
-                self.project_root / ".claude.md",
-            ],
-            "windsurf": [
-                self.project_root / ".windsurfrules",
-                self.project_root / ".windsurf" / "mcp_config.json",
-                Path.home() / ".windsurfrules",
-            ],
-            "zed": [
-                self.project_root / ".zed" / "settings.json",
-                self.project_root / "settings.json",
-                Path.home() / ".config" / "zed" / "settings.json",
-            ],
-            "agents": [
-                self.project_root / "AGENTS.md",
-                self.project_root / "GEMINI.md",
-            ],
-            "any": [self.project_root / ".learnloop_rules.md"]
-        }
+        self._refresh_ide_configs()
+
+    def _refresh_ide_configs(self) -> None:
+        """Refresh IDE configuration paths according to Ghost Mode vs In-Repo Mode."""
+        if self.in_repo:
+            self.ide_configs = {
+                "vscode": [
+                    self.project_root / ".vscode" / "settings.json",
+                    self.project_root / ".vscode" / "mcp.json",
+                ],
+                "cursor": [
+                    self.project_root / ".cursorrules",
+                    self.project_root / ".cursor" / "mcp.json",
+                ],
+                "claude": [
+                    self.project_root / "CLAUDE.md",
+                ],
+                "windsurf": [
+                    self.project_root / ".windsurfrules",
+                    self.project_root / ".windsurf" / "mcp_config.json",
+                ],
+                "zed": [
+                    self.project_root / ".zed" / "settings.json",
+                ],
+                "agents": [
+                    self.project_root / "AGENTS.md",
+                    self.project_root / "GEMINI.md",
+                ],
+                "any": [self.project_root / ".learnloop_rules.md"]
+            }
+        else:
+            self.ide_configs = {
+                "vscode": self._get_vscode_user_settings_paths(),
+                "cursor": [self._get_cursor_global_config_path()],
+                "claude": [p for p in [self._get_claude_desktop_config_path()] if p],
+                "windsurf": [self._get_windsurf_global_config_path()],
+                "zed": [self._get_zed_global_config_path()],
+                "agents": [Path.home() / ".learnloop" / "rules" / "AGENTS.md"],
+                "any": [Path.home() / ".learnloop" / "rules" / ".learnloop_rules.md"]
+            }
+
+    @staticmethod
+    def _get_vscode_user_settings_paths() -> List[Path]:
+        """Return platform-specific user settings paths for VS Code and Insiders."""
+        paths = []
+        if sys.platform == "win32":
+            appdata = os.environ.get("APPDATA")
+            if appdata:
+                paths.append(Path(appdata) / "Code" / "User" / "settings.json")
+                paths.append(Path(appdata) / "Code - Insiders" / "User" / "settings.json")
+            else:
+                paths.append(Path.home() / "AppData" / "Roaming" / "Code" / "User" / "settings.json")
+        elif sys.platform == "darwin":
+            paths.append(Path.home() / "Library" / "Application Support" / "Code" / "User" / "settings.json")
+            paths.append(Path.home() / "Library" / "Application Support" / "Code - Insiders" / "User" / "settings.json")
+        else:
+            xdg = os.environ.get("XDG_CONFIG_HOME")
+            base = Path(xdg) if xdg else Path.home() / ".config"
+            paths.append(base / "Code" / "User" / "settings.json")
+            paths.append(base / "Code - Insiders" / "User" / "settings.json")
+        return paths
+
+    @staticmethod
+    def _get_vscode_cline_mcp_paths() -> List[Path]:
+        """Return platform-specific global MCP settings paths for Cline and Roo Code extensions."""
+        paths = []
+        if sys.platform == "win32":
+            appdata = os.environ.get("APPDATA")
+            base = Path(appdata) / "Code" / "User" / "globalStorage" if appdata else Path.home() / "AppData" / "Roaming" / "Code" / "User" / "globalStorage"
+        elif sys.platform == "darwin":
+            base = Path.home() / "Library" / "Application Support" / "Code" / "User" / "globalStorage"
+        else:
+            xdg = os.environ.get("XDG_CONFIG_HOME")
+            cfg = Path(xdg) if xdg else Path.home() / ".config"
+            base = cfg / "Code" / "User" / "globalStorage"
+
+        paths.append(base / "rooveterinaryinc.roo-cline" / "settings" / "cline_mcp_settings.json")
+        paths.append(base / "saoudrizwan.claude-dev" / "settings" / "cline_mcp_settings.json")
+        return paths
+
+    @staticmethod
+    def _get_cursor_global_config_path() -> Path:
+        """Return user-level global Cursor MCP configuration path."""
+        return Path.home() / ".cursor" / "mcp.json"
+
+    @staticmethod
+    def _get_windsurf_global_config_path() -> Path:
+        """Return user-level global Windsurf MCP configuration path."""
+        return Path.home() / ".codeium" / "windsurf" / "mcp_config.json"
+
+    @staticmethod
+    def _get_zed_global_config_path() -> Path:
+        """Return user-level global Zed configuration path."""
+        if sys.platform == "win32":
+            appdata = os.environ.get("APPDATA")
+            if appdata:
+                return Path(appdata) / "Zed" / "settings.json"
+        xdg = os.environ.get("XDG_CONFIG_HOME")
+        base = Path(xdg) if xdg else Path.home() / ".config"
+        return base / "zed" / "settings.json"
 
     @staticmethod
     def _get_claude_desktop_config_path() -> Optional[Path]:
@@ -338,68 +408,135 @@ You are working with a learner who builds projects with AI and must be confident
 
     def _integrate_vscode(self, force: bool) -> bool:
         """Integrate VS Code settings and MCP configuration."""
-        settings_path = self.project_root / ".vscode" / "settings.json"
-        self._integrate_json_config(settings_path, "vscode", force)
-        print(f"  ✅ Integrated: {settings_path}")
+        if self.in_repo:
+            settings_path = self.project_root / ".vscode" / "settings.json"
+            self._integrate_json_config(settings_path, "vscode", force)
+            print(f"  ✅ Integrated in-repo: {settings_path}")
 
-        mcp_path = self.project_root / ".vscode" / "mcp.json"
+            mcp_path = self.project_root / ".vscode" / "mcp.json"
+            try:
+                self._integrate_json_config(mcp_path, "vscode", force)
+                print(f"  ✅ Integrated in-repo: {mcp_path}")
+            except Exception:
+                pass
+            return True
+
+        # Ghost Mode (Zero Workspace Pollution): write to global user profile
+        user_settings_paths = self._get_vscode_user_settings_paths()
+        target_path = user_settings_paths[0]
+        for p in user_settings_paths:
+            if p.exists() or p.parent.exists():
+                target_path = p
+                break
+
+        success = False
         try:
-            self._integrate_json_config(mcp_path, "vscode", force)
-            print(f"  ✅ Integrated: {mcp_path}")
-        except Exception:
-            pass
-        return True
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            self._integrate_json_config(target_path, "vscode", force)
+            print(f"  ✅ Integrated global user config (Ghost Mode): {target_path}")
+            success = True
+        except Exception as exc:
+            print(f"  ⚠️ Could not write to VS Code user settings {target_path}: {exc}")
+
+        # Also configure Cline / Roo global MCP if those extensions are present
+        for cline_p in self._get_vscode_cline_mcp_paths():
+            if cline_p.parent.exists():
+                try:
+                    self._integrate_json_config(cline_p, "vscode", force)
+                    print(f"  ✅ Integrated global Cline/Roo MCP: {cline_p}")
+                    success = True
+                except Exception:
+                    pass
+
+        print("  💡 Tip: VS Code interacts with MCP via host extensions (GitHub Copilot, Cline, or Roo Code).")
+        return success
 
     def _integrate_agents_rules(self, force: bool) -> bool:
         """Integrate universal agent rules (AGENTS.md & GEMINI.md)."""
         rules = self.generate_rules_content("agents")
-        for filename in ("AGENTS.md", "GEMINI.md"):
-            p = self.project_root / filename
-            self._write_rule_file(p, rules, force)
-        return True
+        if self.in_repo:
+            for filename in ("AGENTS.md", "GEMINI.md"):
+                p = self.project_root / filename
+                self._write_rule_file(p, rules, force)
+            return True
+
+        # Ghost Mode: Store rules in user-level storage without polluting repository
+        rules_dir = Path.home() / ".learnloop" / "rules"
+        try:
+            rules_dir.mkdir(parents=True, exist_ok=True)
+            self._write_rule_file(rules_dir / "AGENTS.md", rules, force)
+            print(f"  ✅ Stored universal agent instructions (Ghost Mode): {rules_dir / 'AGENTS.md'}")
+            return True
+        except Exception as exc:
+            print(f"  ⚠️ Could not write agent rules: {exc}")
+            return False
 
     def _integrate_claude(self, force: bool) -> bool:
         """Integrate Claude Desktop global config and project CLAUDE.md."""
-        rules = self.generate_rules_content("claude")
-        self._write_rule_file(self.project_root / "CLAUDE.md", rules, force)
+        if self.in_repo:
+            rules = self.generate_rules_content("claude")
+            self._write_rule_file(self.project_root / "CLAUDE.md", rules, force)
 
-        # Also configure Claude Desktop app if config dir exists or can be created
+        # Global Claude Desktop app config
         desktop_cfg = self._get_claude_desktop_config_path()
         if desktop_cfg:
             try:
                 desktop_cfg.parent.mkdir(parents=True, exist_ok=True)
                 self._integrate_json_config(desktop_cfg, "claude", force)
-            except Exception:
-                pass
+                print(f"  ✅ Integrated global Claude Desktop config (Ghost Mode): {desktop_cfg}")
+                return True
+            except Exception as exc:
+                print(f"  ⚠️ Could not write Claude Desktop config: {exc}")
+                return False
         return True
 
     def _integrate_cursor(self, force: bool) -> bool:
         """Integrate Cursor rules and MCP."""
-        rules = self.generate_rules_content("cursor")
-        self._write_rule_file(self.project_root / ".cursorrules", rules, force)
+        if self.in_repo:
+            rules = self.generate_rules_content("cursor")
+            self._write_rule_file(self.project_root / ".cursorrules", rules, force)
+            cursor_mcp = self.project_root / ".cursor" / "mcp.json"
+            try:
+                cursor_mcp.parent.mkdir(parents=True, exist_ok=True)
+                self._integrate_json_config(cursor_mcp, "cursor", force)
+            except Exception:
+                pass
+            return True
 
-        # Also configure .cursor/mcp.json
-        cursor_mcp = self.project_root / ".cursor" / "mcp.json"
+        # Ghost Mode: Configure global user-level Cursor MCP
+        cursor_global = self._get_cursor_global_config_path()
         try:
-            cursor_mcp.parent.mkdir(parents=True, exist_ok=True)
-            self._integrate_json_config(cursor_mcp, "cursor", force)
-        except Exception:
-            pass
-        return True
+            cursor_global.parent.mkdir(parents=True, exist_ok=True)
+            self._integrate_json_config(cursor_global, "cursor", force)
+            print(f"  ✅ Integrated global Cursor MCP (Ghost Mode): {cursor_global}")
+            return True
+        except Exception as exc:
+            print(f"  ⚠️ Could not write Cursor global MCP: {exc}")
+            return False
 
     def _integrate_windsurf(self, force: bool) -> bool:
         """Integrate Windsurf rules and MCP."""
-        rules = self.generate_rules_content("windsurf")
-        self._write_rule_file(self.project_root / ".windsurfrules", rules, force)
+        if self.in_repo:
+            rules = self.generate_rules_content("windsurf")
+            self._write_rule_file(self.project_root / ".windsurfrules", rules, force)
+            ws_mcp = self.project_root / ".windsurf" / "mcp_config.json"
+            try:
+                ws_mcp.parent.mkdir(parents=True, exist_ok=True)
+                self._integrate_json_config(ws_mcp, "windsurf", force)
+            except Exception:
+                pass
+            return True
 
-        # Configure .windsurf/mcp_config.json
-        ws_mcp = self.project_root / ".windsurf" / "mcp_config.json"
+        # Ghost Mode: Configure global Windsurf MCP
+        ws_global = self._get_windsurf_global_config_path()
         try:
-            ws_mcp.parent.mkdir(parents=True, exist_ok=True)
-            self._integrate_json_config(ws_mcp, "windsurf", force)
-        except Exception:
-            pass
-        return True
+            ws_global.parent.mkdir(parents=True, exist_ok=True)
+            self._integrate_json_config(ws_global, "windsurf", force)
+            print(f"  ✅ Integrated global Windsurf MCP (Ghost Mode): {ws_global}")
+            return True
+        except Exception as exc:
+            print(f"  ⚠️ Could not write Windsurf global MCP: {exc}")
+            return False
 
     def _write_rule_file(self, path: Path, content: str, force: bool) -> bool:
         if path.exists() and not force:
@@ -620,8 +757,12 @@ Set-Alias lld Open-LearnLoopDashboard
         parser.add_argument("--terminal", action="store_true", help="Setup terminal integration")
         parser.add_argument("--env", action="store_true", help="Setup environment")
         parser.add_argument("--all", action="store_true", help="Setup everything")
+        parser.add_argument("--in-repo", action="store_true", help="Store configs in-repo rather than global user configs")
         
         parsed_args = parser.parse_args(args)
+        if parsed_args.in_repo:
+            self.in_repo = True
+            self._refresh_ide_configs()
         
         print("🔧 LearnLoop Universal Integration")
         print("=" * 40)

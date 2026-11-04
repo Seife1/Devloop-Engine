@@ -355,11 +355,12 @@ def cmd_init(
             return
         from learnloop.integrator import LearnLoopIntegrator
 
-        integrator = LearnLoopIntegrator(project_root=repo)
+        integrator = LearnLoopIntegrator(project_root=repo, in_repo=in_repo)
+        run_args = ["--in-repo"] if in_repo else []
         if all_integrations or ide == "all":
-            integrator.run(["--all"])
+            integrator.run([*run_args, "--all"])
         else:
-            integrator.run(["--ide", ide])
+            integrator.run([*run_args, "--ide", ide])
 
     from learnloop.config import Settings
     from learnloop.persistence.db import connect
@@ -408,11 +409,11 @@ def cmd_init(
     return 0
 
 
-def cmd_integrate(args: list[str], repo: Path | None = None) -> int:
+def cmd_integrate(args: list[str], repo: Path | None = None, in_repo: bool = False) -> int:
     try:
         from learnloop.integrator import LearnLoopIntegrator
 
-        integrator = LearnLoopIntegrator(project_root=repo)
+        integrator = LearnLoopIntegrator(project_root=repo, in_repo=in_repo)
         integrator.run(args)
         return 0
     except Exception as exc:  # noqa: BLE001
@@ -573,6 +574,9 @@ def main(argv: list[str] | None = None) -> None:
     integ.add_argument("--terminal", action="store_true", help="Setup terminal integration")
     integ.add_argument("--env", action="store_true", help="Setup environment")
     integ.add_argument("--all", action="store_true", help="Setup everything")
+    integ.add_argument(
+        "--in-repo", action="store_true", help="Store configs in-repo rather than global user configs"
+    )
 
     http_p = sub.add_parser("http", help="Start HTTP/SSE server for LAN and cloud deployment")
     http_p.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
@@ -623,7 +627,9 @@ def main(argv: list[str] | None = None) -> None:
             integ_args.append("--env")
         if args.all:
             integ_args.append("--all")
-        code = cmd_integrate(integ_args, repo=args.repo)
+        if args.in_repo:
+            integ_args.append("--in-repo")
+        code = cmd_integrate(integ_args, repo=args.repo, in_repo=args.in_repo)
     elif args.cmd == "record-commit":
         code = cmd_record_commit(args.repo)
     elif args.cmd == "backfill":

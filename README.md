@@ -1,6 +1,6 @@
 # LearnLoop
 
-![Version](https://img.shields.io/badge/version-0.7.2-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Version](https://img.shields.io/badge/version-0.7.3-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 An MCP server that shows you where your AI coding agent did work you can't yet do alone, then gives you
 short, targeted practice to close the gap.
@@ -429,6 +429,7 @@ We welcome community contributions, bug reports, and architectural proposals!
 
 LearnLoop follows strict [Semantic Versioning (SemVer 2.0.0)](https://semver.org/).
 
-- **Latest Release**: **[v0.7.2](CHANGELOG.md#072---2026-11-04)** (2026-11-04) — Explicit MCP serve command & stdio protocol stability.
+- **Latest Release**: **[v0.7.3](CHANGELOG.md#073---2026-11-04)** (2026-11-04) — Ghost Mode enforcement for IDE integration (Zero Workspace Pollution) & global user settings routing.
+- **[v0.7.2](CHANGELOG.md#072---2026-11-04)** (2026-11-04) — Explicit MCP serve command & stdio protocol stability.
 - **[v0.7.1](CHANGELOG.md#071---2026-11-03)** (2026-11-03) — Cross-platform distribution engine hardening, official Docker containerization, dynamic architecture routing (Linux ARM64/x64, macOS Apple Silicon/Intel, Windows), and clean terminal UX.
 - View the complete release history, migration notes, and architectural progression in [**CHANGELOG.md**](CHANGELOG.md).

@@ -90,19 +90,53 @@ def test_detect_active_ide_project_marker_fallback(tmp_path: Path):
         assert integrator.detect_ide() == ["cursor"]
 
 
-def test_cmd_init_in_vscode_terminal_only_configures_vscode(tmp_path: Path):
+def test_cmd_init_ghost_mode_default_does_not_pollute_workspace(tmp_path: Path):
+    (tmp_path / ".git").mkdir()
+
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    fake_user_settings = fake_home / ".config" / "Code" / "User" / "settings.json"
+
+    env = clean_ide_env({"TERM_PROGRAM": "vscode", "VSCODE_PID": "12345"})
+    with patch.dict(os.environ, env, clear=True), \
+         patch.object(LearnLoopIntegrator, "_get_vscode_user_settings_paths", return_value=[fake_user_settings]), \
+         patch.object(LearnLoopIntegrator, "_get_vscode_cline_mcp_paths", return_value=[]):
+        rc = cmd_init(tmp_path)
+        assert rc == 0
+
+        # Zero workspace pollution: In-repo editor configs must NOT exist
+        assert not (tmp_path / ".vscode").exists()
+        assert not (tmp_path / ".cursorrules").exists()
+        assert not (tmp_path / ".cursor").exists()
+        assert not (tmp_path / "CLAUDE.md").exists()
+        assert not (tmp_path / ".windsurfrules").exists()
+        assert not (tmp_path / ".windsurf").exists()
+        assert not (tmp_path / ".zed").exists()
+        assert not (tmp_path / "AGENTS.md").exists()
+        assert not (tmp_path / "GEMINI.md").exists()
+        assert not (tmp_path / ".learn").exists()
+
+        # Ghost Mode: Global user settings must receive MCP configuration
+        assert fake_user_settings.is_file()
+        user_cfg = json.loads(fake_user_settings.read_text("utf-8"))
+        assert "learnloop" in user_cfg.get("mcpServers", {})
+        assert user_cfg["mcpServers"]["learnloop"]["args"] == ["serve"]
+
+
+def test_cmd_init_in_repo_creates_local_vscode_config(tmp_path: Path):
     (tmp_path / ".git").mkdir()
 
     env = clean_ide_env({"TERM_PROGRAM": "vscode", "VSCODE_PID": "12345"})
     with patch.dict(os.environ, env, clear=True):
-        rc = cmd_init(tmp_path)
+        rc = cmd_init(tmp_path, in_repo=True)
         assert rc == 0
 
-        # VS Code configs must exist
+        # VS Code in-repo configs must exist when in_repo=True
         assert (tmp_path / ".vscode" / "settings.json").is_file()
         assert (tmp_path / ".vscode" / "mcp.json").is_file()
         vsc_settings = json.loads((tmp_path / ".vscode" / "settings.json").read_text("utf-8"))
         assert "learnloop" in vsc_settings.get("mcpServers", {})
+        assert vsc_settings["mcpServers"]["learnloop"]["args"] == ["serve"]
 
         # OTHER IDE configs must NOT be dumped
         assert not (tmp_path / ".cursorrules").exists()
@@ -114,20 +148,14 @@ def test_cmd_init_in_vscode_terminal_only_configures_vscode(tmp_path: Path):
         assert not (tmp_path / "AGENTS.md").exists()
         assert not (tmp_path / "GEMINI.md").exists()
 
-        # Terminal scripts must NOT be created on default init
-        assert not (tmp_path / ".learn" / "tools.sh").exists()
-        assert not (tmp_path / ".learn" / "tools.bat").exists()
-        assert not (tmp_path / ".learn" / "environment.sh").exists()
-        assert not (tmp_path / ".learn" / "LearnLoop.ps1").exists()
-
 
 def test_cmd_init_explicit_ide(tmp_path: Path):
     (tmp_path / ".git").mkdir()
 
     env = clean_ide_env({"TERM_PROGRAM": "vscode"})
     with patch.dict(os.environ, env, clear=True):
-        # Even if in vscode terminal, explicit --ide cursor should only configure cursor
-        rc = cmd_init(tmp_path, ide="cursor")
+        # Even if in vscode terminal, explicit --ide cursor --in-repo should only configure in-repo cursor
+        rc = cmd_init(tmp_path, ide="cursor", in_repo=True)
         assert rc == 0
 
         assert (tmp_path / ".cursorrules").is_file()
@@ -136,15 +164,15 @@ def test_cmd_init_explicit_ide(tmp_path: Path):
         assert not (tmp_path / ".windsurfrules").exists()
 
 
-def test_cmd_init_all_flag_configures_everything(tmp_path: Path):
+def test_cmd_init_all_flag_configures_everything_in_repo(tmp_path: Path):
     (tmp_path / ".git").mkdir()
 
     env = clean_ide_env({"TERM_PROGRAM": "vscode"})
     with patch.dict(os.environ, env, clear=True):
-        rc = cmd_init(tmp_path, all_integrations=True)
+        rc = cmd_init(tmp_path, all_integrations=True, in_repo=True)
         assert rc == 0
 
-        # All IDE configs exist
+        # All in-repo IDE configs exist
         assert (tmp_path / ".vscode" / "settings.json").is_file()
         assert (tmp_path / ".cursorrules").is_file()
         assert (tmp_path / "CLAUDE.md").is_file()
@@ -161,4 +189,47 @@ def test_cmd_init_all_flag_configures_everything(tmp_path: Path):
         assert (storage_dir / "tools.bat").is_file()
         assert (storage_dir / "environment.sh").is_file()
         assert (storage_dir / "LearnLoop.ps1").is_file()
-        assert not (tmp_path / ".learn").exists()
+        assert (tmp_path / ".learn").exists()
+
+
+def test_ghost_mode_across_all_ides_leaves_zero_repo_files(tmp_path: Path):
+    """Test that all supported IDE integrations in default Ghost Mode write to global configs, never polluting repo."""
+    (tmp_path / ".git").mkdir()
+
+    fake_home = tmp_path / "global_user_home"
+    fake_home.mkdir()
+
+    fake_vsc_settings = fake_home / ".config" / "Code" / "User" / "settings.json"
+    fake_cursor_mcp = fake_home / ".cursor" / "mcp.json"
+    fake_windsurf_mcp = fake_home / ".codeium" / "windsurf" / "mcp_config.json"
+    fake_claude_cfg = fake_home / ".config" / "Claude" / "claude_desktop_config.json"
+    fake_zed_cfg = fake_home / ".config" / "zed" / "settings.json"
+
+    with patch("pathlib.Path.home", return_value=fake_home), \
+         patch.object(LearnLoopIntegrator, "_get_vscode_user_settings_paths", return_value=[fake_vsc_settings]), \
+         patch.object(LearnLoopIntegrator, "_get_vscode_cline_mcp_paths", return_value=[]), \
+         patch.object(LearnLoopIntegrator, "_get_cursor_global_config_path", return_value=fake_cursor_mcp), \
+         patch.object(LearnLoopIntegrator, "_get_windsurf_global_config_path", return_value=fake_windsurf_mcp), \
+         patch.object(LearnLoopIntegrator, "_get_claude_desktop_config_path", return_value=fake_claude_cfg), \
+         patch.object(LearnLoopIntegrator, "_get_zed_global_config_path", return_value=fake_zed_cfg):
+
+        integrator = LearnLoopIntegrator(project_root=tmp_path, in_repo=False)
+        for ide in ("vscode", "cursor", "windsurf", "claude", "zed", "agents"):
+            success = integrator.integrate_ide(ide)
+            assert success is True
+
+        # Verify repo is completely untouched (Ghost Mode guarantee)
+        repo_files = list(tmp_path.iterdir())
+        # Only .git and our test fixture fake_home exist in tmp_path
+        expected_names = {".git", "global_user_home"}
+        actual_names = {p.name for p in repo_files}
+        assert actual_names == expected_names, f"Pollution detected: {actual_names - expected_names}"
+
+        # Verify global files received configurations
+        assert fake_vsc_settings.is_file()
+        assert fake_cursor_mcp.is_file()
+        assert fake_windsurf_mcp.is_file()
+        assert fake_claude_cfg.is_file()
+        assert fake_zed_cfg.is_file()
+        assert (fake_home / ".learnloop" / "rules" / "AGENTS.md").is_file()
+

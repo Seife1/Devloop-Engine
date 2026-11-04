@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.3] - 2026-11-04
+
+### Changed
+- **Ghost Mode IDE Integration**: `learnloop init` and `learnloop integrate` now write configurations to global user-level profiles by default (VS Code user settings, Cline/Roo MCP, Cursor `~/.cursor/mcp.json`, Windsurf global MCP, Claude Desktop, and Zed global settings), leaving repositories 100% clean with zero untracked `.vscode/` or editor files.
+- **In-Repo Opt-In (`--in-repo`)**: Added explicit `--in-repo` flag to `learnloop init` and `learnloop integrate` for development teams wanting committed in-repository configuration.
+
+---
+
 ## [0.7.2] - 2026-11-04
 
 ### Added

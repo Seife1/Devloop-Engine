@@ -18,14 +18,21 @@ This automatically:
 
 ## 🎯 How It Works
 
-### Session-Aware Detection (Default)
-When you run `learnloop init` from your editor's integrated terminal:
-- **VS Code**: Configures `.vscode/settings.json` and `.vscode/mcp.json`.
-- **Cursor**: Configures `.cursorrules` and `.cursor/mcp.json`.
-- **Windsurf**: Configures `.windsurfrules` and `.windsurf/mcp_config.json`.
-- **Claude Code / Desktop**: Configures `CLAUDE.md` and Claude Desktop config.
-- **Zed**: Configures `.zed/settings.json`.
-- **Antigravity / Universal**: Configures `AGENTS.md` and `GEMINI.md`.
+### Session-Aware Detection (Default: Ghost Mode)
+When you run `learnloop init` from your editor's integrated terminal, LearnLoop configures the host environment with **Zero Workspace Pollution**:
+- **VS Code**: Configures global user settings (`settings.json` and Cline/Roo MCP) with zero repository files.
+- **Cursor**: Configures global user-level MCP (`~/.cursor/mcp.json`) with zero repository files.
+- **Windsurf**: Configures global Windsurf MCP (`~/.codeium/windsurf/mcp_config.json`) with zero repository files.
+- **Claude Code / Desktop**: Configures global Claude Desktop config (`claude_desktop_config.json`) with zero repository files.
+- **Zed**: Configures global Zed settings (`settings.json`) with zero repository files.
+- **Antigravity / Universal**: Stores companion rules in user-level storage (`~/.learnloop/rules/AGENTS.md`).
+
+### In-Repo Opt-In (`--in-repo`)
+If you explicitly want configuration files committed into the project repository for team sharing, pass `--in-repo`:
+```bash
+learnloop init --in-repo
+```
+This generates repository-level files (`.vscode/`, `.cursor/`, `.windsurf/`, etc.) directly inside the project root.
 
 ### Explicit Overrides (Optional)
 If you ever want to force a specific IDE integration or run from an external terminal:
@@ -60,7 +67,7 @@ learnloop-tools dashboard     # Open dashboard
 
 | IDE | Live Session Detection | MCP Config | Companion Rules | Repo Pollution |
 |-----|:---------------------:|:----------:|:---------------:|:--------------:|
-| **VS Code** | ✅ (`TERM_PROGRAM`, `VSCODE_PID`) | `.vscode/settings.json` + `mcp.json` | Built-in | ❌ None (only VS Code) |
+| **VS Code** | ✅ (`TERM_PROGRAM`, `VSCODE_PID`) | User `settings.json` + Cline MCP | Built-in | ❌ Zero (Ghost Mode) |
 | **Cursor** | ✅ (`CURSOR_TRACE_ID`, `CURSOR_VERSION`) | `.cursor/mcp.json` | `.cursorrules` | ❌ None (only Cursor) |
 | **Windsurf** | ✅ (`WINDSURF_VERSION`, Codeium path) | `.windsurf/mcp_config.json` | `.windsurfrules` | ❌ None (only Windsurf) |
 | **Claude Desktop / Code** | ✅ (`CLAUDE_CODE`, `CLAUDE_PROJECT_DIR`) | `claude_desktop_config.json` | `CLAUDE.md` | ❌ None (only Claude) |
@@ -123,4 +130,5 @@ learnloop init --ide vscode
 
 **Zero friction, zero repository pollution, maximum learning.** You focus on building with AI; LearnLoop quietly tracks what your AI builds and prepares you to defend your code.
 
-Just `learnloop init` and start coding! 🚀
+Just `learnloop init` and start coding! 🚀
+
