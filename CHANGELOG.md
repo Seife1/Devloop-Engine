@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.2] - 2026-11-04
+
+### Added
+- **Explicit MCP `serve` Subcommand**: Added `learnloop serve` with options `--transport [stdio|sse|http]`, `--repo`, `--host`, and `--port`. Decouples MCP stdio serving from terminal `isatty()` heuristics.
+
+### Fixed
+- **IDE Subprocess Command Arguments**: Updated `integrator.py` MCP configuration generator to emit `"args": ["serve"]` ensuring reliable stdio handshakes in VS Code, Cursor, Windsurf, Claude, and Zed.
+- **Filesystem Permission Guarding**: Hardened `_resolve_command()` against `PermissionError` when probing user bin locations in restricted/sandboxed environments.
+
+---
+
 ## [0.7.1] - 2026-11-03
 
 ### Fixed

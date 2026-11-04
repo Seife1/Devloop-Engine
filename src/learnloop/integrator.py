@@ -241,16 +241,25 @@ class LearnLoopIntegrator:
         """Resolve the safest executable command or path for the MCP server across OS platforms."""
         bin_name = "learnloop.exe" if sys.platform == "win32" else "learnloop"
         custom_bin = Path.home() / ".learnloop" / "bin" / bin_name
-        if custom_bin.exists():
-            return str(custom_bin)
+        try:
+            if custom_bin.exists():
+                return str(custom_bin)
+        except (OSError, PermissionError):
+            pass
 
-        which_bin = shutil.which("learnloop")
-        if which_bin:
-            return which_bin
+        try:
+            which_bin = shutil.which("learnloop")
+            if which_bin:
+                return which_bin
+        except Exception:
+            pass
 
-        local_bin = Path.home() / ".local" / "bin" / bin_name
-        if local_bin.exists():
-            return str(local_bin)
+        try:
+            local_bin = Path.home() / ".local" / "bin" / bin_name
+            if local_bin.exists():
+                return str(local_bin)
+        except (OSError, PermissionError):
+            pass
 
         return "learnloop"
 
@@ -261,7 +270,7 @@ class LearnLoopIntegrator:
             "mcpServers": {
                 "learnloop": {
                     "command": cmd,
-                    "args": []
+                    "args": ["serve"]
                 }
             }
         }

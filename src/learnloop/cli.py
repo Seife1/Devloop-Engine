@@ -67,12 +67,18 @@ def _git(repo: Path, *args: str) -> str:
     ).stdout
 
 
-def cmd_serve() -> int:
-    from learnloop.server import build_server
+def cmd_serve(transport: str = "stdio", host: str = "0.0.0.0", port: int = 8000) -> int:
+    if transport == "stdio":
+        from learnloop.server import build_server
 
-    setup_logging()
-    build_server().run()  # stdio transport
-    return 0
+        setup_logging()
+        build_server().run()  # stdio transport
+        return 0
+    elif transport in ("sse", "http"):
+        return cmd_http(host=host, port=port)
+    else:
+        sys.stderr.write(f"Unknown transport: {transport}\n")
+        return 1
 
 
 def cmd_dashboard(port: int = 8765, use_gui: bool = False) -> int:
@@ -573,6 +579,17 @@ def main(argv: list[str] | None = None) -> None:
     http_p.add_argument("--port", type=int, default=8000, help="Port to bind to (default: 8000)")
     http_p.add_argument("--reload", action="store_true", help="Enable auto-reload")
 
+    serve_p = sub.add_parser("serve", help="Run MCP protocol server")
+    serve_p.add_argument(
+        "--transport",
+        choices=["stdio", "sse", "http"],
+        default="stdio",
+        help="MCP transport protocol (default: stdio)",
+    )
+    serve_p.add_argument("--repo", type=Path, default=Path.cwd(), help="Target repository path")
+    serve_p.add_argument("--host", default="0.0.0.0", help="Host for SSE/HTTP transport (default: 0.0.0.0)")
+    serve_p.add_argument("--port", type=int, default=8000, help="Port for SSE/HTTP transport (default: 8000)")
+
     args = p.parse_args(argv)
     if args.cmd == "init":
         code = cmd_init(
@@ -582,6 +599,8 @@ def main(argv: list[str] | None = None) -> None:
             ide=args.ide,
             all_integrations=args.all,
         )
+    elif args.cmd == "serve":
+        code = cmd_serve(transport=args.transport, host=args.host, port=args.port)
     elif args.cmd == "http":
         code = cmd_http(host=args.host, port=args.port, reload=args.reload)
     elif args.cmd == "setup":
