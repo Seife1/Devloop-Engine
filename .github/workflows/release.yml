@@ -1,9 +1,9 @@
-name: Release Standalone Binaries
+name: Release Build & Distribution
 
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -11,83 +11,98 @@ permissions:
 
 jobs:
   build:
-    name: Build ${{ matrix.target }}
+    name: Build (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          - os: ubuntu-latest
+            platform: linux-x64
+            asset_name: learnloop-linux-x64
+            binary_src: dist/learnloop
           - os: windows-latest
-            target: windows-x64
-            binary_name: learnloop.exe
-            release_name: learnloop-windows-x64.exe
+            platform: windows-x64
+            asset_name: learnloop-windows-x64.exe
+            binary_src: dist/learnloop.exe
           - os: macos-latest
-            target: darwin-arm64
-            binary_name: learnloop
-            release_name: learnloop-darwin-arm64
+            platform: darwin-arm64
+            asset_name: learnloop-darwin-arm64
+            binary_src: dist/learnloop
           - os: macos-13
-            target: darwin-x64
-            binary_name: learnloop
-            release_name: learnloop-darwin-x64
-          - os: ubuntu-22.04
-            target: linux-x64
-            binary_name: learnloop
-            release_name: learnloop-linux-x64
+            platform: darwin-x64
+            asset_name: learnloop-darwin-x64
+            binary_src: dist/learnloop
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up Python
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
+          cache: 'pip'
 
-      - name: Install build dependencies
+      - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,http]"
-          pip install pyinstaller pywebview
+          pip install -e ".[http]"
+          pip install pyinstaller
 
-      - name: Build standalone binary
+      - name: Build Binary
         run: python scripts/build_binary.py
 
-      - name: Rename release asset
-        shell: bash
+      - name: Rename Release Asset (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          mkdir -p release_assets
-          mv "dist/${{ matrix.binary_name }}" "release_assets/${{ matrix.release_name }}"
-          chmod +x "release_assets/${{ matrix.release_name }}" || true
-          if [[ "${{ matrix.os }}" =~ macos ]]; then
-            codesign -s - "release_assets/${{ matrix.release_name }}" 2>/dev/null || true
-          fi
+          Move-Item "${{ matrix.binary_src }}" "dist/${{ matrix.asset_name }}" -Force
+          Get-Item "dist/${{ matrix.asset_name }}"
 
-      - name: Upload Build Artifact
+      - name: Rename Release Asset (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mv "${{ matrix.binary_src }}" "dist/${{ matrix.asset_name }}"
+          chmod +x "dist/${{ matrix.asset_name }}"
+          ls -lh "dist/${{ matrix.asset_name }}"
+
+      - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}
-          path: release_assets/${{ matrix.release_name }}
+          name: ${{ matrix.asset_name }}
+          path: dist/${{ matrix.asset_name }}
+          if-no-files-found: error
+          retention-days: 5
 
   publish:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
-          path: release_binaries
+          path: dist
           merge-multiple: true
 
       - name: Generate Checksums
-        working-directory: release_binaries
+        working-directory: dist
         run: |
           sha256sum * > checksums.txt
+          echo "=== SHA256 Checksums ==="
           cat checksums.txt
 
-      - name: Create GitHub Release
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release_binaries/*
+            dist/*
           generate_release_notes: true
+          draft: false
+          prerelease: false

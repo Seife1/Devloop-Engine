@@ -1,6 +1,6 @@
 # LearnLoop
 
-![Version](https://img.shields.io/badge/version-0.7.4-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Version](https://img.shields.io/badge/version-0.7.5-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 An MCP server that shows you where your AI coding agent did work you can't yet do alone, then gives you
 short, targeted practice to close the gap.
@@ -429,7 +429,8 @@ We welcome community contributions, bug reports, and architectural proposals!
 
 LearnLoop follows strict [Semantic Versioning (SemVer 2.0.0)](https://semver.org/).
 
-- **Latest Release**: **[v0.7.4](CHANGELOG.md#074---2026-11-04)** (2026-11-04) — Website download resilience (direct installer script downloads & release asset alignment) and Linux shell profile fallback.
+- **Latest Release**: **[v0.7.5](CHANGELOG.md#075---2026-11-04)** (2026-11-04) — Automated multi-platform GitHub release pipeline for standalone binaries & Cloudflare prebuild installer sync.
+- **[v0.7.4](CHANGELOG.md#074---2026-11-04)** (2026-11-04) — Website download resilience (direct installer script downloads & release asset alignment) and Linux shell profile fallback.
 - **[v0.7.3](CHANGELOG.md#073---2026-11-04)** (2026-11-04) — Ghost Mode enforcement for IDE integration (Zero Workspace Pollution) & global user settings routing.
 - **[v0.7.2](CHANGELOG.md#072---2026-11-04)** (2026-11-04) — Explicit MCP serve command & stdio protocol stability.
 - **[v0.7.1](CHANGELOG.md#071---2026-11-03)** (2026-11-03) — Cross-platform distribution engine hardening, official Docker containerization, dynamic architecture routing (Linux ARM64/x64, macOS Apple Silicon/Intel, Windows), and clean terminal UX.
