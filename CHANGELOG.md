@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.1] - 2026-11-05
+
+### Fixed
+- **Human-Actionable Briefing Guidance**: Mapped raw internal machine slugs in `learnloop briefing` (e.g. `tour`, `review`, `explain-stale`, `nothing`) to clear human instructions (e.g., `Ask AI in your IDE: 'Give me a tour of this project' (or run: learnloop concepts)`), preventing users from mistakenly running non-existent CLI subcommands.
+- **Interactive Stderr Notice for `learnloop serve`**: When `learnloop serve` is invoked directly by a human in an interactive TTY terminal rather than through an IDE pipe, it prints an informative notice to `sys.stderr` explaining that it is listening for JSON-RPC messages and pointing to `learnloop dashboard` for the web UI, keeping `stdout` 100% clean for MCP clients.
+
+---
+
 ## [0.8.0] - 2026-11-05
 
 ### Added

@@ -74,6 +74,15 @@ def cmd_serve(transport: str = "stdio", host: str = "0.0.0.0", port: int = 8000)
         from learnloop.server import build_server
 
         setup_logging()
+        if hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
+            sys.stderr.write(
+                "\n"
+                "  ◈ LearnLoop MCP Server (stdio transport)\n"
+                "  Listening for JSON-RPC messages from your IDE (VS Code, Cursor, Claude Desktop).\n"
+                "  Press Ctrl+C to stop.\n\n"
+                "  Tip: To launch the web mission control dashboard, run 'learnloop dashboard' instead.\n\n"
+            )
+            sys.stderr.flush()
         build_server().run()  # stdio transport
         return 0
     elif transport in ("sse", "http"):
@@ -326,7 +335,15 @@ def cmd_briefing(repo: Path) -> int:
             sys.stdout.write(f"  Unexplained commits: {changes['unexplained_commits']}\n")
             sys.stdout.write(f"  Stale items: {changes['stale_items_count']}\n")
             sys.stdout.write(f"  Due for review: {len(b['due'])} (waiting: {b['waiting']})\n")
-            sys.stdout.write(f"  Suggested next action: {b['suggested_next']}\n")
+            action_map = {
+                "tour": "Ask AI in your IDE: 'Give me a tour of this project' (or run: learnloop concepts)",
+                "review": "Run 'learnloop review' to practice pending flashcards",
+                "explain-stale": "Ask AI in your IDE to explain recent codebase changes",
+                "nothing": "Keep coding! LearnLoop tracks your progress in the background.",
+            }
+            raw_action = str(b.get("suggested_next", "nothing"))
+            human_action = action_map.get(raw_action, f"Ask AI in your IDE: '{raw_action}'")
+            sys.stdout.write(f"  Suggested next action: {human_action}\n")
             sys.stdout.write(
                 "\nNote: Overdue items are simply re-spaced; there is never an urgent backlog or penalty.\n"
             )

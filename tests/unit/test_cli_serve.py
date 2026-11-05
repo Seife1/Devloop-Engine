@@ -22,6 +22,20 @@ def test_cli_serve_subcommand_with_custom_transport_and_port():
         mock_serve.assert_called_once_with(transport="sse", host="127.0.0.1", port=9090)
 
 
+def test_cmd_serve_emits_interactive_stderr_note_on_tty(capsys):
+    from learnloop.cli import cmd_serve
+
+    mock_server = MagicMock()
+    with patch("learnloop.server.build_server", return_value=mock_server):
+        with patch("sys.stdin.isatty", return_value=True):
+            code = cmd_serve(transport="stdio")
+            assert code == 0
+            captured = capsys.readouterr()
+            assert "LearnLoop MCP Server (stdio transport)" in captured.err
+            assert "Press Ctrl+C to stop" in captured.err
+            assert captured.out == ""  # Stdout must remain 100% clean for JSON-RPC
+
+
 def test_integrator_emits_explicit_serve_args(tmp_path: Path):
     integrator = LearnLoopIntegrator(project_root=tmp_path)
     cfg = integrator.get_mcp_config("vscode")

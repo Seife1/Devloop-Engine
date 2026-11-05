@@ -55,3 +55,4 @@ def test_cmd_update_already_up_to_date(capsys):
         assert code == 0
         captured = capsys.readouterr()
         assert "already up-to-date" in captured.out
+

@@ -266,3 +266,4 @@ def cmd_update(force: bool = False) -> int:
         f"  Mac/Linux:  curl -fsSL https://learnloop.seife.workers.dev/setup.sh | bash\n\n"
     )
     return 1
+

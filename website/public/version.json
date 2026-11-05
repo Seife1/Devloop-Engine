@@ -1,6 +1,7 @@
 {
-  "version": "0.8.0",
+  "version": "0.8.1",
   "release_date": "2026-11-05",
   "changelog_url": "https://learnloop.seife.workers.dev/changelog",
-  "release_notes": "Added self-update command (learnloop update), background update notifications, and --version flag."
+  "release_notes": "Clarified briefing suggested action guidance and added interactive note to learnloop serve."
 }
+
