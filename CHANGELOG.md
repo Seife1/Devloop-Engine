@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Multi-Platform Automated Release Pipeline (`.github/workflows/release.yml`)**: Automated GitHub Actions CI workflow triggered on tag pushes (`v*`) and manual dispatch. Compiles standalone single-file zero-dependency executables for Windows (`learnloop-windows-x64.exe`), Linux (`learnloop-linux-x64`), and macOS (`learnloop-darwin-arm64` and `learnloop-darwin-x64`) using PyInstaller, verifies binary execution with self-test diagnostics, computes SHA256 checksums, and publishes official GitHub Releases.
 - **Website Prebuild Installer Sync**: Added `website/scripts/sync-installers.mjs` and hooked into `npm run build` prebuild to ensure one-shot installer scripts (`setup.sh`, `setup.ps1`) are synchronized automatically into website distribution assets on every Cloudflare build.
+- **Streamlined Terminal-First Installation UX**: Replaced ambiguous dual download buttons with a unified, high-contrast hero command block featuring a one-click copy button (`⚡ COPY INSTALL COMMAND`), eliminating script execution friction and binary PATH discovery issues across Windows, macOS, and Linux.
 
 ---
 
