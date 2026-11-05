@@ -49,3 +49,4 @@ def test_stop_daemon_removes_pid_file(tmp_path: Path, monkeypatch: pytest.Monkey
     stopped = stop_daemon()
     assert stopped is False
     assert not pid_file.exists()
+
