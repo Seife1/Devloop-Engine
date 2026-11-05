@@ -124,7 +124,13 @@ if ([string]::IsNullOrWhiteSpace($userPath)) {
 
 # Verification check
 Write-Host "[3/3] Verifying installation & local database..." -ForegroundColor Cyan
-$docOut = & $exePath doctor 2>&1
+$docOut = try {
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    (& $exePath doctor 2>&1 | Out-String)
+} finally {
+    $ErrorActionPreference = $prevEap
+}
 if ($docOut -match "ok") {
     Write-Host "      ✓ Doctor check passed (local SQLite engine ready)" -ForegroundColor Green
 } else {
