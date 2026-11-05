@@ -4,12 +4,44 @@
 
 $ErrorActionPreference = "Stop"
 
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {}
+
+$arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
+$psVer = "$($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
+
 Write-Host ""
 Write-Host "  ================================================================" -ForegroundColor Cyan
-Write-Host "                LEARNLOOP - AI LEARNING COMPANION                 " -ForegroundColor White
-Write-Host "              Zero Telemetry  *  100% Local-First                 " -ForegroundColor DarkGray
+Write-Host "        LEARNLOOP - AI LEARNING COMPANION  [GHOST MODE]          " -ForegroundColor White
+Write-Host "             Zero Telemetry  *  100% Local-First                 " -ForegroundColor DarkGray
 Write-Host "  ================================================================" -ForegroundColor Cyan
+Write-Host "  Platform: Windows $arch (PowerShell $psVer)" -ForegroundColor DarkGray
 Write-Host ""
+
+# Detect installed editors/IDEs
+$detectedEditors = @()
+if ((Test-Path (Join-Path $env:APPDATA "Cursor")) -or (Test-Path (Join-Path $env:USERPROFILE ".cursor"))) {
+    $detectedEditors += "Cursor"
+}
+if ((Test-Path (Join-Path $env:APPDATA "Code")) -or (Test-Path (Join-Path $env:USERPROFILE ".vscode"))) {
+    $detectedEditors += "VS Code"
+}
+if ((Test-Path (Join-Path $env:APPDATA "Windsurf")) -or (Test-Path (Join-Path $env:USERPROFILE ".windsurf"))) {
+    $detectedEditors += "Windsurf"
+}
+if (Test-Path (Join-Path $env:APPDATA "Claude")) {
+    $detectedEditors += "Claude Desktop"
+}
+if ((Test-Path (Join-Path $env:APPDATA "Zed")) -or (Test-Path (Join-Path $env:USERPROFILE ".zed"))) {
+    $detectedEditors += "Zed"
+}
+
+if ($detectedEditors.Count -gt 0) {
+    $editorsStr = $detectedEditors -join ", "
+    Write-Host "  -> Detected Editors: $editorsStr (ready for zero-config MCP)" -ForegroundColor Yellow
+    Write-Host ""
+}
 
 $binDir = Join-Path $env:USERPROFILE ".learnloop\bin"
 if (-not (Test-Path $binDir)) {
@@ -26,7 +58,7 @@ if ($localDist -and (Test-Path $localDist)) {
     Copy-Item -Path $localDist -Destination $exePath -Force
     $installed = $true
 } else {
-    Write-Host "[1/3] Checking standalone binary for Windows (x64)..." -ForegroundColor Cyan
+    Write-Host "[1/3] Standalone binary & environment check (Windows $arch)..." -ForegroundColor Cyan
     $releaseUrl = "https://github.com/Seife1/Devloop-Engine/releases/latest/download/learnloop-windows-x64.exe"
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -140,9 +172,15 @@ Write-Host "  |                 INSTALLATION COMPLETE                       |" -
 Write-Host "  +-------------------------------------------------------------+" -ForegroundColor Green
 Write-Host "  * Executable:      $exePath" -ForegroundColor White
 Write-Host "  * User PATH:       ~/.learnloop/bin permanently added" -ForegroundColor White
-Write-Host "  * Privacy:         100% Local SQLite - Zero telemetry sent    " -ForegroundColor White
+Write-Host "  * Architecture:    100% Local SQLite - Zero telemetry sent" -ForegroundColor White
+if ($detectedEditors.Count -gt 0) {
+    Write-Host "  * Detected IDEs:   $editorsStr (MCP ready)" -ForegroundColor Cyan
+}
 Write-Host ""
-Write-Host "  QUICK START FOR NEW USERS:" -ForegroundColor Yellow
+Write-Host "  -> TO ACTIVATE IN THIS CURRENT TERMINAL:" -ForegroundColor Yellow
+Write-Host "     `$env:Path = `"`$HOME\.learnloop\bin;`$env:Path`"" -ForegroundColor White
+Write-Host ""
+Write-Host "  -> QUICK START FOR NEW USERS:" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  1. Verify engine & database:" -ForegroundColor Cyan
 Write-Host "     learnloop doctor" -ForegroundColor White

@@ -5,16 +5,39 @@
 
 set -euo pipefail
 
-echo ""
-echo -e "\033[36m  ================================================================\033[0m"
-echo -e "\033[1;37m                LEARNLOOP - AI LEARNING COMPANION                 \033[0m"
-echo -e "\033[90m              Zero Telemetry  *  100% Local-First                 \033[0m"
-echo -e "\033[36m  ================================================================\033[0m"
-echo ""
-
 # Detect OS and Architecture
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"
+
+echo ""
+echo -e "\033[1;36m  ◈ LEARNLOOP ◉ GHOST MODE ◈ 100% LOCAL-FIRST\033[0m"
+echo -e "\033[90m    AI Learning Companion • Zero Telemetry • Local SQLite\033[0m"
+echo -e "\033[90m    System: $OS ($ARCH)\033[0m"
+echo ""
+
+# Detect installed editors/IDEs
+DETECTED_EDITORS=()
+if [ -d "$HOME/.cursor" ] || [ -d "$HOME/Library/Application Support/Cursor" ] || [ -d "$HOME/.config/Cursor" ]; then
+  DETECTED_EDITORS+=("Cursor")
+fi
+if [ -d "$HOME/.vscode" ] || [ -d "$HOME/Library/Application Support/Code" ] || [ -d "$HOME/.config/Code" ]; then
+  DETECTED_EDITORS+=("VS Code")
+fi
+if [ -d "$HOME/.windsurf" ] || [ -d "$HOME/Library/Application Support/Windsurf" ] || [ -d "$HOME/.config/Windsurf" ]; then
+  DETECTED_EDITORS+=("Windsurf")
+fi
+if [ -d "$HOME/Library/Application Support/Claude" ] || [ -d "$HOME/.config/Claude" ]; then
+  DETECTED_EDITORS+=("Claude Desktop")
+fi
+if [ -d "$HOME/.config/zed" ] || [ -d "$HOME/Library/Application Support/Zed" ]; then
+  DETECTED_EDITORS+=("Zed")
+fi
+
+if [ ${#DETECTED_EDITORS[@]} -gt 0 ]; then
+  EDITORS_STR=$(IFS=', '; echo "${DETECTED_EDITORS[*]}")
+  echo -e "\033[1;33m  ⚡ Detected Editors: $EDITORS_STR (ready for zero-config MCP)\033[0m"
+  echo ""
+fi
 
 DOWNLOAD_BINARY=true
 ASSET_NAME=""
@@ -54,10 +77,10 @@ if [ -f "$LOCAL_DIST" ]; then
   cp "$LOCAL_DIST" "$EXE_PATH"
   INSTALL_SUCCESS=true
 elif [ "$DOWNLOAD_BINARY" = true ]; then
-  echo -e "\033[36m[1/3] Downloading standalone binary for $OS ($ARCH)...\033[0m"
+  echo -e "\033[36m[1/3] Standalone binary & environment check ($OS $ARCH)...\033[0m"
   RELEASE_URL="https://github.com/Seife1/Devloop-Engine/releases/latest/download/$ASSET_NAME"
   if curl -fsSL "$RELEASE_URL" -o "$EXE_PATH" 2>/dev/null; then
-    echo -e "\033[32m      ✓ Downloaded $ASSET_NAME\033[0m"
+    echo -e "\033[32m      [OK] Downloaded $ASSET_NAME\033[0m"
     INSTALL_SUCCESS=true
   fi
 fi
@@ -65,7 +88,7 @@ fi
 if [ "$INSTALL_SUCCESS" = false ]; then
   echo -e "\033[36m[1/3] Setting up environment...\033[0m"
   if ! command -v uv >/dev/null 2>&1; then
-    echo -e "      • Bootstrapping standalone package engine (uv)..."
+    echo -e "      * Bootstrapping standalone package engine (uv)..."
     curl -LsSf https://astral.sh/uv/install.sh 2>/dev/null | env CARGO_DIST_FORCE_INSTALL=true sh >/dev/null 2>&1 || true
     export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
   fi
@@ -75,7 +98,7 @@ if [ "$INSTALL_SUCCESS" = false ]; then
     echo -e "\033[36m[2/3] Installing LearnLoop engine (fetching packages, ~15s)...\033[0m"
     if "$UV_BIN" tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force --quiet 2>/dev/null; then
       INSTALL_SUCCESS=true
-      echo -e "\033[32m      ✓ LearnLoop installed successfully\033[0m"
+      echo -e "\033[32m      [OK] LearnLoop installed successfully\033[0m"
     fi
   fi
 
@@ -138,7 +161,7 @@ fi
 echo -e "\033[36m[3/3] Verifying installation & local database...\033[0m"
 DOCTOR_OUT="$("$EXE_PATH" doctor 2>&1)" || true
 if echo "$DOCTOR_OUT" | grep -q "ok"; then
-  echo -e "\033[32m      ✓ Doctor check passed (local SQLite engine ready)\033[0m"
+  echo -e "\033[32m      [OK] Doctor check passed (local SQLite engine ready)\033[0m"
 else
   echo "$DOCTOR_OUT"
 fi
@@ -149,9 +172,11 @@ echo -e "\033[32m  |                 INSTALLATION COMPLETE                      
 echo -e "\033[32m  +-------------------------------------------------------------+\033[0m"
 echo -e "\033[1;37m  * Executable:      $EXE_PATH\033[0m"
 echo -e "\033[1;37m  * User PATH:       ~/.learnloop/bin permanently added\033[0m"
-echo -e "\033[1;37m  * Privacy:         100% Local SQLite - Zero telemetry sent    \033[0m"
+echo -e "\033[1;37m  * Architecture:    100% Local SQLite - Zero telemetry sent\033[0m"
+if [ ${#DETECTED_EDITORS[@]} -gt 0 ]; then
+  echo -e "\033[36m  * Detected IDEs:   $EDITORS_STR (MCP ready)\033[0m"
+fi
 echo ""
-
 echo -e "\033[1;33m  QUICK START FOR NEW USERS:\033[0m"
 echo ""
 echo -e "\033[36m  1. Verify engine & database:\033[0m"

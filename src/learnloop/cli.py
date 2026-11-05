@@ -616,11 +616,60 @@ def cmd_uninstall(repo: Path, purge: bool = False, yes: bool = False) -> int:
     return 0
 
 
+def _format_help(use_color: bool = True) -> str:
+    c_cyan = "\033[36m" if use_color else ""
+    c_bold = "\033[1m" if use_color else ""
+    c_reset = "\033[0m" if use_color else ""
+    c_title = "\033[1;36m" if use_color else ""
+    c_dim = "\033[90m" if use_color else ""
+
+    return (
+        f"\n"
+        f"  {c_title}◈ LEARNLOOP{c_reset} - Local-First AI Learning Companion\n"
+        f"  {c_dim}Zero Telemetry • 100% Local SQLite • Ghost Mode{c_reset}\n\n"
+        f"{c_bold}USAGE:{c_reset}\n"
+        f"  learnloop [COMMAND] [OPTIONS]\n"
+        f"  learnloop                       Launch setup wizard (interactive) or run MCP server (stdio)\n\n"
+        f"{c_bold}DAILY LEARNING & WORKFLOW:{c_reset}\n"
+        f"  {c_cyan}briefing{c_reset}     Calm 2-minute catch-up summary of AI changes since yesterday\n"
+        f"  {c_cyan}review{c_reset}       Interactive SuperMemo-2 spaced repetition review session\n"
+        f"  {c_cyan}concepts{c_reset}     List verified architectural concepts and invariants\n"
+        f"  {c_cyan}dashboard{c_reset}    Launch local mission control web dashboard (http://127.0.0.1:8765)\n"
+        f"  {c_cyan}gui{c_reset}          Launch native desktop GUI window (Edge WebView2)\n\n"
+        f"{c_bold}PROJECT SETUP & INTEGRATION:{c_reset}\n"
+        f"  {c_cyan}init{c_reset}         Initialize LearnLoop in project (auto-detects IDE, zero-config)\n"
+        f"  {c_cyan}integrate{c_reset}    Configure MCP connections for VS Code, Cursor, Windsurf, Claude, Zed\n"
+        f"  {c_cyan}techscan{c_reset}     Scan repository for frameworks, libraries, and ecosystem dependencies\n"
+        f"  {c_cyan}backfill{c_reset}     Reconcile unreviewed Git commits into verified exposure queue\n\n"
+        f"{c_bold}DIAGNOSTICS & ENGINE:{c_reset}\n"
+        f"  {c_cyan}doctor{c_reset}       Run diagnostic health check on local SQLite DB and MCP readiness\n"
+        f"  {c_cyan}serve{c_reset}        Run MCP protocol server (stdio, sse, or http transport)\n"
+        f"  {c_cyan}http{c_reset}         Start HTTP/SSE server for LAN and cloud deployment\n"
+        f"  {c_cyan}setup{c_reset}        Launch interactive first-time setup wizard\n"
+        f"  {c_cyan}uninstall{c_reset}    Cleanly unregister LearnLoop from IDEs, hooks, and system\n\n"
+        f"{c_bold}FLAGS:{c_reset}\n"
+        f"  -h, --help   Show this help message and exit\n\n"
+        f"Run 'learnloop [COMMAND] --help' for options on a specific command.\n"
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="learnloop")
+
+    def _should_use_color() -> bool:
+        import os
+        if "NO_COLOR" in os.environ:
+            return False
+        return bool(hasattr(sys.stdout, "isatty") and sys.stdout.isatty())
+
+    p.format_help = lambda: _format_help(use_color=_should_use_color())  # type: ignore[assignment]
     sub = p.add_subparsers(dest="cmd")
 
-    init_p = sub.add_parser("init", help="Initialize LearnLoop in project")
+    init_p = sub.add_parser(
+        "init",
+        help="Initialize LearnLoop in project (auto-detects IDE, zero-config)",
+        description="Initialize LearnLoop in project. Configures post-commit hook and auto-integrates with your IDE.",
+    )
     init_p.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
     init_p.add_argument("--no-integrate", dest="integrate", action="store_false", help="Skip automatic IDE integration")
     init_p.set_defaults(integrate=True)
@@ -637,35 +686,96 @@ def main(argv: list[str] | None = None) -> None:
     )
     init_p.add_argument("--in-repo", action="store_true", help="Store SQLite DB inside .learn/ folder")
 
-    for name in ("record-commit", "concepts", "review", "briefing", "techscan"):
-        sp = sub.add_parser(name)
-        sp.add_argument("--repo", type=Path, default=Path.cwd())
+    briefing_p = sub.add_parser(
+        "briefing",
+        help="Calm 2-minute catch-up summary of AI changes since yesterday",
+        description="Display a calm 2-minute catch-up summary of AI commits and code changes made since yesterday.",
+    )
+    briefing_p.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
 
-    bf = sub.add_parser("backfill")
-    bf.add_argument("--repo", type=Path, default=Path.cwd())
-    bf.add_argument("--limit", type=int, default=50)
+    review_p = sub.add_parser(
+        "review",
+        help="Interactive SuperMemo-2 spaced repetition review session",
+        description="Start an interactive spaced repetition flashcard review session for concepts due today.",
+    )
+    review_p.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
 
-    sub.add_parser("doctor")
-    uninst_p = sub.add_parser("uninstall", help="Cleanly unregister LearnLoop from IDEs, hooks, and system")
+    concepts_p = sub.add_parser(
+        "concepts",
+        help="List verified architectural concepts and invariants",
+        description="List all tracked architectural concepts, invariants, and implementation patterns.",
+    )
+    concepts_p.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
+
+    techscan_p = sub.add_parser(
+        "techscan",
+        help="Scan repository for frameworks, libraries, and ecosystem dependencies",
+        description="Scan repository files and manifests to detect frameworks, libraries, and tools.",
+    )
+    techscan_p.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
+
+    rc_p = sub.add_parser(
+        "record-commit",
+        help="Record Git post-commit hook metadata (called automatically by hook)",
+        description="Fast non-blocking hook invoked by Git post-commit to record commit metadata.",
+    )
+    rc_p.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
+
+    bf = sub.add_parser(
+        "backfill",
+        help="Reconcile unreviewed Git commits into verified exposure queue",
+        description="Scan recent Git commit history to backfill unrecorded commits into the exposure queue.",
+    )
+    bf.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
+    bf.add_argument("--limit", type=int, default=50, help="Maximum number of commits to backfill (default: 50)")
+
+    doc_p = sub.add_parser(
+        "doctor",
+        help="Run diagnostic health check on local SQLite DB and MCP readiness",
+        description="Check environment, SQLite database integrity, seeded skills, and MCP readiness.",
+    )
+    doc_p.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
+
+    uninst_p = sub.add_parser(
+        "uninstall",
+        help="Cleanly unregister LearnLoop from IDEs, hooks, and system",
+        description="Cleanly unregister LearnLoop from IDE configs, remove git hooks, and optionally purge data.",
+    )
     uninst_p.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
     uninst_p.add_argument("--purge", action="store_true", help="Purge local database and learning history (~/.learnloop)")
     uninst_p.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompt")
 
-    dash = sub.add_parser("dashboard")
-    dash.add_argument("--port", type=int, default=8765)
+    dash = sub.add_parser(
+        "dashboard",
+        help="Launch local mission control web dashboard (http://127.0.0.1:8765)",
+        description="Launch local web dashboard displaying concept masteries, due reviews, and session logs.",
+    )
+    dash.add_argument("--port", type=int, default=8765, help="Port to run web dashboard on (default: 8765)")
     dash.add_argument("--gui", action="store_true", help="Open dashboard in native desktop GUI window")
 
-    setup_p = sub.add_parser("setup", help="Launch interactive setup wizard")
+    setup_p = sub.add_parser(
+        "setup",
+        help="Launch interactive first-time setup wizard",
+        description="Launch interactive web setup wizard to configure your learning profile and IDEs.",
+    )
     setup_p.add_argument("--port", type=int, default=8765, help="Port to run setup server on")
     setup_p.add_argument("--no-browser", action="store_true", help="Do not automatically open browser")
     setup_p.add_argument("--browser", action="store_true", help="Force opening in web browser instead of desktop window")
 
-    gui_p = sub.add_parser("gui", help="Launch native desktop GUI window (Edge WebView2)")
+    gui_p = sub.add_parser(
+        "gui",
+        help="Launch native desktop GUI window (Edge WebView2)",
+        description="Launch native desktop GUI window using Edge WebView2 without needing a separate browser.",
+    )
     gui_p.add_argument("--port", type=int, default=8765, help="Port to run setup server on")
     gui_p.add_argument("--route", default="/setup", choices=["/setup", "/"], help="Starting view (/setup or /)")
     gui_p.add_argument("--no-hide-console", action="store_true", help="Keep console window visible")
 
-    integ = sub.add_parser("integrate", help="Integrate with IDEs or terminal")
+    integ = sub.add_parser(
+        "integrate",
+        help="Configure MCP connections for VS Code, Cursor, Windsurf, Claude, Zed",
+        description="Configure MCP configuration files for supported editors or setup terminal wrappers.",
+    )
     integ.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
     integ.add_argument(
         "--ide",
@@ -681,12 +791,20 @@ def main(argv: list[str] | None = None) -> None:
         "--in-repo", action="store_true", help="Store configs in-repo rather than global user configs"
     )
 
-    http_p = sub.add_parser("http", help="Start HTTP/SSE server for LAN and cloud deployment")
+    http_p = sub.add_parser(
+        "http",
+        help="Start HTTP/SSE server for LAN and cloud deployment",
+        description="Start HTTP/SSE REST API and web server.",
+    )
     http_p.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
     http_p.add_argument("--port", type=int, default=8000, help="Port to bind to (default: 8000)")
     http_p.add_argument("--reload", action="store_true", help="Enable auto-reload")
 
-    serve_p = sub.add_parser("serve", help="Run MCP protocol server")
+    serve_p = sub.add_parser(
+        "serve",
+        help="Run standard MCP protocol server (stdio, sse, or http transport)",
+        description="Run Model Context Protocol (MCP) server for AI coding assistants.",
+    )
     serve_p.add_argument(
         "--transport",
         choices=["stdio", "sse", "http"],

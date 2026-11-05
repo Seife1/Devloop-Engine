@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.7] - 2026-11-05
+
+### Added
+- **Categorized Workflow CLI Help (`learnloop --help`)**: Completely overhauled CLI documentation with Modern Developer Aesthetic styling (Astral uv / Bun inspiration) and ANSI color formatting. Organizes all 15 commands into three structured tiers:
+  - `DAILY LEARNING & WORKFLOW`: `briefing`, `review`, `concepts`, `dashboard`, `gui`
+  - `PROJECT SETUP & INTEGRATION`: `init`, `integrate`, `techscan`, `backfill`
+  - `DIAGNOSTICS & ENGINE`: `doctor`, `serve`, `http`, `setup`, `uninstall`
+  Eliminates undocumented subcommands by providing complete one-line descriptions for `record-commit`, `concepts`, `review`, `briefing`, `techscan`, `backfill`, `doctor`, and `dashboard`. Respects `NO_COLOR` standard and non-TTY pipes.
+- **Modern Developer Aesthetic & Live Editor Detection in Installers**: Upgraded `setup.ps1` and `setup.sh` with platform badges, live auto-detection of installed AI editors (`⚡ Detected Editors: Cursor, VS Code (ready for zero-config MCP)`), and smooth 3-step progress indicators.
+
+---
+
 ## [0.7.6] - 2026-11-05
 
 ### Added
