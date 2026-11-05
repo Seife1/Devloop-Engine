@@ -618,174 +618,6 @@ You are working with a learner who builds projects with AI and must be confident
     def _integrate_generic_rules(self, config_path: Path, force: bool) -> bool:
         """Integrate with generic rules file."""
         return self._write_rule_file(config_path, self.generate_rules_content("generic"), force)
-    
-    def create_terminal_wrapper(self) -> bool:
-        """Create terminal wrapper script for direct tool access."""
-        # Ensure .learn directory exists
-        self.learnloop_dir.mkdir(parents=True, exist_ok=True)
-        
-        wrapper_path = self.learnloop_dir / "tools.sh"
-        
-        wrapper_content = """#!/bin/bash
-# LearnLoop Terminal Wrapper
-# Access LearnLoop tools directly from terminal
-
-LEARNLOOP_CMD="learnloop"
-
-case "$1" in
-    "briefing")
-        echo "📋 Getting session briefing..."
-        $LEARNLOOP_CMD briefing
-        ;;
-    "start-session")
-        echo "🚀 Starting skill session..."
-        shift
-        $LEARNLOOP_CMD start_skill_session "$@"
-        ;;
-    "review")
-        echo "📚 Starting review session..."
-        $LEARNLOOP_CMD review
-        ;;
-    "register")
-        echo "💡 Registering knowledge item..."
-        shift
-        $LEARNLOOP_CMD register-knowledge-item "$@"
-        ;;
-    "dashboard")
-        echo "📊 Opening dashboard..."
-        $LEARNLOOP_CMD dashboard &
-        ;;
-    "integrate")
-        echo "🔧 Integrating with IDEs..."
-        python -m learnloop.integrator "$@"
-        ;;
-    "help"|"")
-        echo "LearnLoop Terminal Commands:"
-        echo "  briefing      - Get session briefing"
-        echo "  start-session - Start skill session (args: intent files)"
-        echo "  review        - Start review session"
-        echo "  register      - Register knowledge item"
-        echo "  dashboard     - Open dashboard"
-        echo "  integrate     - Integrate with IDEs"
-        echo "  help         - Show this help"
-        ;;
-    *)
-        echo "Unknown command: $1"
-        echo "Use: learnloop-tools help"
-        exit 1
-        ;;
-esac
-"""
-        
-        wrapper_path.write_text(wrapper_content, encoding="utf-8")
-        wrapper_path.chmod(0o755)
-        
-        # Create batch file for Windows
-        batch_path = self.learnloop_dir / "tools.bat"
-        batch_content = """@echo off
-REM LearnLoop Terminal Wrapper for Windows
-
-set LEARNLOOP_CMD=learnloop
-
-if "%1"=="briefing" (
-    echo 📋 Getting session briefing...
-    %LEARNLOOP_CMD% briefing
-) else if "%1"=="start-session" (
-    echo 🚀 Starting skill session...
-    shift
-    %LEARNLOOP_CMD% start_skill_session %*
-) else if "%1"=="review" (
-    echo 📚 Starting review session...
-    %LEARNLOOP_CMD% review
-) else if "%1"=="register" (
-    echo 💡 Registering knowledge item...
-    shift
-    %LEARNLOOP_CMD% register-knowledge-item %*
-) else if "%1"=="dashboard" (
-    echo 📊 Opening dashboard...
-    start %LEARNLOOP_CMD% dashboard
-) else if "%1"=="integrate" (
-    echo 🔧 Integrating with IDEs...
-    python -m learnloop.integrator %*
-) else if "%1"=="" (
-    goto :help
-) else if "%1"=="help" (
-    goto :help
-) else (
-    echo Unknown command: %1
-    echo Use: learnloop-tools help
-    exit /b 1
-)
-
-:help
-echo LearnLoop Terminal Commands:
-echo   briefing      - Get session briefing
-echo   start-session - Start skill session ^(args: intent files^)
-echo   review        - Start review session
-echo   register      - Register knowledge item
-echo   dashboard     - Open dashboard
-echo   integrate     - Integrate with IDEs
-echo   help         - Show this help
-"""
-        
-        batch_path.write_text(batch_content, encoding="utf-8")
-        
-        print(f"  ✅ Terminal wrappers created:")
-        print(f"     - {wrapper_path}")
-        print(f"     - {batch_path}")
-        print(f"  📝 Use: learnloop-tools [command]")
-        
-        return True
-    
-    def setup_environment(self) -> bool:
-        """Set up environment for LearnLoop usage."""
-        # Create .learn directory if it doesn't exist
-        self.learnloop_dir.mkdir(exist_ok=True)
-        
-        # Create environment file
-        env_path = self.learnloop_dir / "environment.sh"
-        env_content = """# LearnLoop Environment Setup
-export LEARNLOOP_PROJECT_ID="$(basename "$(pwd)")"
-export LEARNLOOP_PROJECT_PATH="$(pwd)"
-export PATH="$PATH:$(pwd)/.learn"
-
-alias ll-briefing="learnloop briefing"
-alias ll-review="learnloop review"
-alias ll-dashboard="learnloop dashboard &"
-"""
-        
-        env_path.write_text(env_content, encoding="utf-8")
-        
-        # Create PowerShell profile script
-        ps_profile = self.learnloop_dir / "LearnLoop.ps1"
-        ps_content = """# LearnLoop PowerShell Profile
-$env:LEARNLOOP_PROJECT_ID = $(Get-Item .).Name
-$env:LEARNLOOP_PROJECT_PATH = $(Get-Location).Path
-
-function Get-LearnLoopBriefing {
-    learnloop briefing
-}
-
-function Start-LearnLoopReview {
-    learnloop review
-}
-
-function Open-LearnLoopDashboard {
-    Start-Process -NoNewWindow learnloop dashboard
-}
-
-Set-Alias llb Get-LearnLoopBriefing
-Set-Alias llr Start-LearnLoopReview
-Set-Alias lld Open-LearnLoopDashboard
-"""
-        
-        ps_profile.write_text(ps_content, encoding="utf-8")
-        
-        print("  ✅ Environment setup complete")
-        print("  📝 Source: source .learn/environment.sh (Linux/Mac)")
-        print("  📝 Or: . .\\learn\\LearnLoop.ps1 (Windows)")
-        
-        return True
 
     @staticmethod
     def _uninstall_from_json(config_path: Path) -> bool:
@@ -946,29 +778,31 @@ Set-Alias lld Open-LearnLoopDashboard
         """Run integration based on command line args."""
         self.quiet = quiet
         parser = argparse.ArgumentParser(description="LearnLoop Universal Integration")
-        parser.add_argument("--ide", choices=["auto", "vscode", "cursor", "claude", "windsurf", "zed", "agents", "all"], 
-                          default="auto", help="IDE to integrate with")
+        parser.add_argument(
+            "--ide",
+            choices=["auto", "vscode", "cursor", "claude", "windsurf", "zed", "agents", "all"],
+            default="auto",
+            help="IDE to integrate with",
+        )
         parser.add_argument("--force", action="store_true", help="Force overwrite existing configs")
-        parser.add_argument("--terminal", action="store_true", help="Setup terminal integration")
-        parser.add_argument("--env", action="store_true", help="Setup environment")
-        parser.add_argument("--all", action="store_true", help="Setup everything")
-        parser.add_argument("--in-repo", action="store_true", help="Store configs in-repo rather than global user configs")
-        
+        parser.add_argument("--all", action="store_true", help="Configure all supported IDEs")
+        parser.add_argument(
+            "--in-repo", action="store_true", help="Store configs in-repo rather than global user configs"
+        )
+
         parsed_args = parser.parse_args(args)
         if parsed_args.in_repo:
             self.in_repo = True
             self._refresh_ide_configs()
-        
+
         if not self.quiet:
             print("🔧 LearnLoop Universal Integration")
             print("=" * 40)
-        
+
         # Setup everything if --all specified
         if parsed_args.all:
-            parsed_args.terminal = True
-            parsed_args.env = True
             parsed_args.ide = "all"
-        
+
         # Detect IDEs
         if parsed_args.ide == "auto":
             detected_ides = self.detect_ide()
@@ -980,37 +814,18 @@ Set-Alias lld Open-LearnLoopDashboard
             ides_to_integrate = list(self.ide_configs.keys())
         else:
             ides_to_integrate = [parsed_args.ide]
-        
+
         # Integrate with IDEs
         for ide in ides_to_integrate:
             if ide != "any":  # Skip "any" in IDE integration
                 self.integrate_ide(ide, parsed_args.force)
-        
-        # Setup terminal integration
-        if parsed_args.terminal:
-            if not self.quiet:
-                print("\n🖥️  Setting up terminal integration...")
-            self.create_terminal_wrapper()
-        
-        # Setup environment
-        if parsed_args.env:
-            if not self.quiet:
-                print("\n🌍 Setting up environment...")
-            self.setup_environment()
-        
+
         if not self.quiet:
             print("\n✅ Integration Complete!")
             print("\n📋 Next Steps:")
             print("1. Restart your IDE for MCP config to take effect")
-            step_idx = 2
-            if parsed_args.terminal:
-                print(f"{step_idx}. Use: learnloop-tools [command] from terminal")
-                step_idx += 1
-            if parsed_args.env:
-                print(f"{step_idx}. Or use aliases: llb (briefing), llr (review), lld (dashboard)")
-                step_idx += 1
-            print(f"{step_idx}. Work with AI as usual - LearnLoop will track automatically")
-        
+            print("2. Work with AI as usual - LearnLoop will track automatically")
+
         return {
             "success": True,
             "detected_ides": ides_to_integrate,

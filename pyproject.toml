@@ -1,6 +1,6 @@
 [project]
 name = "learnloop"
-version = "0.9.0"
+version = "0.10.0"
 description = "MCP server that turns what your AI coding agent builds into targeted practice."
 readme = "README.md"
 requires-python = ">=3.11"

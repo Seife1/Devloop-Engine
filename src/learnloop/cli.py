@@ -510,18 +510,6 @@ def cmd_init(
     return exit_code
 
 
-def cmd_integrate(args: list[str], repo: Path | None = None, in_repo: bool = False) -> int:
-    try:
-        from learnloop.integrator import LearnLoopIntegrator
-
-        integrator = LearnLoopIntegrator(project_root=repo, in_repo=in_repo)
-        integrator.run(args)
-        return 0
-    except Exception as exc:  # noqa: BLE001
-        sys.stderr.write(f"learnloop integrate failed: {exc}\n")
-        return 1
-
-
 def cmd_doctor() -> int:
     import os
     import re
@@ -808,7 +796,6 @@ def _format_help(use_color: bool = True) -> str:
         f"  {c_cyan}gui{c_reset}          Launch native desktop GUI window (Edge WebView2)\n\n"
         f"{c_bold}PROJECT SETUP & INTEGRATION:{c_reset}\n"
         f"  {c_cyan}init{c_reset}         Initialize LearnLoop in project (auto-detects IDE, zero-config)\n"
-        f"  {c_cyan}integrate{c_reset}    Configure MCP connections for VS Code, Cursor, Windsurf, Claude, Zed\n"
         f"  {c_cyan}techscan{c_reset}     Scan repository for frameworks, libraries, and ecosystem dependencies\n"
         f"  {c_cyan}backfill{c_reset}     Reconcile unreviewed Git commits into verified exposure queue\n\n"
         f"{c_bold}DIAGNOSTICS & ENGINE:{c_reset}\n"
@@ -855,7 +842,7 @@ def main(argv: list[str] | None = None) -> None:
     init_p.add_argument(
         "--all",
         action="store_true",
-        help="Integrate all IDEs, terminal wrappers, and shell environments",
+        help="Configure MCP for all supported IDEs (VS Code, Cursor, Windsurf, Claude, Zed)",
     )
     init_p.add_argument("--in-repo", action="store_true", help="Store SQLite DB inside .learn/ folder")
 
@@ -955,26 +942,6 @@ def main(argv: list[str] | None = None) -> None:
     gui_p.add_argument("--route", default="/setup", choices=["/setup", "/"], help="Starting view (/setup or /)")
     gui_p.add_argument("--no-hide-console", action="store_true", help="Keep console window visible")
 
-    integ = sub.add_parser(
-        "integrate",
-        help="Configure MCP connections for VS Code, Cursor, Windsurf, Claude, Zed",
-        description="Configure MCP configuration files for supported editors or setup terminal wrappers.",
-    )
-    integ.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
-    integ.add_argument(
-        "--ide",
-        choices=["auto", "vscode", "cursor", "claude", "windsurf", "zed", "agents", "all"],
-        default="auto",
-        help="IDE to integrate with",
-    )
-    integ.add_argument("--force", action="store_true", help="Force overwrite")
-    integ.add_argument("--terminal", action="store_true", help="Setup terminal integration")
-    integ.add_argument("--env", action="store_true", help="Setup environment")
-    integ.add_argument("--all", action="store_true", help="Setup everything")
-    integ.add_argument(
-        "--in-repo", action="store_true", help="Store configs in-repo rather than global user configs"
-    )
-
     http_p = sub.add_parser(
         "http",
         help="Start HTTP/SSE server for LAN and cloud deployment",
@@ -1020,21 +987,6 @@ def main(argv: list[str] | None = None) -> None:
         )
     elif args.cmd == "gui":
         code = cmd_gui(port=args.port, route=args.route, hide_console=not args.no_hide_console)
-    elif args.cmd == "integrate":
-        integ_args = []
-        if args.ide:
-            integ_args.extend(["--ide", args.ide])
-        if args.force:
-            integ_args.append("--force")
-        if args.terminal:
-            integ_args.append("--terminal")
-        if args.env:
-            integ_args.append("--env")
-        if args.all:
-            integ_args.append("--all")
-        if args.in_repo:
-            integ_args.append("--in-repo")
-        code = cmd_integrate(integ_args, repo=args.repo, in_repo=args.in_repo)
     elif args.cmd == "record-commit":
         code = cmd_record_commit(args.repo)
     elif args.cmd == "backfill":

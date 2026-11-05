@@ -181,14 +181,14 @@ def test_cmd_init_all_flag_configures_everything_in_repo(tmp_path: Path):
         assert (tmp_path / "AGENTS.md").is_file()
         assert (tmp_path / "GEMINI.md").is_file()
 
-        # Terminal integration wrappers exist in isolated user storage (Ghost Mode)
+        # Redundant terminal wrappers are pruned (zero file clutter)
         from learnloop.config import get_workspace_storage_dir
 
         storage_dir = get_workspace_storage_dir(tmp_path)
-        assert (storage_dir / "tools.sh").is_file()
-        assert (storage_dir / "tools.bat").is_file()
-        assert (storage_dir / "environment.sh").is_file()
-        assert (storage_dir / "LearnLoop.ps1").is_file()
+        assert not (storage_dir / "tools.sh").exists()
+        assert not (storage_dir / "tools.bat").exists()
+        assert not (storage_dir / "environment.sh").exists()
+        assert not (storage_dir / "LearnLoop.ps1").exists()
         assert (tmp_path / ".learn").exists()
 
 

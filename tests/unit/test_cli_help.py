@@ -16,7 +16,6 @@ def test_format_help_contains_all_categories_and_commands():
         "dashboard",
         "gui",
         "init",
-        "integrate",
         "techscan",
         "backfill",
         "doctor",
@@ -28,6 +27,7 @@ def test_format_help_contains_all_categories_and_commands():
     ]
     for cmd in expected_commands:
         assert cmd in help_text
+    assert "integrate" not in help_text
 
 
 def test_cli_version_flag_exits_cleanly(capsys):

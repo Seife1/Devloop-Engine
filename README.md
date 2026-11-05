@@ -1,6 +1,6 @@
 # LearnLoop
 
-![Version](https://img.shields.io/badge/version-0.9.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Version](https://img.shields.io/badge/version-0.10.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 An MCP server that shows you where your AI coding agent did work you can't yet do alone, then gives you
 short, targeted practice to close the gap.
@@ -160,28 +160,13 @@ pytest tests/test_queue_ingestion.py -v
 - `learnloop setup [--port 8765] [--browser] [--no-browser]`: Interactive 3-step setup wizard (web or desktop window).
 - `learnloop gui [--port 8765] [--route /setup|/]`: Launch native Microsoft Edge WebView2 desktop application window.
 - `learnloop dashboard [--port 8765] [--gui]`: Web dashboard on `127.0.0.1:8765` (optional `--gui` window).
-- `learnloop integrate [--repo .] [--ide auto|vscode|cursor|claude|windsurf|zed|agents|all] [--force] [--terminal] [--env] [--all]`:
-  Targeted or universal IDE integration utility.
 - `learnloop record-commit [--repo .]`: Record recent commit metadata (called by git hook).
 - `learnloop backfill [--repo .] [--limit 50]`: Ingest existing commit history.
 - `learnloop concepts [--repo .]`: Regenerate `.learn/concepts.md`.
 - `learnloop review [--repo .]`: Interactive spaced repetition review.
 - `learnloop briefing [--repo .]`: Session-start briefing.
-- `learnloop doctor`: Verify database, taxonomy, hooks, and migrations.
+- `learnloop doctor`: Verify database, taxonomy, hooks, daemon reachability, and AI trust evidence.
 - `learnloop techscan [--repo .]`: Scan repository dependencies.
-
-### Terminal Shortcuts (after `learnloop integrate --terminal`):
-- `learnloop-tools briefing`: Get session update
-- `learnloop-tools start-session`: Start work session
-- `learnloop-tools review`: Review knowledge
-- `learnloop-tools register`: Register knowledge item
-- `learnloop-tools dashboard`: Open dashboard
-- `learnloop-tools integrate`: Integrate with IDEs
-
-### Environment Aliases (after sourcing):
-- `llb`: Get briefing
-- `llr`: Start review  
-- `lld`: Open dashboard
 
 ## 🌐 HTTP/SSE Deployment
 
@@ -362,17 +347,8 @@ This single command automatically:
 
 **IDE not detecting?**
 ```bash
-# Force specific IDE
-learnloop integrate --ide vscode --force
-```
-
-**Terminal tools not working?**
-```bash
-# Use full path
-./.learn/tools.sh briefing
-
-# Or add to PATH
-export PATH="$PATH:$(pwd)/.learn"
+# Force specific IDE in init
+learnloop init --ide vscode
 ```
 
 **Dashboard not loading?**
@@ -391,7 +367,7 @@ learnloop dashboard --port 8765
 - Showing progress
 - Preparing you to explain your code
 
-No manual file copying. No complex setup. Just `learnloop integrate --all` and start learning! 🚀
+No manual file copying. No complex setup. Just `learnloop init` and start learning! 🚀
 
 ## 📚 Learn More
 
@@ -429,7 +405,8 @@ We welcome community contributions, bug reports, and architectural proposals!
 
 LearnLoop follows strict [Semantic Versioning (SemVer 2.0.0)](https://semver.org/).
 
-- **Latest Release**: **[v0.9.0](CHANGELOG.md#090---2026-11-05)** (2026-11-05) — Cross-environment topology detection (Native, WSL2, DevContainers, SSH), automatic background daemon management, live MCP reachability probes, and verified AI capability and trust evidence cards in `doctor` and `init`.
+- **Latest Release**: **[v0.10.0](CHANGELOG.md#0100---2026-11-05)** (2026-11-05) — Pruned redundant `integrate` CLI subcommand and removed legacy shell wrapper scripts (`tools.sh`, `environment.sh`, aliases); `learnloop init` is now the single unified command for project setup and IDE integration.
+- **[v0.9.0](CHANGELOG.md#090---2026-11-05)** (2026-11-05) — Cross-environment topology detection (Native, WSL2, DevContainers, SSH), automatic background daemon management, live MCP reachability probes, and verified AI capability and trust evidence cards in `doctor` and `init`.
 - **[v0.8.3](CHANGELOG.md#083---2026-11-05)** (2026-11-05) — Elevated `learnloop init` terminal experience with unified Astral/Bun modern developer card, complete path breakdown, and actionable IDE chat prompts.
 - **[v0.8.2](CHANGELOG.md#082---2026-11-05)** (2026-11-05) — Promoted FastAPI and Uvicorn to core dependencies to ensure `learnloop dashboard` works out-of-the-box.
 - **[v0.8.1](CHANGELOG.md#081---2026-11-05)** (2026-11-05) — Human-actionable briefing next-action guidance and interactive TTY notice for `learnloop serve`.

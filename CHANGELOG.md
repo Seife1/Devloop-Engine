@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.10.0] - 2026-11-05
+
+### Removed
+- **Pruned Redundant `learnloop integrate` Subcommand**: Removed `integrate` CLI subcommand in favor of `learnloop init`, which handles auto-detection and IDE configuration cleanly without manual duplication.
+- **Removed Legacy Shell Wrapper Scripts (`src/learnloop/integrator.py`)**: Deleted dead generators for `tools.sh`, `tools.bat`, `environment.sh`, `LearnLoop.ps1`, and alias shortcuts (`llb`, `llr`, `lld`), eliminating confusing filesystem clutter and enforcing clean, direct usage of the global `learnloop` CLI binary.
+
+---
+
 ## [0.9.0] - 2026-11-05
 
 ### Added
