@@ -16,8 +16,8 @@ export default function QuickstartCommands() {
     }
   };
 
-  const psCmd = `& ([scriptblock]::Create((iwr -useb "${origin}/setup.ps1").Content))`;
-  const cmdCmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb ${origin}/setup.ps1 | iex"`;
+  const psCmd = `irm ${origin}/setup.ps1 | iex`;
+  const cmdCmd = `powershell -c "irm ${origin}/setup.ps1 | iex"`;
   const shCmd = `curl -fsSL ${origin}/setup.sh | bash`;
 
   return (

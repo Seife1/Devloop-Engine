@@ -46,7 +46,7 @@ export default function DownloadSection() {
         },
         {
           label: "Command Prompt (cmd.exe)",
-          cmd: `powershell -NoProfile -ExecutionPolicy Bypass -Command "irm ${origin}/setup.ps1 | iex"`,
+          cmd: `powershell -c "irm ${origin}/setup.ps1 | iex"`,
           hint: "Executes the installer script directly via Windows Command Prompt.",
         },
         {
