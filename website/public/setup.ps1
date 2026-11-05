@@ -1,5 +1,5 @@
 # LearnLoop One-Shot Universal Installer for Windows
-# Usage: irm https://learnloop.dev/setup.ps1 | iex
+# Usage: irm https://learnloop.seife.workers.dev/setup.ps1 | iex
 # Or run locally: .\setup.ps1
 
 $ErrorActionPreference = "Stop"
@@ -31,7 +31,7 @@ if ($localDist -and (Test-Path $localDist)) {
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $releaseUrl -OutFile $exePath -UseBasicParsing -ErrorAction Stop
-        Write-Host "      ✓ Downloaded standalone binary" -ForegroundColor Green
+        Write-Host "      [OK] Downloaded standalone binary" -ForegroundColor Green
         $installed = $true
     } catch {
         # Fall back to package engine silently
@@ -48,13 +48,13 @@ if (-not $installed) {
         & uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force --quiet
         if ($LASTEXITCODE -eq 0) {
             $pyInstalled = $true
-            Write-Host "      ✓ LearnLoop installed successfully" -ForegroundColor Green
+            Write-Host "      [OK] LearnLoop installed successfully" -ForegroundColor Green
         }
     }
 
     # 2. Secondary: Bootstrap uv silently
     if (-not $pyInstalled) {
-        Write-Host "      • Bootstrapping standalone package engine (uv)..." -ForegroundColor DarkGray
+        Write-Host "      * Bootstrapping standalone package engine (uv)..." -ForegroundColor DarkGray
         try {
             Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression | Out-Null
             $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
@@ -63,7 +63,7 @@ if (-not $installed) {
                 & uv tool install "git+https://github.com/Seife1/Devloop-Engine.git" --force --quiet
                 if ($LASTEXITCODE -eq 0) {
                     $pyInstalled = $true
-                    Write-Host "      ✓ LearnLoop installed successfully" -ForegroundColor Green
+                    Write-Host "      [OK] LearnLoop installed successfully" -ForegroundColor Green
                 }
             }
         } catch {
@@ -124,15 +124,12 @@ if ([string]::IsNullOrWhiteSpace($userPath)) {
 
 # Verification check
 Write-Host "[3/3] Verifying installation & local database..." -ForegroundColor Cyan
-$docOut = try {
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = "SilentlyContinue"
-    (& $exePath doctor 2>&1 | Out-String)
-} finally {
-    $ErrorActionPreference = $prevEap
-}
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
+$docOut = (& $exePath doctor 2>&1 | Out-String)
+$ErrorActionPreference = $prevEap
 if ($docOut -match "ok") {
-    Write-Host "      ✓ Doctor check passed (local SQLite engine ready)" -ForegroundColor Green
+    Write-Host "      [OK] Doctor check passed (local SQLite engine ready)" -ForegroundColor Green
 } else {
     Write-Host $docOut
 }
@@ -145,10 +142,10 @@ Write-Host "  * Executable:      $exePath" -ForegroundColor White
 Write-Host "  * User PATH:       ~/.learnloop/bin permanently added" -ForegroundColor White
 Write-Host "  * Privacy:         100% Local SQLite - Zero telemetry sent    " -ForegroundColor White
 Write-Host ""
-Write-Host "  👉 TO ACTIVATE IN THIS CURRENT TERMINAL:" -ForegroundColor Yellow
+Write-Host "  -> TO ACTIVATE IN THIS CURRENT TERMINAL:" -ForegroundColor Yellow
 Write-Host "     `$env:Path = `"`$HOME\.learnloop\bin;`$env:Path`"" -ForegroundColor White
 Write-Host ""
-Write-Host "  👉 TO INITIALIZE ON ANY PROJECT:" -ForegroundColor Cyan
+Write-Host "  -> TO INITIALIZE ON ANY PROJECT:" -ForegroundColor Cyan
 Write-Host "     cd \path\to\your\project" -ForegroundColor White
 Write-Host "     learnloop init" -ForegroundColor Yellow
 Write-Host ""
