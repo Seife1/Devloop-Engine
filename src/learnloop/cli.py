@@ -517,6 +517,105 @@ def cmd_techscan(repo: Path) -> int:
         return 1
 
 
+
+def cmd_uninstall(repo: Path, purge: bool = False, yes: bool = False) -> int:
+    """Cleanly uninstall LearnLoop:
+    1. Unregisters MCP server and rules from all IDEs (VS Code, Cursor, Windsurf, Claude, Zed, Antigravity).
+    2. Removes Git post-commit hooks from repository if present.
+    3. Removes executable from ~/.learnloop/bin/ if accessible.
+    4. If --purge is specified, removes all local databases and history (~/.learnloop).
+    """
+    if not yes:
+        sys.stdout.write("LearnLoop Clean Uninstaller\n")
+        sys.stdout.write("============================\n")
+        sys.stdout.write("This will unregister LearnLoop from all IDEs (VS Code, Cursor, Windsurf, Claude, Zed)\n")
+        sys.stdout.write("and remove active Git post-commit hooks.\n")
+        if purge:
+            sys.stdout.write("WARNING: --purge is set. All local databases and learning history will be deleted!\n")
+        else:
+            sys.stdout.write("Note: Your local databases (~/.learnloop) will be preserved (use --purge to delete them).\n")
+        
+        try:
+            choice = input("\nProceed with uninstallation? [y/N]: ").strip().lower()
+            if choice not in ("y", "yes"):
+                sys.stdout.write("Uninstallation cancelled.\n")
+                return 0
+        except (EOFError, KeyboardInterrupt):
+            sys.stdout.write("\nUninstallation cancelled.\n")
+            return 0
+
+    from learnloop.integrator import LearnLoopIntegrator
+
+    sys.stdout.write("\n[1/3] Unregistering from IDEs...\n")
+    # Clean global user configs
+    global_integrator = LearnLoopIntegrator(project_root=repo, in_repo=False)
+    cleaned_configs = global_integrator.uninstall_all()
+    
+    # Also clean in-repo configs if run inside a project
+    in_repo_integrator = LearnLoopIntegrator(project_root=repo, in_repo=True)
+    in_repo_cleaned = in_repo_integrator.uninstall_all()
+    cleaned_configs.extend(in_repo_cleaned)
+    
+    unique_cleaned = list(dict.fromkeys(cleaned_configs))
+    if unique_cleaned:
+        for p in unique_cleaned:
+            sys.stdout.write(f"  [OK] Cleaned: {p}\n")
+    else:
+        sys.stdout.write("  [OK] No active IDE configurations found to clean.\n")
+
+    sys.stdout.write("\n[2/3] Cleaning Git hooks...\n")
+    hook = repo / ".git" / "hooks" / "post-commit"
+    if hook.exists():
+        try:
+            content = hook.read_text(encoding="utf-8")
+            if HOOK_MARKER in content:
+                hook.unlink()
+                sys.stdout.write(f"  [OK] Removed LearnLoop post-commit hook from {hook}\n")
+            else:
+                sys.stdout.write(f"  * Custom post-commit hook in {hook} was not created by LearnLoop; left untouched.\n")
+        except Exception as exc:
+            sys.stderr.write(f"  [WARN] Could not read/remove hook: {exc}\n")
+    else:
+        sys.stdout.write("  [OK] No repository post-commit hooks found.\n")
+
+    sys.stdout.write("\n[3/3] Removing executable & data...\n")
+    bin_name = "learnloop.exe" if sys.platform == "win32" else "learnloop"
+    custom_bin = Path.home() / ".learnloop" / "bin" / bin_name
+    custom_bin_exists = False
+    try:
+        custom_bin_exists = custom_bin.exists()
+    except (OSError, PermissionError):
+        pass
+
+    if custom_bin_exists:
+        try:
+            custom_bin.unlink()
+            sys.stdout.write(f"  [OK] Removed executable: {custom_bin}\n")
+        except Exception as exc:
+            if sys.platform == "win32":
+                sys.stdout.write(
+                    f"  * Notice: Windows locks running executables. To delete the binary after exiting this shell:\n"
+                    f"    del \"{custom_bin}\"\n"
+                )
+            else:
+                sys.stderr.write(f"  [WARN] Could not remove executable {custom_bin}: {exc}\n")
+    else:
+        sys.stdout.write("  [OK] Executable not in ~/.learnloop/bin/ (installed via package or custom path).\n")
+
+    if purge:
+        import shutil
+        learnloop_home = Path.home() / ".learnloop"
+        if learnloop_home.exists():
+            try:
+                shutil.rmtree(learnloop_home)
+                sys.stdout.write(f"  [OK] Purged local data directory: {learnloop_home}\n")
+            except Exception as exc:
+                sys.stderr.write(f"  [WARN] Could not purge {learnloop_home}: {exc}\n")
+
+    sys.stdout.write("\nLearnLoop uninstallation complete! Your IDEs and system are clean.\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="learnloop")
     sub = p.add_subparsers(dest="cmd")
@@ -547,6 +646,10 @@ def main(argv: list[str] | None = None) -> None:
     bf.add_argument("--limit", type=int, default=50)
 
     sub.add_parser("doctor")
+    uninst_p = sub.add_parser("uninstall", help="Cleanly unregister LearnLoop from IDEs, hooks, and system")
+    uninst_p.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
+    uninst_p.add_argument("--purge", action="store_true", help="Purge local database and learning history (~/.learnloop)")
+    uninst_p.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompt")
 
     dash = sub.add_parser("dashboard")
     dash.add_argument("--port", type=int, default=8765)
@@ -640,6 +743,8 @@ def main(argv: list[str] | None = None) -> None:
         code = cmd_review(args.repo)
     elif args.cmd == "briefing":
         code = cmd_briefing(args.repo)
+    elif args.cmd == "uninstall":
+        code = cmd_uninstall(args.repo, purge=args.purge, yes=args.yes)
     elif args.cmd == "doctor":
         code = cmd_doctor()
     elif args.cmd == "dashboard":

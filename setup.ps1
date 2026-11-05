@@ -142,13 +142,20 @@ Write-Host "  * Executable:      $exePath" -ForegroundColor White
 Write-Host "  * User PATH:       ~/.learnloop/bin permanently added" -ForegroundColor White
 Write-Host "  * Privacy:         100% Local SQLite - Zero telemetry sent    " -ForegroundColor White
 Write-Host ""
-Write-Host "  -> TO ACTIVATE IN THIS CURRENT TERMINAL:" -ForegroundColor Yellow
-Write-Host "     `$env:Path = `"`$HOME\.learnloop\bin;`$env:Path`"" -ForegroundColor White
+Write-Host "  QUICK START FOR NEW USERS:" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "  -> TO INITIALIZE ON ANY PROJECT:" -ForegroundColor Cyan
+Write-Host "  1. Verify engine & database:" -ForegroundColor Cyan
+Write-Host "     learnloop doctor" -ForegroundColor White
+Write-Host ""
+Write-Host "  2. Connect to any project (Ghost Mode - 0 repo pollution):" -ForegroundColor Cyan
 Write-Host "     cd \path\to\your\project" -ForegroundColor White
 Write-Host "     learnloop init" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "  Commands inside initialized projects: briefing | review | concepts | dashboard | gui" -ForegroundColor DarkGray
+Write-Host "  3. Open local learning dashboard:" -ForegroundColor Cyan
+Write-Host "     learnloop dashboard   (or: learnloop gui)" -ForegroundColor White
+Write-Host ""
+Write-Host "  * In active projects: run 'learnloop briefing' or '/review' in IDE chat" -ForegroundColor DarkGray
+Write-Host "  * Full command list:  learnloop --help" -ForegroundColor DarkGray
+Write-Host "  * Clean uninstaller:  learnloop uninstall" -ForegroundColor DarkGray
 Write-Host "  +-------------------------------------------------------------+" -ForegroundColor Green
 Write-Host ""

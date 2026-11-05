@@ -747,7 +747,162 @@ Set-Alias lld Open-LearnLoopDashboard
         print("  📝 Or: . .\\learn\\LearnLoop.ps1 (Windows)")
         
         return True
-    
+
+    @staticmethod
+    def _uninstall_from_json(config_path: Path) -> bool:
+        """Remove 'learnloop' server entry from a JSON config file without touching any other servers."""
+        try:
+            if not config_path.exists():
+                return False
+        except (OSError, PermissionError):
+            return False
+        try:
+            content = config_path.read_text(encoding="utf-8")
+            data = json.loads(content)
+            modified = False
+
+            if "mcpServers" in data and isinstance(data["mcpServers"], dict):
+                if "learnloop" in data["mcpServers"]:
+                    del data["mcpServers"]["learnloop"]
+                    modified = True
+
+            if "context_servers" in data and isinstance(data["context_servers"], dict):
+                if "learnloop" in data["context_servers"]:
+                    del data["context_servers"]["learnloop"]
+                    modified = True
+
+            if modified:
+                config_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+                return True
+        except Exception:
+            pass
+        return False
+
+    @staticmethod
+    def _strip_rule_file(path: Path) -> bool:
+        """Remove LearnLoop rules from a rule file, or delete it if it only contained LearnLoop rules."""
+        try:
+            if not path.exists():
+                return False
+        except (OSError, PermissionError):
+            return False
+        try:
+            content = path.read_text(encoding="utf-8")
+            if "## LearnLoop (learning companion)" not in content and "# learnloop" not in content.lower():
+                return False
+
+            if ".learnloop" in str(path):
+                path.unlink(missing_ok=True)
+                return True
+
+            lines = content.splitlines()
+            filtered = []
+            skip = False
+            for line in lines:
+                if line.strip().startswith("## LearnLoop (learning companion)"):
+                    skip = True
+                    continue
+                if skip and line.startswith("## ") and not line.strip().startswith("## LearnLoop"):
+                    skip = False
+                if not skip:
+                    filtered.append(line)
+
+            remaining = "\n".join(filtered).strip()
+            if not remaining:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_text(remaining + "\n", encoding="utf-8")
+            return True
+        except Exception:
+            return False
+
+    def uninstall_ide(self, ide: str) -> List[Path]:
+        """Safely remove LearnLoop MCP configuration and rules for a specific IDE."""
+        cleaned_paths = []
+        if ide == "vscode":
+            if self.in_repo:
+                for p in (self.project_root / ".vscode" / "settings.json", self.project_root / ".vscode" / "mcp.json"):
+                    if self._uninstall_from_json(p):
+                        cleaned_paths.append(p)
+            for p in self._get_vscode_user_settings_paths():
+                if self._uninstall_from_json(p):
+                    cleaned_paths.append(p)
+            for p in self._get_vscode_cline_mcp_paths():
+                if self._uninstall_from_json(p):
+                    cleaned_paths.append(p)
+
+        elif ide == "cursor":
+            if self.in_repo:
+                p_mcp = self.project_root / ".cursor" / "mcp.json"
+                if self._uninstall_from_json(p_mcp):
+                    cleaned_paths.append(p_mcp)
+                p_rules = self.project_root / ".cursorrules"
+                if self._strip_rule_file(p_rules):
+                    cleaned_paths.append(p_rules)
+            p_global = self._get_cursor_global_config_path()
+            if self._uninstall_from_json(p_global):
+                cleaned_paths.append(p_global)
+
+        elif ide == "windsurf":
+            if self.in_repo:
+                p_mcp = self.project_root / ".windsurf" / "mcp_config.json"
+                if self._uninstall_from_json(p_mcp):
+                    cleaned_paths.append(p_mcp)
+                p_rules = self.project_root / ".windsurfrules"
+                if self._strip_rule_file(p_rules):
+                    cleaned_paths.append(p_rules)
+            p_global = self._get_windsurf_global_config_path()
+            if self._uninstall_from_json(p_global):
+                cleaned_paths.append(p_global)
+
+        elif ide == "claude":
+            if self.in_repo:
+                p_rules = self.project_root / "CLAUDE.md"
+                if self._strip_rule_file(p_rules):
+                    cleaned_paths.append(p_rules)
+            p_claude_desktop = self._get_claude_desktop_config_path()
+            if p_claude_desktop and self._uninstall_from_json(p_claude_desktop):
+                cleaned_paths.append(p_claude_desktop)
+
+        elif ide == "zed":
+            if self.in_repo:
+                p_zed = self.project_root / ".zed" / "settings.json"
+                if self._uninstall_from_json(p_zed):
+                    cleaned_paths.append(p_zed)
+            p_global = self._get_zed_global_config_path()
+            if self._uninstall_from_json(p_global):
+                cleaned_paths.append(p_global)
+
+        elif ide == "agents":
+            if self.in_repo:
+                for fn in ("AGENTS.md", "GEMINI.md"):
+                    p = self.project_root / fn
+                    if self._strip_rule_file(p):
+                        cleaned_paths.append(p)
+            p_global = Path.home() / ".learnloop" / "rules" / "AGENTS.md"
+            if self._strip_rule_file(p_global):
+                cleaned_paths.append(p_global)
+
+        elif ide == "any":
+            for p in self.ide_configs.get("any", []):
+                if self._strip_rule_file(p):
+                    cleaned_paths.append(p)
+
+        return cleaned_paths
+
+    def uninstall_all(self) -> List[Path]:
+        """Safely remove LearnLoop MCP configs and rules across all supported IDEs."""
+        cleaned = []
+        for ide in ("vscode", "cursor", "windsurf", "claude", "zed", "agents", "any"):
+            cleaned.extend(self.uninstall_ide(ide))
+        seen = set()
+        deduped = []
+        for p in cleaned:
+            if p not in seen:
+                seen.add(p)
+                deduped.append(p)
+        return deduped
+
     def run(self, args):
         """Run integration based on command line args."""
         parser = argparse.ArgumentParser(description="LearnLoop Universal Integration")

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.6] - 2026-11-05
+
+### Added
+- **Native `learnloop uninstall` CLI Subcommand**: Added clean, safe uninstallation capability to the CLI. Unregisters MCP configurations across VS Code, Cursor, Windsurf, Claude Desktop, and Zed (preserving all other user-configured MCP servers), removes Git post-commit tracking hooks, and safely deletes `~/.learnloop/bin/` binary. Includes optional `--purge` flag for complete removal of local learning databases and `--yes` for automated scripting.
+- **Structured 3-Step Quickstart Onboarding Guidance**: Enhanced post-installation completion banners in `setup.ps1` and `setup.sh` to explicitly guide fresh developers through health self-check (`learnloop doctor`), Ghost Mode project connection (`learnloop init`), and local mission control dashboard (`learnloop dashboard`).
+
+---
+
 ## [0.7.5] - 2026-11-04
 
 ### Added
