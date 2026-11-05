@@ -92,19 +92,50 @@ def cmd_serve(transport: str = "stdio", host: str = "0.0.0.0", port: int = 8000)
         return 1
 
 
-def cmd_dashboard(port: int = 8765, use_gui: bool = False) -> int:
+def cmd_dashboard(port: int = 8765, use_gui: bool = False, open_browser: bool = True) -> int:
+    from learnloop.daemon import is_daemon_running
+
+    dash_url = f"http://127.0.0.1:{port}/"
+
     if use_gui:
         from learnloop.gui import is_gui_available, launch_desktop_gui
 
         if is_gui_available():
             return launch_desktop_gui(port=port, route="/", hide_console=True)
 
+    # If the LearnLoop HTTP/SSE background daemon is already running:
+    if is_daemon_running(port=port):
+        sys.stdout.write(f"LearnLoop dashboard is active at {dash_url}\n")
+        if open_browser:
+            sys.stdout.write("Opening dashboard in your web browser...\n")
+            sys.stdout.flush()
+            try:
+                import webbrowser
+                webbrowser.open(dash_url)
+            except Exception:
+                pass
+        return 0
+
     try:
+        import threading
+        import time
         import uvicorn
         from learnloop.http_server import app
 
-        sys.stdout.write(f"LearnLoop dashboard running at http://127.0.0.1:{port}/\n")
+        sys.stdout.write(f"LearnLoop dashboard running at {dash_url}\n")
         sys.stdout.flush()
+
+        if open_browser:
+            def _open_later():
+                time.sleep(0.5)
+                try:
+                    import webbrowser
+                    webbrowser.open(dash_url)
+                except Exception:
+                    pass
+
+            threading.Thread(target=_open_later, daemon=True).start()
+
         uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
         return 0
     except ImportError as exc:
@@ -113,6 +144,33 @@ def cmd_dashboard(port: int = 8765, use_gui: bool = False) -> int:
             "Please update with: learnloop update\n"
             "Or reinstall with: uv tool install --force git+https://github.com/Seife1/Devloop-Engine.git\n"
         )
+        return 1
+    except OSError as exc:
+        is_port_in_use = (
+            getattr(exc, "errno", None) in (10048, 98, 48)
+            or getattr(exc, "winerror", None) == 10048
+            or "10048" in str(exc)
+            or "address already in use" in str(exc).lower()
+        )
+        if is_port_in_use:
+            if is_daemon_running(port=port):
+                sys.stdout.write(f"LearnLoop dashboard is active at {dash_url}\n")
+                if open_browser:
+                    sys.stdout.write("Opening dashboard in your web browser...\n")
+                    sys.stdout.flush()
+                    try:
+                        import webbrowser
+                        webbrowser.open(dash_url)
+                    except Exception:
+                        pass
+                return 0
+            else:
+                sys.stderr.write(
+                    f"Port {port} is in use by another application.\n"
+                    f"To run the dashboard on another port: learnloop dashboard --port <number>\n"
+                )
+                return 1
+        sys.stderr.write(f"LearnLoop dashboard failed to bind port {port}: {exc}\n")
         return 1
     except Exception as exc:
         sys.stderr.write(f"LearnLoop dashboard failed to start: {exc}\n")
@@ -680,8 +738,9 @@ def cmd_uninstall(repo: Path, purge: bool = False, yes: bool = False) -> int:
     """Cleanly uninstall LearnLoop:
     1. Unregisters MCP server and rules from all IDEs (VS Code, Cursor, Windsurf, Claude, Zed, Antigravity).
     2. Removes Git post-commit hooks from repository if present.
-    3. Removes executable from ~/.learnloop/bin/ if accessible.
-    4. If --purge is specified, removes all local databases and history (~/.learnloop).
+    3. Stops active background daemon to release file locks.
+    4. Removes executable from ~/.learnloop/bin/ if accessible.
+    5. If purge is specified, purges all local databases, workspaces, logs, and rules.
     """
     if not yes:
         sys.stdout.write("LearnLoop Clean Uninstaller\n")
@@ -689,31 +748,39 @@ def cmd_uninstall(repo: Path, purge: bool = False, yes: bool = False) -> int:
         sys.stdout.write("This will unregister LearnLoop from all IDEs (VS Code, Cursor, Windsurf, Claude, Zed)\n")
         sys.stdout.write("and remove active Git post-commit hooks.\n")
         if purge:
-            sys.stdout.write("WARNING: --purge is set. All local databases and learning history will be deleted!\n")
+            sys.stdout.write("WARNING: Purge mode is enabled. All local databases and learning history will be deleted!\n")
         else:
-            sys.stdout.write("Note: Your local databases (~/.learnloop) will be preserved (use --purge to delete them).\n")
-        
+            sys.stdout.write("Note: Your local databases (~/.learnloop) are preserved by default (use 'learnloop uninstall --purge' to delete them).\n")
+
         try:
             choice = input("\nProceed with uninstallation? [y/N]: ").strip().lower()
             if choice not in ("y", "yes"):
                 sys.stdout.write("Uninstallation cancelled.\n")
                 return 0
+            if not purge:
+                purge_choice = input("Also purge all local databases & learning history? [y/N]: ").strip().lower()
+                if purge_choice in ("y", "yes"):
+                    purge = True
         except (EOFError, KeyboardInterrupt):
             sys.stdout.write("\nUninstallation cancelled.\n")
             return 0
 
+    from learnloop.daemon import stop_daemon
     from learnloop.integrator import LearnLoopIntegrator
+
+    # Stop active daemon before deleting configurations and data
+    stop_daemon()
 
     sys.stdout.write("\n[1/3] Unregistering from IDEs...\n")
     # Clean global user configs
     global_integrator = LearnLoopIntegrator(project_root=repo, in_repo=False)
     cleaned_configs = global_integrator.uninstall_all()
-    
+
     # Also clean in-repo configs if run inside a project
     in_repo_integrator = LearnLoopIntegrator(project_root=repo, in_repo=True)
     in_repo_cleaned = in_repo_integrator.uninstall_all()
     cleaned_configs.extend(in_repo_cleaned)
-    
+
     unique_cleaned = list(dict.fromkeys(cleaned_configs))
     if unique_cleaned:
         for p in unique_cleaned:
@@ -762,13 +829,34 @@ def cmd_uninstall(repo: Path, purge: bool = False, yes: bool = False) -> int:
 
     if purge:
         import shutil
+
+        # 1. ~/.learnloop
         learnloop_home = Path.home() / ".learnloop"
         if learnloop_home.exists():
             try:
                 shutil.rmtree(learnloop_home)
-                sys.stdout.write(f"  [OK] Purged local data directory: {learnloop_home}\n")
+                sys.stdout.write(f"  [OK] Purged local config & log directory: {learnloop_home}\n")
             except Exception as exc:
                 sys.stderr.write(f"  [WARN] Could not purge {learnloop_home}: {exc}\n")
+
+        # 2. OS user data directory (platformdirs)
+        try:
+            from platformdirs import user_data_dir
+            data_dir = Path(user_data_dir("learnloop"))
+            if data_dir.exists():
+                shutil.rmtree(data_dir)
+                sys.stdout.write(f"  [OK] Purged local database directory: {data_dir}\n")
+        except Exception as exc:
+            sys.stderr.write(f"  [WARN] Could not purge {data_dir}: {exc}\n")
+
+        # 3. In-repo legacy .learn if present
+        legacy_dir = repo / ".learn"
+        if legacy_dir.exists() and legacy_dir.is_dir():
+            try:
+                shutil.rmtree(legacy_dir)
+                sys.stdout.write(f"  [OK] Purged repository workspace directory: {legacy_dir}\n")
+            except Exception as exc:
+                sys.stderr.write(f"  [WARN] Could not purge {legacy_dir}: {exc}\n")
 
     sys.stdout.write("\nLearnLoop uninstallation complete! Your IDEs and system are clean.\n")
     return 0
@@ -807,7 +895,8 @@ def _format_help(use_color: bool = True) -> str:
         f"  {c_cyan}uninstall{c_reset}    Cleanly unregister LearnLoop from IDEs, hooks, and system\n\n"
         f"{c_bold}FLAGS:{c_reset}\n"
         f"  -h, --help       Show this help message and exit\n"
-        f"  -V, --version    Show program version number and exit\n\n"
+        f"  -V, --version    Show program version number and exit\n"
+        f"  --purge          Purge all local databases and history (~/.learnloop)\n\n"
         f"Run 'learnloop [COMMAND] --help' for options on a specific command.\n"
     )
 
@@ -815,6 +904,7 @@ def _format_help(use_color: bool = True) -> str:
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="learnloop")
     p.add_argument("-V", "--version", action="version", version=f"learnloop v{__version__}")
+    p.add_argument("--purge", action="store_true", help="Purge all local databases and history (~/.learnloop)")
 
     def _should_use_color() -> bool:
         import os
@@ -923,6 +1013,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     dash.add_argument("--port", type=int, default=8765, help="Port to run web dashboard on (default: 8765)")
     dash.add_argument("--gui", action="store_true", help="Open dashboard in native desktop GUI window")
+    dash.add_argument("--no-browser", action="store_true", help="Do not automatically open browser")
 
     setup_p = sub.add_parser(
         "setup",
@@ -1004,14 +1095,13 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "update":
         code = cmd_update(force=args.force)
     elif args.cmd == "dashboard":
-        code = cmd_dashboard(args.port, use_gui=args.gui)
+        code = cmd_dashboard(args.port, use_gui=args.gui, open_browser=not args.no_browser)
     elif args.cmd == "techscan":
         code = cmd_techscan(args.repo)
     else:
-        # Smart launch: if launched interactively by user (double-click in Explorer or running
-        # learnloop without args in a terminal), launch the setup wizard in desktop window.
-        # If piped from an IDE (Cursor, VS Code, etc.), silently run FastMCP stdio server.
-        if sys.stdin and hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
+        if getattr(args, "purge", False):
+            code = cmd_uninstall(Path.cwd(), purge=True)
+        elif sys.stdin and hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
             code = cmd_setup(use_gui=True)
         else:
             code = cmd_serve()

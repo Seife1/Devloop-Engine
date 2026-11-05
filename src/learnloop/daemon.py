@@ -144,6 +144,40 @@ def get_current_pid() -> int | None:
     return None
 
 
+def stop_daemon() -> bool:
+    """Stop the running LearnLoop background daemon process if active."""
+    pid = get_current_pid()
+    pid_file = get_pid_path()
+    stopped = False
+
+    if pid and is_pid_alive(pid):
+        try:
+            if sys.platform == "win32":
+                subprocess.run(
+                    ["taskkill", "/F", "/PID", str(pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+            else:
+                import signal
+                os.kill(pid, signal.SIGTERM)
+                time.sleep(0.2)
+                if is_pid_alive(pid):
+                    os.kill(pid, signal.SIGKILL)
+            stopped = True
+        except Exception:
+            pass
+
+    if pid_file.exists():
+        try:
+            pid_file.unlink()
+        except Exception:
+            pass
+
+    return stopped
+
+
 def ensure_daemon(
     port: int = DEFAULT_PORT,
     host: str = DEFAULT_HOST,

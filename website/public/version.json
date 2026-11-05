@@ -1,7 +1,7 @@
 {
-  "version": "0.10.0",
+  "version": "0.10.1",
   "release_date": "2026-11-05",
   "changelog_url": "https://learnloop.seife.workers.dev/changelog",
-  "release_notes": "Pruned redundant integrate subcommand and removed legacy shell wrapper scripts (tools.sh, environment.sh, aliases); learnloop init is now the sole unified entry point for project setup and IDE configuration."
+  "release_notes": "Resolved dashboard socket port collision when daemon is already active, added interactive purge confirmation to learnloop uninstall, and supported root --purge flag."
 }
 

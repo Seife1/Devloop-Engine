@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.10.1] - 2026-11-05
+
+### Fixed
+- **Dashboard Socket Conflict Recovery (`src/learnloop/cli.py`, `src/learnloop/gui.py`)**:
+  - `learnloop dashboard` now detects if the background daemon is already listening on `http://127.0.0.1:8765/`, opening the browser or desktop window directly without throwing `[Errno 10048]` / `EADDRINUSE`.
+  - Added graceful fallback in `cmd_dashboard` for socket address reuse errors, cleanly detecting running LearnLoop instances or reporting actionable port alternatives (`--port <number>`).
+- **Interactive Uninstallation & Purge Flow (`src/learnloop/cli.py`, `src/learnloop/daemon.py`)**:
+  - Added an interactive prompt to `learnloop uninstall`: `Also purge all local databases & learning history? [y/N]:` so users can choose full data removal in one step without needing to re-run with flags.
+  - Added top-level `--purge` CLI argument (`learnloop --purge`), routing cleanly to `cmd_uninstall(purge=True)`.
+  - Added automatic daemon termination (`stop_daemon()`) before file cleanup to ensure SQLite file locks are released on Windows.
+  - Expanded purge scope to thoroughly clean `~/.learnloop` (logs, configs, rules), OS user data directory (`user_data_dir("learnloop")` containing `learnloop.db` and workspaces), and legacy in-repo `.learn` directories.
+
+---
+
 ## [0.10.0] - 2026-11-05
 
 ### Removed

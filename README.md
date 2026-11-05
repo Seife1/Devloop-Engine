@@ -1,6 +1,6 @@
 # LearnLoop
 
-![Version](https://img.shields.io/badge/version-0.10.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Version](https://img.shields.io/badge/version-0.10.1-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 An MCP server that shows you where your AI coding agent did work you can't yet do alone, then gives you
 short, targeted practice to close the gap.
@@ -405,7 +405,8 @@ We welcome community contributions, bug reports, and architectural proposals!
 
 LearnLoop follows strict [Semantic Versioning (SemVer 2.0.0)](https://semver.org/).
 
-- **Latest Release**: **[v0.10.0](CHANGELOG.md#0100---2026-11-05)** (2026-11-05) — Pruned redundant `integrate` CLI subcommand and removed legacy shell wrapper scripts (`tools.sh`, `environment.sh`, aliases); `learnloop init` is now the single unified command for project setup and IDE integration.
+- **Latest Release**: **[v0.10.1](CHANGELOG.md#0101---2026-11-05)** (2026-11-05) — Resolved `learnloop dashboard` socket port collision when daemon is already active, added interactive purge confirmation to `learnloop uninstall`, and added root `--purge` CLI flag.
+- **[v0.10.0](CHANGELOG.md#0100---2026-11-05)** (2026-11-05) — Pruned redundant `integrate` CLI subcommand and removed legacy shell wrapper scripts (`tools.sh`, `environment.sh`, aliases); `learnloop init` is now the single unified command for project setup and IDE integration.
 - **[v0.9.0](CHANGELOG.md#090---2026-11-05)** (2026-11-05) — Cross-environment topology detection (Native, WSL2, DevContainers, SSH), automatic background daemon management, live MCP reachability probes, and verified AI capability and trust evidence cards in `doctor` and `init`.
 - **[v0.8.3](CHANGELOG.md#083---2026-11-05)** (2026-11-05) — Elevated `learnloop init` terminal experience with unified Astral/Bun modern developer card, complete path breakdown, and actionable IDE chat prompts.
 - **[v0.8.2](CHANGELOG.md#082---2026-11-05)** (2026-11-05) — Promoted FastAPI and Uvicorn to core dependencies to ensure `learnloop dashboard` works out-of-the-box.

@@ -77,3 +77,45 @@ def test_cmd_uninstall_preserves_custom_hook(tmp_path: Path) -> None:
     assert exit_code == 0
     assert hook_file.exists()
     assert hook_file.read_text(encoding="utf-8") == custom_content
+
+
+def test_cmd_uninstall_interactive_prompt_with_purge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    inputs = iter(["y", "y"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+    monkeypatch.setattr("learnloop.daemon.stop_daemon", lambda: True)
+
+    fake_home = tmp_path / "home"
+    fake_learnloop = fake_home / ".learnloop"
+    fake_learnloop.mkdir(parents=True)
+    (fake_learnloop / "data.txt").write_text("dummy", encoding="utf-8")
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    exit_code = cmd_uninstall(repo=tmp_path, purge=False, yes=False)
+    assert exit_code == 0
+    assert not fake_learnloop.exists()
+
+
+def test_cmd_uninstall_interactive_prompt_without_purge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    inputs = iter(["y", "n"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+    monkeypatch.setattr("learnloop.daemon.stop_daemon", lambda: True)
+
+    fake_home = tmp_path / "home"
+    fake_learnloop = fake_home / ".learnloop"
+    fake_learnloop.mkdir(parents=True)
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    exit_code = cmd_uninstall(repo=tmp_path, purge=False, yes=False)
+    assert exit_code == 0
+    assert fake_learnloop.exists()
+
+
+def test_main_root_purge_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    from learnloop.cli import main
+    called = []
+    monkeypatch.setattr("learnloop.cli.cmd_uninstall", lambda repo, purge=False, yes=False: called.append((purge, yes)) or 0)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--purge"])
+    assert exc_info.value.code == 0
+    assert called == [(True, False)]

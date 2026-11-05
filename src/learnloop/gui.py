@@ -100,27 +100,32 @@ def launch_desktop_gui(
     if hide_console:
         hide_console_window()
 
-    # 2. Start the local FastAPI server via Uvicorn
-    actual_port = _find_available_port(port)
-    try:
-        import uvicorn
-        from learnloop.http_server import app
+    # 2. Check if LearnLoop daemon is already running, or start a local server
+    from learnloop.daemon import is_daemon_running
 
-        config = uvicorn.Config(
-            app=app,
-            host="127.0.0.1",
-            port=actual_port,
-            log_level="warning",
-        )
-        server = uvicorn.Server(config=config)
-        server_thread = threading.Thread(target=server.run, daemon=True)
-        server_thread.start()
-        # Brief pause to ensure socket listening
-        time.sleep(0.3)
-    except Exception as exc:
-        show_console_window()
-        sys.stderr.write(f"LearnLoop GUI server failed to start: {exc}\n")
-        return 1
+    if is_daemon_running(port=port):
+        actual_port = port
+    else:
+        actual_port = _find_available_port(port)
+        try:
+            import uvicorn
+            from learnloop.http_server import app
+
+            config = uvicorn.Config(
+                app=app,
+                host="127.0.0.1",
+                port=actual_port,
+                log_level="warning",
+            )
+            server = uvicorn.Server(config=config)
+            server_thread = threading.Thread(target=server.run, daemon=True)
+            server_thread.start()
+            # Brief pause to ensure socket listening
+            time.sleep(0.3)
+        except Exception as exc:
+            show_console_window()
+            sys.stderr.write(f"LearnLoop GUI server failed to start: {exc}\n")
+            return 1
 
     url = f"http://127.0.0.1:{actual_port}{route}"
 
