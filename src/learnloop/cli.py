@@ -107,6 +107,13 @@ def cmd_dashboard(port: int = 8765, use_gui: bool = False) -> int:
         sys.stdout.flush()
         uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
         return 0
+    except ImportError as exc:
+        sys.stderr.write(
+            f"LearnLoop dashboard web dependencies missing ({exc}).\n"
+            "Please update with: learnloop update\n"
+            "Or reinstall with: uv tool install --force git+https://github.com/Seife1/Devloop-Engine.git\n"
+        )
+        return 1
     except Exception as exc:
         sys.stderr.write(f"LearnLoop dashboard failed to start: {exc}\n")
         return 1

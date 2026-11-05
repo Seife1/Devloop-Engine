@@ -1,6 +1,6 @@
 [project]
 name = "learnloop"
-version = "0.8.1"
+version = "0.8.2"
 description = "MCP server that turns what your AI coding agent builds into targeted practice."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -10,6 +10,10 @@ dependencies = [
   "platformdirs>=4",
   "pyyaml>=6",
   "aiosqlite>=0.20",    # Async SQLite for MCP integration
+  "fastapi>=0.115",     # Core dependency for local mission control dashboard
+  "uvicorn>=0.30",      # ASGI server for local dashboard
+  "sse-starlette>=2",   # SSE streaming for real-time dashboard events
+  "python-multipart>=0.0.12",
 ]
 
 [project.optional-dependencies]

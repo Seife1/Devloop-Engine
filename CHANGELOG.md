@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.2] - 2026-11-05
+
+### Fixed
+- **Dashboard Web Dependencies in Core Package**: Promoted `fastapi`, `uvicorn`, `sse-starlette`, and `python-multipart` from optional `[http]` extras into core `dependencies` in `pyproject.toml`. Resolves `No module named 'fastapi'` error when running `learnloop dashboard` on fresh package installations (`uv tool` or `pip`).
+- **Graceful Import Error Handling**: Enhanced `cmd_dashboard` with dedicated `ImportError` interception, offering single-command remediation instructions (`learnloop update`).
+
+---
+
 ## [0.8.1] - 2026-11-05
 
 ### Fixed
