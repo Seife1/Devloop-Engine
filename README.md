@@ -1,6 +1,6 @@
 # LearnLoop
 
-![Version](https://img.shields.io/badge/version-0.8.2-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Version](https://img.shields.io/badge/version-0.9.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 An MCP server that shows you where your AI coding agent did work you can't yet do alone, then gives you
 short, targeted practice to close the gap.
@@ -429,7 +429,9 @@ We welcome community contributions, bug reports, and architectural proposals!
 
 LearnLoop follows strict [Semantic Versioning (SemVer 2.0.0)](https://semver.org/).
 
-- **Latest Release**: **[v0.8.2](CHANGELOG.md#082---2026-11-05)** (2026-11-05) — Promoted FastAPI and Uvicorn to core dependencies to ensure `learnloop dashboard` works out-of-the-box.
+- **Latest Release**: **[v0.9.0](CHANGELOG.md#090---2026-11-05)** (2026-11-05) — Cross-environment topology detection (Native, WSL2, DevContainers, SSH), automatic background daemon management, live MCP reachability probes, and verified AI capability and trust evidence cards in `doctor` and `init`.
+- **[v0.8.3](CHANGELOG.md#083---2026-11-05)** (2026-11-05) — Elevated `learnloop init` terminal experience with unified Astral/Bun modern developer card, complete path breakdown, and actionable IDE chat prompts.
+- **[v0.8.2](CHANGELOG.md#082---2026-11-05)** (2026-11-05) — Promoted FastAPI and Uvicorn to core dependencies to ensure `learnloop dashboard` works out-of-the-box.
 - **[v0.8.1](CHANGELOG.md#081---2026-11-05)** (2026-11-05) — Human-actionable briefing next-action guidance and interactive TTY notice for `learnloop serve`.
 - **[v0.8.0](CHANGELOG.md#080---2026-11-05)** (2026-11-05) — Native `learnloop update` self-updater, non-blocking 24h background update notification banner, `-V` / `--version` flags, and `/version.json` CDN endpoint.
 - **[v0.7.7](CHANGELOG.md#077---2026-11-05)** (2026-11-05) — Categorized workflow CLI help (`learnloop --help`), Astral uv / Bun style developer aesthetics, and live editor auto-detection in installers.

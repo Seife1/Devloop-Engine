@@ -31,10 +31,16 @@ class LearnLoopIntegrator:
 
         self.project_root = Path(project_root) if project_root else Path.cwd()
         self.in_repo = in_repo
+        self.quiet = False
+        self.integrated_paths: list[Path] = []
         self.learnloop_dir = get_workspace_storage_dir(self.project_root)
         self.integrations_dir = Path(__file__).parent / "integrations"
         
         self._refresh_ide_configs()
+
+    def _log(self, msg: str) -> None:
+        if not getattr(self, "quiet", False):
+            print(msg)
 
     def _refresh_ide_configs(self) -> None:
         """Refresh IDE configuration paths according to Ghost Mode vs In-Repo Mode."""
@@ -336,12 +342,26 @@ class LearnLoopIntegrator:
     def get_mcp_config(self, ide: str) -> Dict[str, Any]:
         """Get MCP configuration for specific IDE."""
         cmd = self._resolve_command()
+        base_url = "http://127.0.0.1:8765"
+        
+        server_def: Dict[str, Any] = {
+            "command": cmd,
+            "args": ["serve"],
+        }
+        
+        if ide in ("vscode", "cline", "roo"):
+            server_def["type"] = "streamable-http"
+            server_def["url"] = f"{base_url}/mcp"
+        elif ide in ("cursor", "claude"):
+            server_def["url"] = f"{base_url}/sse"
+        elif ide == "windsurf":
+            server_def["serverUrl"] = f"{base_url}/mcp"
+        else:
+            server_def["url"] = f"{base_url}/mcp"
+
         return {
             "mcpServers": {
-                "learnloop": {
-                    "command": cmd,
-                    "args": ["serve"]
-                }
+                "learnloop": server_def
             }
         }
     
@@ -368,7 +388,7 @@ You are working with a learner who builds projects with AI and must be confident
     
     def integrate_ide(self, ide: str, force: bool = False) -> bool:
         """Integrate LearnLoop with specific IDE."""
-        print(f"Integrating with {ide.upper()}...")
+        self._log(f"Integrating with {ide.upper()}...")
 
         if ide == "agents":
             return self._integrate_agents_rules(force)
@@ -400,10 +420,11 @@ You are working with a learner who builds projects with AI and must be confident
                 success = False
             
             if success:
-                print(f"  ✅ Integrated: {config_path}")
+                self.integrated_paths.append(config_path)
+                self._log(f"  ✅ Integrated: {config_path}")
                 return True
         
-        print(f"  ❌ No suitable config location found for {ide}")
+        self._log(f"  ❌ No suitable config location found for {ide}")
         return False
 
     def _integrate_vscode(self, force: bool) -> bool:
@@ -411,12 +432,14 @@ You are working with a learner who builds projects with AI and must be confident
         if self.in_repo:
             settings_path = self.project_root / ".vscode" / "settings.json"
             self._integrate_json_config(settings_path, "vscode", force)
-            print(f"  ✅ Integrated in-repo: {settings_path}")
+            self.integrated_paths.append(settings_path)
+            self._log(f"  ✅ Integrated in-repo: {settings_path}")
 
             mcp_path = self.project_root / ".vscode" / "mcp.json"
             try:
                 self._integrate_json_config(mcp_path, "vscode", force)
-                print(f"  ✅ Integrated in-repo: {mcp_path}")
+                self.integrated_paths.append(mcp_path)
+                self._log(f"  ✅ Integrated in-repo: {mcp_path}")
             except Exception:
                 pass
             return True
@@ -433,22 +456,24 @@ You are working with a learner who builds projects with AI and must be confident
         try:
             target_path.parent.mkdir(parents=True, exist_ok=True)
             self._integrate_json_config(target_path, "vscode", force)
-            print(f"  ✅ Integrated global user config (Ghost Mode): {target_path}")
+            self.integrated_paths.append(target_path)
+            self._log(f"  ✅ Integrated global user config (Ghost Mode): {target_path}")
             success = True
         except Exception as exc:
-            print(f"  ⚠️ Could not write to VS Code user settings {target_path}: {exc}")
+            self._log(f"  ⚠️ Could not write to VS Code user settings {target_path}: {exc}")
 
         # Also configure Cline / Roo global MCP if those extensions are present
         for cline_p in self._get_vscode_cline_mcp_paths():
             if cline_p.parent.exists():
                 try:
                     self._integrate_json_config(cline_p, "vscode", force)
-                    print(f"  ✅ Integrated global Cline/Roo MCP: {cline_p}")
+                    self.integrated_paths.append(cline_p)
+                    self._log(f"  ✅ Integrated global Cline/Roo MCP: {cline_p}")
                     success = True
                 except Exception:
                     pass
 
-        print("  💡 Tip: VS Code interacts with MCP via host extensions (GitHub Copilot, Cline, or Roo Code).")
+        self._log("  💡 Tip: VS Code interacts with MCP via host extensions (GitHub Copilot, Cline, or Roo Code).")
         return success
 
     def _integrate_agents_rules(self, force: bool) -> bool:
@@ -458,24 +483,29 @@ You are working with a learner who builds projects with AI and must be confident
             for filename in ("AGENTS.md", "GEMINI.md"):
                 p = self.project_root / filename
                 self._write_rule_file(p, rules, force)
+                self.integrated_paths.append(p)
             return True
 
         # Ghost Mode: Store rules in user-level storage without polluting repository
         rules_dir = Path.home() / ".learnloop" / "rules"
         try:
             rules_dir.mkdir(parents=True, exist_ok=True)
-            self._write_rule_file(rules_dir / "AGENTS.md", rules, force)
-            print(f"  ✅ Stored universal agent instructions (Ghost Mode): {rules_dir / 'AGENTS.md'}")
+            agents_p = rules_dir / "AGENTS.md"
+            self._write_rule_file(agents_p, rules, force)
+            self.integrated_paths.append(agents_p)
+            self._log(f"  ✅ Stored universal agent instructions (Ghost Mode): {agents_p}")
             return True
         except Exception as exc:
-            print(f"  ⚠️ Could not write agent rules: {exc}")
+            self._log(f"  ⚠️ Could not write agent rules: {exc}")
             return False
 
     def _integrate_claude(self, force: bool) -> bool:
         """Integrate Claude Desktop global config and project CLAUDE.md."""
         if self.in_repo:
             rules = self.generate_rules_content("claude")
-            self._write_rule_file(self.project_root / "CLAUDE.md", rules, force)
+            p = self.project_root / "CLAUDE.md"
+            self._write_rule_file(p, rules, force)
+            self.integrated_paths.append(p)
 
         # Global Claude Desktop app config
         desktop_cfg = self._get_claude_desktop_config_path()
@@ -483,10 +513,11 @@ You are working with a learner who builds projects with AI and must be confident
             try:
                 desktop_cfg.parent.mkdir(parents=True, exist_ok=True)
                 self._integrate_json_config(desktop_cfg, "claude", force)
-                print(f"  ✅ Integrated global Claude Desktop config (Ghost Mode): {desktop_cfg}")
+                self.integrated_paths.append(desktop_cfg)
+                self._log(f"  ✅ Integrated global Claude Desktop config (Ghost Mode): {desktop_cfg}")
                 return True
             except Exception as exc:
-                print(f"  ⚠️ Could not write Claude Desktop config: {exc}")
+                self._log(f"  ⚠️ Could not write Claude Desktop config: {exc}")
                 return False
         return True
 
@@ -494,11 +525,14 @@ You are working with a learner who builds projects with AI and must be confident
         """Integrate Cursor rules and MCP."""
         if self.in_repo:
             rules = self.generate_rules_content("cursor")
-            self._write_rule_file(self.project_root / ".cursorrules", rules, force)
+            p = self.project_root / ".cursorrules"
+            self._write_rule_file(p, rules, force)
+            self.integrated_paths.append(p)
             cursor_mcp = self.project_root / ".cursor" / "mcp.json"
             try:
                 cursor_mcp.parent.mkdir(parents=True, exist_ok=True)
                 self._integrate_json_config(cursor_mcp, "cursor", force)
+                self.integrated_paths.append(cursor_mcp)
             except Exception:
                 pass
             return True
@@ -508,21 +542,25 @@ You are working with a learner who builds projects with AI and must be confident
         try:
             cursor_global.parent.mkdir(parents=True, exist_ok=True)
             self._integrate_json_config(cursor_global, "cursor", force)
-            print(f"  ✅ Integrated global Cursor MCP (Ghost Mode): {cursor_global}")
+            self.integrated_paths.append(cursor_global)
+            self._log(f"  ✅ Integrated global Cursor MCP (Ghost Mode): {cursor_global}")
             return True
         except Exception as exc:
-            print(f"  ⚠️ Could not write Cursor global MCP: {exc}")
+            self._log(f"  ⚠️ Could not write Cursor global MCP: {exc}")
             return False
 
     def _integrate_windsurf(self, force: bool) -> bool:
         """Integrate Windsurf rules and MCP."""
         if self.in_repo:
             rules = self.generate_rules_content("windsurf")
-            self._write_rule_file(self.project_root / ".windsurfrules", rules, force)
+            p = self.project_root / ".windsurfrules"
+            self._write_rule_file(p, rules, force)
+            self.integrated_paths.append(p)
             ws_mcp = self.project_root / ".windsurf" / "mcp_config.json"
             try:
                 ws_mcp.parent.mkdir(parents=True, exist_ok=True)
                 self._integrate_json_config(ws_mcp, "windsurf", force)
+                self.integrated_paths.append(ws_mcp)
             except Exception:
                 pass
             return True
@@ -532,10 +570,11 @@ You are working with a learner who builds projects with AI and must be confident
         try:
             ws_global.parent.mkdir(parents=True, exist_ok=True)
             self._integrate_json_config(ws_global, "windsurf", force)
-            print(f"  ✅ Integrated global Windsurf MCP (Ghost Mode): {ws_global}")
+            self.integrated_paths.append(ws_global)
+            self._log(f"  ✅ Integrated global Windsurf MCP (Ghost Mode): {ws_global}")
             return True
         except Exception as exc:
-            print(f"  ⚠️ Could not write Windsurf global MCP: {exc}")
+            self._log(f"  ⚠️ Could not write Windsurf global MCP: {exc}")
             return False
 
     def _write_rule_file(self, path: Path, content: str, force: bool) -> bool:
@@ -543,7 +582,7 @@ You are working with a learner who builds projects with AI and must be confident
             try:
                 current = path.read_text(encoding="utf-8")
                 if "LearnLoop" in current:
-                    print(f"  ⚠️  LearnLoop already integrated: {path}")
+                    self._log(f"  ⚠️  LearnLoop already integrated: {path}")
                     return True
                 path.write_text(current + "\n\n" + content, encoding="utf-8")
             except Exception:
@@ -551,7 +590,7 @@ You are working with a learner who builds projects with AI and must be confident
         else:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
-        print(f"  ✅ Integrated rules: {path}")
+        self._log(f"  ✅ Integrated rules: {path}")
         return True
     
     def _integrate_json_config(self, config_path: Path, ide: str, force: bool) -> bool:
@@ -561,7 +600,7 @@ You are working with a learner who builds projects with AI and must be confident
             try:
                 config = json.loads(config_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, UnicodeDecodeError):
-                print(f"  ⚠️  Config file corrupt, overwriting: {config_path}")
+                self._log(f"  ⚠️  Config file corrupt, overwriting: {config_path}")
         
         mcp_config = self.get_mcp_config(ide)
         
@@ -903,8 +942,9 @@ Set-Alias lld Open-LearnLoopDashboard
                 deduped.append(p)
         return deduped
 
-    def run(self, args):
+    def run(self, args, quiet: bool = False):
         """Run integration based on command line args."""
+        self.quiet = quiet
         parser = argparse.ArgumentParser(description="LearnLoop Universal Integration")
         parser.add_argument("--ide", choices=["auto", "vscode", "cursor", "claude", "windsurf", "zed", "agents", "all"], 
                           default="auto", help="IDE to integrate with")
@@ -919,8 +959,9 @@ Set-Alias lld Open-LearnLoopDashboard
             self.in_repo = True
             self._refresh_ide_configs()
         
-        print("🔧 LearnLoop Universal Integration")
-        print("=" * 40)
+        if not self.quiet:
+            print("🔧 LearnLoop Universal Integration")
+            print("=" * 40)
         
         # Setup everything if --all specified
         if parsed_args.all:
@@ -931,8 +972,9 @@ Set-Alias lld Open-LearnLoopDashboard
         # Detect IDEs
         if parsed_args.ide == "auto":
             detected_ides = self.detect_ide()
-            ide_label = "IDE" if len(detected_ides) == 1 else "IDEs"
-            print(f"📋 Detected {ide_label}: {', '.join(detected_ides)}")
+            if not self.quiet:
+                ide_label = "IDE" if len(detected_ides) == 1 else "IDEs"
+                print(f"📋 Detected {ide_label}: {', '.join(detected_ides)}")
             ides_to_integrate = detected_ides
         elif parsed_args.ide == "all":
             ides_to_integrate = list(self.ide_configs.keys())
@@ -946,27 +988,34 @@ Set-Alias lld Open-LearnLoopDashboard
         
         # Setup terminal integration
         if parsed_args.terminal:
-            print("\n🖥️  Setting up terminal integration...")
+            if not self.quiet:
+                print("\n🖥️  Setting up terminal integration...")
             self.create_terminal_wrapper()
         
         # Setup environment
         if parsed_args.env:
-            print("\n🌍 Setting up environment...")
+            if not self.quiet:
+                print("\n🌍 Setting up environment...")
             self.setup_environment()
         
-        print("\n✅ Integration Complete!")
-        print("\n📋 Next Steps:")
-        print("1. Restart your IDE for MCP config to take effect")
-        step_idx = 2
-        if parsed_args.terminal:
-            print(f"{step_idx}. Use: learnloop-tools [command] from terminal")
-            step_idx += 1
-        if parsed_args.env:
-            print(f"{step_idx}. Or use aliases: llb (briefing), llr (review), lld (dashboard)")
-            step_idx += 1
-        print(f"{step_idx}. Work with AI as usual - LearnLoop will track automatically")
+        if not self.quiet:
+            print("\n✅ Integration Complete!")
+            print("\n📋 Next Steps:")
+            print("1. Restart your IDE for MCP config to take effect")
+            step_idx = 2
+            if parsed_args.terminal:
+                print(f"{step_idx}. Use: learnloop-tools [command] from terminal")
+                step_idx += 1
+            if parsed_args.env:
+                print(f"{step_idx}. Or use aliases: llb (briefing), llr (review), lld (dashboard)")
+                step_idx += 1
+            print(f"{step_idx}. Work with AI as usual - LearnLoop will track automatically")
         
-        return True
+        return {
+            "success": True,
+            "detected_ides": ides_to_integrate,
+            "integrated_paths": list(dict.fromkeys(self.integrated_paths)),
+        }
 
 def main():
     """Main entry point."""

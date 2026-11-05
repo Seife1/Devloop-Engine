@@ -1,7 +1,7 @@
 {
-  "version": "0.8.2",
+  "version": "0.9.0",
   "release_date": "2026-11-05",
   "changelog_url": "https://learnloop.seife.workers.dev/changelog",
-  "release_notes": "Promoted FastAPI, Uvicorn, and SSE dependencies to core so learnloop dashboard works out of the box."
+  "release_notes": "Added cross-environment topology detection (Native, WSL2, DevContainers, SSH), automatic background daemon management, live MCP protocol reachability probes, and verified AI capability and trust evidence cards in doctor and init."
 }
 

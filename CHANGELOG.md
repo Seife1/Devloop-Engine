@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.0] - 2026-11-05
+
+### Added
+- **Topology & Environment Auto-Detection (`src/learnloop/daemon.py`)**:
+  - Automatically identifies whether the runtime environment is **Native**, **WSL2**, **DevContainer / Docker**, or **Remote SSH**.
+  - Binds the MCP daemon to `0.0.0.0:8765` so host editors (e.g. Windows VS Code connected to WSL) access the server seamlessly, generating remote port forwarding tips (`ssh -L 8765:localhost:8765`) when cross-network access is detected.
+- **Automatic Daemon Lifecycle Management (`src/learnloop/daemon.py`)**:
+  - Automatically launches the background streamable HTTP/SSE server on port `8765` if offline during `learnloop init` or `learnloop doctor`, tracks its PID (`~/.learnloop/daemon.pid`), and verifies readiness within a 3.5s timeout.
+- **5-Stage Comprehensive Diagnostic Engine in `learnloop doctor`**:
+  - **[1/5] Host Environment & Topology**: Platform, runtime type, and remote port forwarding directives.
+  - **[2/5] Local Data Integrity**: Database health, skill taxonomy catalog, registered concepts, and Git hook validation.
+  - **[3/5] MCP Daemon & Network Reachability**: Active daemon process status, PID, and universal streamable HTTP/SSE binding.
+  - **[4/5] Protocol Handshake & Tool Registry**: Live latency measurement, JSON-RPC `/mcp/v1/tools` verification, and active domain dispatchers.
+  - **[5/5] AI Trust & Verification Evidence Card**: Explicitly displays the 3 pillars of trust (100% Local SQLite, Proof-of-Outcome via Git commit SHAs, Ghost Mode zero repo pollution).
+- **Live Verification Stage in `learnloop init`**:
+  - Concludes project initialization with a live reachability probe against the hosted daemon, displaying live latency and active capabilities.
+
+### Changed
+- **Universal Streamable HTTP / SSE IDE Integration**: Updated `get_mcp_config` in `src/learnloop/integrator.py` to default to streamable HTTP (`/mcp`) and SSE (`/sse`) across VS Code, Cursor, Windsurf, and Claude Desktop, eliminating brittle stdio shell translation across OS boundaries.
+
+---
+
+## [0.8.3] - 2026-11-05
+
+### Added
+- **Unified Modern Developer Card for `learnloop init`**: Redesigned the initialization terminal output into a structured, Astral (`uv`) / Bun aesthetic 3-step card:
+  - `[1/3] Arming Git Post-Commit Tracking Hook...` (displays verified `.git/hooks/post-commit` path)
+  - `[2/3] Initializing Local Knowledge & State Storage...` (details exact storage directory, SQLite database file, and journal markdown)
+  - `[3/3] Configuring IDE Model Context Protocol (MCP)...` (shows exact IDE configuration and rule paths touched)
+  - **`READY FOR AI CODING` Actionable Summary**: Features high-visibility starter prompts to ask the AI in editor chat (`"Give me a tour of this project"`, `"Teach me how this works"`) and key CLI commands (`learnloop briefing`, `learnloop dashboard`).
+
+### Changed
+- **`LearnLoopIntegrator` Quiet Mode**: Added `quiet: bool` execution mode to `LearnLoopIntegrator.run()` to suppress redundant emoji headers and output clutter when called programmatically by `learnloop init`, returning structured metadata (`detected_ides`, `integrated_paths`).
+
+---
+
 ## [0.8.2] - 2026-11-05
 
 ### Fixed
