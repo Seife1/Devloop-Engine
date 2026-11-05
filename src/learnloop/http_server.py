@@ -192,6 +192,21 @@ async def health_check():
     }
 
 
+@app.get("/api/version")
+async def api_version():
+    """Version and update status endpoint."""
+    from learnloop import __version__
+    from learnloop.updater import check_for_updates
+
+    has_update, latest, changelog = check_for_updates(force=False, timeout=1.0)
+    return {
+        "current_version": __version__,
+        "latest_version": latest or __version__,
+        "update_available": has_update,
+        "changelog_url": changelog or "https://learnloop.seife.workers.dev/changelog",
+    }
+
+
 @app.get("/tools")
 async def list_tools_legacy():
     """Legacy REST endpoint for tools list."""

@@ -22,7 +22,9 @@ if sys.platform == "win32":
 
 from pathlib import Path
 
+from learnloop import __version__
 from learnloop.logging import setup_logging
+from learnloop.updater import cmd_update, print_update_banner_if_available
 
 HOOK_MARKER = "# learnloop-hook"
 
@@ -258,6 +260,7 @@ def cmd_concepts(repo: Path) -> int:
                 sys.stderr.write(f"Regenerated {repo / '.learn' / 'concepts.md'}\n")
             else:
                 sys.stderr.write(f"Skipped regenerating concepts.md for {repo}\n")
+            print_update_banner_if_available()
             return 0
         finally:
             conn.close()
@@ -294,6 +297,7 @@ def cmd_review(repo: Path) -> int:
                     sys.stdout.write(f"    {it['summary']}\n")
             if waiting > 0:
                 sys.stdout.write(f"\n{waiting} more items waiting for future sessions.\n")
+            print_update_banner_if_available()
             return 0
         finally:
             conn.close()
@@ -326,6 +330,7 @@ def cmd_briefing(repo: Path) -> int:
             sys.stdout.write(
                 "\nNote: Overdue items are simply re-spaced; there is never an urgent backlog or penalty.\n"
             )
+            print_update_banner_if_available()
             return 0
         finally:
             conn.close()
@@ -476,6 +481,7 @@ def cmd_doctor() -> int:
 
     conn.close()
     sys.stderr.write("ok\n")
+    print_update_banner_if_available()
     return 0
 
 
@@ -509,6 +515,7 @@ def cmd_techscan(repo: Path) -> int:
                 for t in by_eco[eco]:
                     ver = f" ({t['version_spec']})" if t.get("version_spec") else ""
                     sys.stdout.write(f"  - {t['name']}{ver} [{t['source_file']}]\n")
+            print_update_banner_if_available()
             return 0
         finally:
             conn.close()
@@ -643,18 +650,21 @@ def _format_help(use_color: bool = True) -> str:
         f"  {c_cyan}backfill{c_reset}     Reconcile unreviewed Git commits into verified exposure queue\n\n"
         f"{c_bold}DIAGNOSTICS & ENGINE:{c_reset}\n"
         f"  {c_cyan}doctor{c_reset}       Run diagnostic health check on local SQLite DB and MCP readiness\n"
+        f"  {c_cyan}update{c_reset}       Self-update LearnLoop to the latest released version\n"
         f"  {c_cyan}serve{c_reset}        Run MCP protocol server (stdio, sse, or http transport)\n"
         f"  {c_cyan}http{c_reset}         Start HTTP/SSE server for LAN and cloud deployment\n"
         f"  {c_cyan}setup{c_reset}        Launch interactive first-time setup wizard\n"
         f"  {c_cyan}uninstall{c_reset}    Cleanly unregister LearnLoop from IDEs, hooks, and system\n\n"
         f"{c_bold}FLAGS:{c_reset}\n"
-        f"  -h, --help   Show this help message and exit\n\n"
+        f"  -h, --help       Show this help message and exit\n"
+        f"  -V, --version    Show program version number and exit\n\n"
         f"Run 'learnloop [COMMAND] --help' for options on a specific command.\n"
     )
 
 
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="learnloop")
+    p.add_argument("-V", "--version", action="version", version=f"learnloop v{__version__}")
 
     def _should_use_color() -> bool:
         import os
@@ -735,6 +745,17 @@ def main(argv: list[str] | None = None) -> None:
         description="Check environment, SQLite database integrity, seeded skills, and MCP readiness.",
     )
     doc_p.add_argument("--repo", type=Path, default=Path.cwd(), help="Repository path")
+
+    update_p = sub.add_parser(
+        "update",
+        help="Self-update LearnLoop to the latest released version",
+        description="Check for newer releases and upgrade the local LearnLoop binary/engine.",
+    )
+    update_p.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-downloading even if already on the latest version",
+    )
 
     uninst_p = sub.add_parser(
         "uninstall",
@@ -865,6 +886,8 @@ def main(argv: list[str] | None = None) -> None:
         code = cmd_uninstall(args.repo, purge=args.purge, yes=args.yes)
     elif args.cmd == "doctor":
         code = cmd_doctor()
+    elif args.cmd == "update":
+        code = cmd_update(force=args.force)
     elif args.cmd == "dashboard":
         code = cmd_dashboard(args.port, use_gui=args.gui)
     elif args.cmd == "techscan":

@@ -24,9 +24,18 @@ def test_format_help_contains_all_categories_and_commands():
         "http",
         "setup",
         "uninstall",
+        "update",
     ]
     for cmd in expected_commands:
         assert cmd in help_text
+
+
+def test_cli_version_flag_exits_cleanly(capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--version"])
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "learnloop v" in captured.out
 
 
 def test_cli_help_flag_exits_cleanly(capsys):
@@ -38,3 +47,4 @@ def test_cli_help_flag_exits_cleanly(capsys):
     assert "briefing" in captured.out
     assert "init" in captured.out
     assert "doctor" in captured.out
+

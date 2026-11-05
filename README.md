@@ -1,6 +1,6 @@
 # LearnLoop
 
-![Version](https://img.shields.io/badge/version-0.7.7-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Version](https://img.shields.io/badge/version-0.8.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 An MCP server that shows you where your AI coding agent did work you can't yet do alone, then gives you
 short, targeted practice to close the gap.
@@ -429,7 +429,8 @@ We welcome community contributions, bug reports, and architectural proposals!
 
 LearnLoop follows strict [Semantic Versioning (SemVer 2.0.0)](https://semver.org/).
 
-- **Latest Release**: **[v0.7.7](CHANGELOG.md#077---2026-11-05)** (2026-11-05) — Categorized workflow CLI help (`learnloop --help`), Astral uv / Bun style developer aesthetics, and live editor auto-detection in installers.
+- **Latest Release**: **[v0.8.0](CHANGELOG.md#080---2026-11-05)** (2026-11-05) — Native `learnloop update` self-updater, non-blocking 24h background update notification banner, `-V` / `--version` flags, and `/version.json` CDN endpoint.
+- **[v0.7.7](CHANGELOG.md#077---2026-11-05)** (2026-11-05) — Categorized workflow CLI help (`learnloop --help`), Astral uv / Bun style developer aesthetics, and live editor auto-detection in installers.
 - **[v0.7.6](CHANGELOG.md#076---2026-11-05)** (2026-11-05) — Clean `learnloop uninstall` CLI command and structured 3-step onboarding flow (`doctor` -> `init` -> `dashboard`).
 - **[v0.7.5](CHANGELOG.md#075---2026-11-04)** (2026-11-04) — Automated multi-platform GitHub release pipeline for standalone binaries & Cloudflare prebuild installer sync.
 - **[v0.7.4](CHANGELOG.md#074---2026-11-04)** (2026-11-04) — Website download resilience (direct installer script downloads & release asset alignment) and Linux shell profile fallback.

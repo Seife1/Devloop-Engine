@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.0] - 2026-11-05
+
+### Added
+- **Automated Update Notification & Self-Updater (`src/learnloop/updater.py`)**:
+  - **Non-blocking Background Update Check**: Checks for newer releases with a 24-hour local cache TTL (`~/.learnloop/cache/update_check.json`), guaranteeing zero latency on local CLI commands and 100% privacy (zero telemetry).
+  - **Native `learnloop update` CLI Command**: Self-updates the local installation in under 2 seconds. Automatically replaces standalone binaries (`~/.learnloop/bin/`) via safe Windows rename technique or triggers `uv`/`pip` updates.
+  - **Standard `--version` / `-V` CLI Flag**: Displays the active version (`learnloop v0.8.0`).
+  - **Terminal Update Notification Banner**: Displays a modern, non-intrusive micro-banner when a newer version is released during interactive commands (`doctor`, `briefing`, `setup`, `dashboard`).
+  - **Cloudflare Version Endpoint (`/version.json`)**: Real-time static CDN metadata endpoint serving latest version and changelog information for zero-latency lookups.
+  - **Web Dashboard API Endpoint (`GET /api/version`)**: Returns current and latest version status for UI update badges.
+
+---
+
 ## [0.7.7] - 2026-11-05
 
 ### Added
