@@ -1,7 +1,7 @@
 {
-  "version": "0.10.1",
-  "release_date": "2026-11-05",
+  "version": "0.11.0",
+  "release_date": "2026-11-06",
   "changelog_url": "https://learnloop.seife.workers.dev/changelog",
-  "release_notes": "Resolved dashboard socket port collision when daemon is already active, added interactive purge confirmation to learnloop uninstall, and supported root --purge flag."
+  "release_notes": "Updated canonical agent rules to the v0.11.0 4-cluster schema across all templates and REST endpoints, and enhanced Ghost Mode to inject global rules directly into native editor instruction locations (Windsurf memories, Cursor rules, Claude, Antigravity)."
 }
 

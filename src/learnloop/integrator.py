@@ -73,11 +73,11 @@ class LearnLoopIntegrator:
         else:
             self.ide_configs = {
                 "vscode": self._get_vscode_user_settings_paths(),
-                "cursor": [self._get_cursor_global_config_path()],
-                "claude": [p for p in [self._get_claude_desktop_config_path()] if p],
-                "windsurf": [self._get_windsurf_global_config_path()],
+                "cursor": [self._get_cursor_global_config_path(), self._get_cursor_global_rules_path()],
+                "claude": [p for p in [self._get_claude_desktop_config_path(), self._get_claude_global_rules_path()] if p],
+                "windsurf": [self._get_windsurf_global_config_path(), self._get_windsurf_global_rules_path()],
                 "zed": [self._get_zed_global_config_path()],
-                "agents": [Path.home() / ".learnloop" / "rules" / "AGENTS.md"],
+                "agents": self._get_agents_global_rule_paths(),
                 "any": [Path.home() / ".learnloop" / "rules" / ".learnloop_rules.md"]
             }
 
@@ -126,9 +126,19 @@ class LearnLoopIntegrator:
         return Path.home() / ".cursor" / "mcp.json"
 
     @staticmethod
+    def _get_cursor_global_rules_path() -> Path:
+        """Return user-level global Cursor rules path."""
+        return Path.home() / ".cursor" / "rules" / "learnloop.mdc"
+
+    @staticmethod
     def _get_windsurf_global_config_path() -> Path:
         """Return user-level global Windsurf MCP configuration path."""
         return Path.home() / ".codeium" / "windsurf" / "mcp_config.json"
+
+    @staticmethod
+    def _get_windsurf_global_rules_path() -> Path:
+        """Return user-level global Windsurf rules path in Cascade memories."""
+        return Path.home() / ".codeium" / "windsurf" / "memories" / "global_rules.md"
 
     @staticmethod
     def _get_zed_global_config_path() -> Path:
@@ -151,6 +161,21 @@ class LearnLoopIntegrator:
             return Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
         else:
             return Path.home() / ".config" / "Claude" / "claude_desktop_config.json"
+
+    @staticmethod
+    def _get_claude_global_rules_path() -> Path:
+        """Return user-level global Claude Code rules path."""
+        return Path.home() / ".claude" / "CLAUDE.md"
+
+    @staticmethod
+    def _get_agents_global_rule_paths() -> List[Path]:
+        """Return user-level global rules paths for Antigravity, Gemini CLI, and universal agents."""
+        return [
+            Path.home() / ".gemini" / "antigravity" / "rules" / "learnloop.md",
+            Path.home() / ".gemini" / "rules" / "learnloop.md",
+            Path.home() / ".learnloop" / "rules" / "AGENTS.md",
+            Path.home() / ".learnloop" / "rules" / "GEMINI.md",
+        ]
 
     def detect_ide_status(self) -> Dict[str, Dict[str, Any]]:
         """Return rich detection status for each supported IDE."""
@@ -365,9 +390,7 @@ class LearnLoopIntegrator:
             }
         }
     
-    def generate_rules_content(self, ide: str = "generic") -> str:
-        """Generate canonical LearnLoop rule content."""
-        return """## LearnLoop (learning companion)
+    CANONICAL_RULES: str = """## LearnLoop (learning companion)
 
 You are working with a learner who builds projects with AI and must be confident explaining each project. LearnLoop uses 4 domain-clustered MCP tools (`project_id` is automatically resolved):
 
@@ -382,9 +405,13 @@ You are working with a learner who builds projects with AI and must be confident
    - When creating a component or fixing a subtle bug: call `manage_knowledge(action="register", key="...", title="...", kind="...", band="...", files=[...], summary="...")`.
    - To inspect concepts: call `manage_knowledge(action="list")` (compact by default).
 4. **Codebase Exploration** (`explore_project`):
-   - For codebase walkthroughs or onboarding: call `explore_project(action="tour")`.
+   - For codebase walkthroughs or onboarding: call `explore_project(action="tour")`. Walk bands in strict order (Basic -> Intermediate -> Advanced). At the end of each band, pause and prompt ONE targeted reflective question grounded in the code just covered. If the learner answers, call `manage_knowledge(action="explain", key=..., learner_text=..., score=...)`; if they say "continue" or "skip", advance immediately.
    - When introducing new technologies: call `explore_project(action="add_fact", ...)` with a verified technical insight.
 """
+
+    def generate_rules_content(self, ide: str = "generic") -> str:
+        """Generate canonical LearnLoop rule content."""
+        return self.CANONICAL_RULES.strip()
     
     def integrate_ide(self, ide: str, force: bool = False) -> bool:
         """Integrate LearnLoop with specific IDE."""
@@ -477,7 +504,7 @@ You are working with a learner who builds projects with AI and must be confident
         return success
 
     def _integrate_agents_rules(self, force: bool) -> bool:
-        """Integrate universal agent rules (AGENTS.md & GEMINI.md)."""
+        """Integrate universal agent rules (AGENTS.md, GEMINI.md, and Antigravity)."""
         rules = self.generate_rules_content("agents")
         if self.in_repo:
             for filename in ("AGENTS.md", "GEMINI.md"):
@@ -486,45 +513,62 @@ You are working with a learner who builds projects with AI and must be confident
                 self.integrated_paths.append(p)
             return True
 
-        # Ghost Mode: Store rules in user-level storage without polluting repository
-        rules_dir = Path.home() / ".learnloop" / "rules"
-        try:
-            rules_dir.mkdir(parents=True, exist_ok=True)
-            agents_p = rules_dir / "AGENTS.md"
-            self._write_rule_file(agents_p, rules, force)
-            self.integrated_paths.append(agents_p)
-            self._log(f"  ✅ Stored universal agent instructions (Ghost Mode): {agents_p}")
-            return True
-        except Exception as exc:
-            self._log(f"  ⚠️ Could not write agent rules: {exc}")
-            return False
+        # Ghost Mode: Store rules in real global agent directories without repository pollution
+        success = False
+        for p in self._get_agents_global_rule_paths():
+            try:
+                if ".gemini" in str(p):
+                    parent_tool = Path.home() / ".gemini"
+                    if not parent_tool.exists():
+                        continue
+                p.parent.mkdir(parents=True, exist_ok=True)
+                self._write_rule_file(p, rules, force)
+                self.integrated_paths.append(p)
+                self._log(f"  ✅ Stored universal agent instructions (Ghost Mode): {p}")
+                success = True
+            except Exception as exc:
+                self._log(f"  ⚠️ Could not write agent rules to {p}: {exc}")
+
+        return success
 
     def _integrate_claude(self, force: bool) -> bool:
-        """Integrate Claude Desktop global config and project CLAUDE.md."""
+        """Integrate Claude Desktop global config and project/global CLAUDE.md."""
+        rules = self.generate_rules_content("claude")
         if self.in_repo:
-            rules = self.generate_rules_content("claude")
             p = self.project_root / "CLAUDE.md"
             self._write_rule_file(p, rules, force)
             self.integrated_paths.append(p)
 
         # Global Claude Desktop app config
         desktop_cfg = self._get_claude_desktop_config_path()
+        success = False
         if desktop_cfg:
             try:
                 desktop_cfg.parent.mkdir(parents=True, exist_ok=True)
                 self._integrate_json_config(desktop_cfg, "claude", force)
                 self.integrated_paths.append(desktop_cfg)
                 self._log(f"  ✅ Integrated global Claude Desktop config (Ghost Mode): {desktop_cfg}")
-                return True
+                success = True
             except Exception as exc:
                 self._log(f"  ⚠️ Could not write Claude Desktop config: {exc}")
-                return False
-        return True
+
+        # Ghost Mode: Also inject into global Claude Code CLI rules (~/.claude/CLAUDE.md)
+        claude_global_rules = self._get_claude_global_rules_path()
+        try:
+            claude_global_rules.parent.mkdir(parents=True, exist_ok=True)
+            self._write_rule_file(claude_global_rules, rules, force)
+            self.integrated_paths.append(claude_global_rules)
+            self._log(f"  ✅ Integrated global Claude Code rules (Ghost Mode): {claude_global_rules}")
+            success = True
+        except Exception as exc:
+            self._log(f"  ⚠️ Could not write Claude global rules: {exc}")
+
+        return success
 
     def _integrate_cursor(self, force: bool) -> bool:
         """Integrate Cursor rules and MCP."""
+        rules = self.generate_rules_content("cursor")
         if self.in_repo:
-            rules = self.generate_rules_content("cursor")
             p = self.project_root / ".cursorrules"
             self._write_rule_file(p, rules, force)
             self.integrated_paths.append(p)
@@ -539,20 +583,40 @@ You are working with a learner who builds projects with AI and must be confident
 
         # Ghost Mode: Configure global user-level Cursor MCP
         cursor_global = self._get_cursor_global_config_path()
+        success = False
         try:
             cursor_global.parent.mkdir(parents=True, exist_ok=True)
             self._integrate_json_config(cursor_global, "cursor", force)
             self.integrated_paths.append(cursor_global)
             self._log(f"  ✅ Integrated global Cursor MCP (Ghost Mode): {cursor_global}")
-            return True
+            success = True
         except Exception as exc:
             self._log(f"  ⚠️ Could not write Cursor global MCP: {exc}")
-            return False
+
+        # Ghost Mode: Also inject into global Cursor rules (~/.cursor/rules/learnloop.mdc)
+        cursor_mdc = self._get_cursor_global_rules_path()
+        try:
+            cursor_mdc.parent.mkdir(parents=True, exist_ok=True)
+            mdc_content = f"""---
+description: "LearnLoop AI learning companion and active tracking rules"
+globs: "*"
+alwaysApply: true
+---
+
+{rules}"""
+            cursor_mdc.write_text(mdc_content, encoding="utf-8")
+            self.integrated_paths.append(cursor_mdc)
+            self._log(f"  ✅ Integrated global Cursor rules (Ghost Mode): {cursor_mdc}")
+            success = True
+        except Exception as exc:
+            self._log(f"  ⚠️ Could not write Cursor global rules: {exc}")
+
+        return success
 
     def _integrate_windsurf(self, force: bool) -> bool:
         """Integrate Windsurf rules and MCP."""
+        rules = self.generate_rules_content("windsurf")
         if self.in_repo:
-            rules = self.generate_rules_content("windsurf")
             p = self.project_root / ".windsurfrules"
             self._write_rule_file(p, rules, force)
             self.integrated_paths.append(p)
@@ -567,15 +631,28 @@ You are working with a learner who builds projects with AI and must be confident
 
         # Ghost Mode: Configure global Windsurf MCP
         ws_global = self._get_windsurf_global_config_path()
+        success = False
         try:
             ws_global.parent.mkdir(parents=True, exist_ok=True)
             self._integrate_json_config(ws_global, "windsurf", force)
             self.integrated_paths.append(ws_global)
             self._log(f"  ✅ Integrated global Windsurf MCP (Ghost Mode): {ws_global}")
-            return True
+            success = True
         except Exception as exc:
             self._log(f"  ⚠️ Could not write Windsurf global MCP: {exc}")
-            return False
+
+        # Ghost Mode: Also inject into native Windsurf global memories rules
+        ws_rules = self._get_windsurf_global_rules_path()
+        try:
+            ws_rules.parent.mkdir(parents=True, exist_ok=True)
+            self._write_rule_file(ws_rules, rules, force)
+            self.integrated_paths.append(ws_rules)
+            self._log(f"  ✅ Integrated global Windsurf rules (Ghost Mode): {ws_rules}")
+            success = True
+        except Exception as exc:
+            self._log(f"  ⚠️ Could not write Windsurf global rules: {exc}")
+
+        return success
 
     def _write_rule_file(self, path: Path, content: str, force: bool) -> bool:
         if path.exists() and not force:
@@ -713,6 +790,16 @@ You are working with a learner who builds projects with AI and must be confident
             p_global = self._get_cursor_global_config_path()
             if self._uninstall_from_json(p_global):
                 cleaned_paths.append(p_global)
+            p_cursor_rules = self._get_cursor_global_rules_path()
+            if p_cursor_rules.exists():
+                try:
+                    p_cursor_rules.unlink()
+                    cleaned_paths.append(p_cursor_rules)
+                except Exception:
+                    pass
+            p_cursor_home = Path.home() / ".cursorrules"
+            if self._strip_rule_file(p_cursor_home):
+                cleaned_paths.append(p_cursor_home)
 
         elif ide == "windsurf":
             if self.in_repo:
@@ -725,6 +812,9 @@ You are working with a learner who builds projects with AI and must be confident
             p_global = self._get_windsurf_global_config_path()
             if self._uninstall_from_json(p_global):
                 cleaned_paths.append(p_global)
+            p_ws_rules = self._get_windsurf_global_rules_path()
+            if self._strip_rule_file(p_ws_rules):
+                cleaned_paths.append(p_ws_rules)
 
         elif ide == "claude":
             if self.in_repo:
@@ -734,6 +824,9 @@ You are working with a learner who builds projects with AI and must be confident
             p_claude_desktop = self._get_claude_desktop_config_path()
             if p_claude_desktop and self._uninstall_from_json(p_claude_desktop):
                 cleaned_paths.append(p_claude_desktop)
+            p_claude_rules = self._get_claude_global_rules_path()
+            if self._strip_rule_file(p_claude_rules):
+                cleaned_paths.append(p_claude_rules)
 
         elif ide == "zed":
             if self.in_repo:
@@ -750,9 +843,9 @@ You are working with a learner who builds projects with AI and must be confident
                     p = self.project_root / fn
                     if self._strip_rule_file(p):
                         cleaned_paths.append(p)
-            p_global = Path.home() / ".learnloop" / "rules" / "AGENTS.md"
-            if self._strip_rule_file(p_global):
-                cleaned_paths.append(p_global)
+            for p_global in self._get_agents_global_rule_paths():
+                if self._strip_rule_file(p_global):
+                    cleaned_paths.append(p_global)
 
         elif ide == "any":
             for p in self.ide_configs.get("any", []):

@@ -232,4 +232,8 @@ def test_ghost_mode_across_all_ides_leaves_zero_repo_files(tmp_path: Path):
         assert fake_claude_cfg.is_file()
         assert fake_zed_cfg.is_file()
         assert (fake_home / ".learnloop" / "rules" / "AGENTS.md").is_file()
+        # Verify native global rules were created in real editor locations
+        assert (fake_home / ".codeium" / "windsurf" / "memories" / "global_rules.md").is_file()
+        assert (fake_home / ".cursor" / "rules" / "learnloop.mdc").is_file()
+        assert (fake_home / ".claude" / "CLAUDE.md").is_file()
 

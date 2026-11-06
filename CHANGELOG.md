@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.11.0] - 2026-11-06
+
+### Added
+- **Native Editor Global Rule Ingestion (`src/learnloop/integrator.py`)**:
+  - Ghost Mode now routes rules directly into editors' native global instruction paths without polluting project git repositories:
+    - **Windsurf**: Injected into `~/.codeium/windsurf/memories/global_rules.md` (read globally by Windsurf Cascade).
+    - **Cursor**: Injected into `~/.cursor/rules/learnloop.mdc` (read globally by Cursor composer).
+    - **Claude Code**: Injected into `~/.claude/CLAUDE.md` (read globally by Claude CLI).
+    - **Antigravity & Gemini CLI**: Injected into `~/.gemini/antigravity/rules/learnloop.md` and `~/.gemini/rules/learnloop.md`.
+  - Added clean uninstall stripping for all native global rule files via `uninstall_all()` and `uninstall_ide()`.
+
+### Changed
+- **Synchronized Canonical Rules to 4-Cluster Schema across the Entire Engine**:
+  - Replaced legacy 17-tool references (`start_skill_session`, `get_session_briefing`, `ingest_queue`, `review_due`, etc.) in `http_server.py` (`/rules`), `CLAUDE.md.template`, and `GEMINI.md.template` with the unified 4 domain-clustered tool schema (`track_intent`, `manage_reviews`, `manage_knowledge`, `explore_project`).
+  - Added cognitive band reflection guidance to `generate_rules_content()`.
+
+---
+
 ## [0.10.1] - 2026-11-05
 
 ### Fixed
