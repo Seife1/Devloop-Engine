@@ -1,7 +1,7 @@
 {
-  "version": "0.11.0",
-  "release_date": "2026-11-06",
+  "version": "0.11.1",
+  "release_date": "2026-11-07",
   "changelog_url": "https://learnloop.seife.workers.dev/changelog",
-  "release_notes": "Updated canonical agent rules to the v0.11.0 4-cluster schema across all templates and REST endpoints, and enhanced Ghost Mode to inject global rules directly into native editor instruction locations (Windsurf memories, Cursor rules, Claude, Antigravity)."
+  "release_notes": "Added native user-level VS Code Copilot instruction files (~/.copilot/instructions/learnloop.instructions.md) with applyTo frontmatter and automated chat.instructionsFilesLocations configuration in settings.json."
 }
 

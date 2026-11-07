@@ -236,4 +236,15 @@ def test_ghost_mode_across_all_ides_leaves_zero_repo_files(tmp_path: Path):
         assert (fake_home / ".codeium" / "windsurf" / "memories" / "global_rules.md").is_file()
         assert (fake_home / ".cursor" / "rules" / "learnloop.mdc").is_file()
         assert (fake_home / ".claude" / "CLAUDE.md").is_file()
+        assert (fake_home / ".copilot" / "instructions" / "learnloop.instructions.md").is_file()
+        assert (fake_home / ".learnloop" / "rules" / "learnloop.instructions.md").is_file()
+        copilot_content = (fake_home / ".copilot" / "instructions" / "learnloop.instructions.md").read_text("utf-8")
+        assert 'applyTo: "**"' in copilot_content
+        assert "## LearnLoop (learning companion)" in copilot_content
+
+        # Verify chat.instructionsFilesLocations in VS Code settings
+        vsc_data = json.loads(fake_vsc_settings.read_text("utf-8"))
+        locs = vsc_data.get("chat.instructionsFilesLocations", {})
+        assert locs.get("~/.copilot/instructions") is True
+        assert locs.get("~/.learnloop/rules") is True
 

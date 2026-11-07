@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.11.1] - 2026-11-07
+
+### Added
+- **Native User-Level VS Code Copilot Instructions (`src/learnloop/integrator.py`)**:
+  - Automatically generates `~/.copilot/instructions/learnloop.instructions.md` with `applyTo: "**"` frontmatter for global injection across all VS Code Copilot Chat sessions without repo pollution.
+  - Automatically provisions fallback instructions at `~/.learnloop/rules/learnloop.instructions.md`.
+  - Automatically updates `chat.instructionsFilesLocations` in VS Code's user `settings.json`, merging LearnLoop instruction folders (`~/.copilot/instructions` and `~/.learnloop/rules`) while safely preserving all existing user entries.
+  - Added clean uninstallation support in `uninstall_ide("vscode")` to remove Copilot instruction files and clean up `chat.instructionsFilesLocations` entries without disturbing custom user paths.
+  - Added support for in-repo `.github/copilot-instructions.md` and `.github/instructions/learnloop.instructions.md` when `--in-repo` is specified.
+
+---
+
 ## [0.11.0] - 2026-11-06
 
 ### Added

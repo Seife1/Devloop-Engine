@@ -119,3 +119,49 @@ def test_main_root_purge_flag(monkeypatch: pytest.MonkeyPatch) -> None:
         main(["--purge"])
     assert exc_info.value.code == 0
     assert called == [(True, False)]
+
+
+def test_uninstall_vscode_preserves_custom_copilot_locations(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    settings_file = fake_home / "settings.json"
+    copilot_dir = fake_home / ".copilot" / "instructions"
+    copilot_dir.mkdir(parents=True)
+    copilot_inst = copilot_dir / "learnloop.instructions.md"
+    copilot_inst.write_text("---\napplyTo: '**'\n---\n## LearnLoop", encoding="utf-8")
+
+    initial_settings = {
+        "mcpServers": {
+            "learnloop": {"command": "learnloop", "args": ["serve"]},
+            "sqlite": {"command": "uvx", "args": ["mcp-server-sqlite"]},
+        },
+        "chat.instructionsFilesLocations": {
+            str(fake_home / ".copilot" / "instructions"): True,
+            "~/.copilot/instructions": True,
+            "~/.learnloop/rules": True,
+            ".github/instructions": True,
+            "C:\\MyCustomRules": True,
+        },
+    }
+    settings_file.write_text(json.dumps(initial_settings, indent=2), encoding="utf-8")
+
+    integrator = LearnLoopIntegrator(project_root=tmp_path)
+    monkeypatch.setattr(integrator, "_get_vscode_user_settings_paths", lambda: [settings_file])
+
+    cleaned = integrator.uninstall_ide("vscode")
+    assert settings_file in cleaned
+    assert copilot_inst in cleaned
+    assert not copilot_inst.exists()
+
+    updated = json.loads(settings_file.read_text(encoding="utf-8"))
+    assert "learnloop" not in updated["mcpServers"]
+    assert "sqlite" in updated["mcpServers"]
+
+    locs = updated["chat.instructionsFilesLocations"]
+    assert str(fake_home / ".copilot" / "instructions") not in locs
+    assert "~/.copilot/instructions" not in locs
+    assert "~/.learnloop/rules" not in locs
+    assert locs[".github/instructions"] is True
+    assert locs["C:\\MyCustomRules"] is True

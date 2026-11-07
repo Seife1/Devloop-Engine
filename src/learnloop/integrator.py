@@ -49,6 +49,8 @@ class LearnLoopIntegrator:
                 "vscode": [
                     self.project_root / ".vscode" / "settings.json",
                     self.project_root / ".vscode" / "mcp.json",
+                    self.project_root / ".github" / "copilot-instructions.md",
+                    self.project_root / ".github" / "instructions" / "learnloop.instructions.md",
                 ],
                 "cursor": [
                     self.project_root / ".cursorrules",
@@ -72,7 +74,10 @@ class LearnLoopIntegrator:
             }
         else:
             self.ide_configs = {
-                "vscode": self._get_vscode_user_settings_paths(),
+                "vscode": self._get_vscode_user_settings_paths() + [
+                    self._get_vscode_copilot_instructions_path(),
+                    self._get_vscode_learnloop_instructions_path(),
+                ],
                 "cursor": [self._get_cursor_global_config_path(), self._get_cursor_global_rules_path()],
                 "claude": [p for p in [self._get_claude_desktop_config_path(), self._get_claude_global_rules_path()] if p],
                 "windsurf": [self._get_windsurf_global_config_path(), self._get_windsurf_global_rules_path()],
@@ -119,6 +124,83 @@ class LearnLoopIntegrator:
         paths.append(base / "rooveterinaryinc.roo-cline" / "settings" / "cline_mcp_settings.json")
         paths.append(base / "saoudrizwan.claude-dev" / "settings" / "cline_mcp_settings.json")
         return paths
+
+    @staticmethod
+    def _get_vscode_copilot_instructions_path() -> Path:
+        """Return user-level global VS Code Copilot instructions file path."""
+        return Path.home() / ".copilot" / "instructions" / "learnloop.instructions.md"
+
+    @staticmethod
+    def _get_vscode_learnloop_instructions_path() -> Path:
+        """Return user-level fallback LearnLoop instructions file path for VS Code."""
+        return Path.home() / ".learnloop" / "rules" / "learnloop.instructions.md"
+
+    @staticmethod
+    def _integrate_vscode_copilot_settings(config_path: Path) -> None:
+        """Safely merge chat.instructionsFilesLocations into VS Code settings.json."""
+        try:
+            config = {}
+            if config_path.exists():
+                try:
+                    config = json.loads(config_path.read_text(encoding="utf-8"))
+                except Exception:
+                    config = {}
+
+            locs = config.get("chat.instructionsFilesLocations", {})
+            if not isinstance(locs, dict):
+                locs = {}
+
+            copilot_dir = str(Path.home() / ".copilot" / "instructions")
+            learnloop_dir = str(Path.home() / ".learnloop" / "rules")
+
+            locs[copilot_dir] = True
+            locs["~/.copilot/instructions"] = True
+            locs[learnloop_dir] = True
+            locs["~/.learnloop/rules"] = True
+
+            config["chat.instructionsFilesLocations"] = locs
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    @staticmethod
+    def _uninstall_vscode_copilot_locations(config_path: Path) -> bool:
+        """Remove LearnLoop entries from chat.instructionsFilesLocations in VS Code settings.json."""
+        try:
+            if not config_path.exists():
+                return False
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+            locs = data.get("chat.instructionsFilesLocations")
+            if not isinstance(locs, dict):
+                return False
+
+            targets = {
+                str(Path.home() / ".copilot" / "instructions"),
+                str(Path.home() / ".learnloop" / "rules"),
+                "~/.learnloop/rules",
+            }
+
+            copilot_dir = Path.home() / ".copilot" / "instructions"
+            other_copilot_files = []
+            if copilot_dir.exists():
+                other_copilot_files = [f for f in copilot_dir.iterdir() if f.name != "learnloop.instructions.md"]
+            if not other_copilot_files:
+                targets.add("~/.copilot/instructions")
+
+            modified = False
+            for target in targets:
+                if target in locs:
+                    del locs[target]
+                    modified = True
+
+            if modified:
+                data["chat.instructionsFilesLocations"] = locs
+                config_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+                return True
+        except Exception:
+            pass
+        return False
 
     @staticmethod
     def _get_cursor_global_config_path() -> Path:
@@ -412,6 +494,10 @@ You are working with a learner who builds projects with AI and must be confident
     def generate_rules_content(self, ide: str = "generic") -> str:
         """Generate canonical LearnLoop rule content."""
         return self.CANONICAL_RULES.strip()
+
+    def generate_copilot_instructions_content(self) -> str:
+        """Generate VS Code Copilot instructions markdown with applyTo frontmatter."""
+        return f"---\napplyTo: \"**\"\n---\n\n{self.CANONICAL_RULES.strip()}\n"
     
     def integrate_ide(self, ide: str, force: bool = False) -> bool:
         """Integrate LearnLoop with specific IDE."""
@@ -456,9 +542,21 @@ You are working with a learner who builds projects with AI and must be confident
 
     def _integrate_vscode(self, force: bool) -> bool:
         """Integrate VS Code settings and MCP configuration."""
+        copilot_rules = self.generate_copilot_instructions_content()
+
         if self.in_repo:
             settings_path = self.project_root / ".vscode" / "settings.json"
             self._integrate_json_config(settings_path, "vscode", force)
+            try:
+                cfg = json.loads(settings_path.read_text(encoding="utf-8"))
+                locs = cfg.get("chat.instructionsFilesLocations", {})
+                if not isinstance(locs, dict):
+                    locs = {}
+                locs[".github/instructions"] = True
+                cfg["chat.instructionsFilesLocations"] = locs
+                settings_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+            except Exception:
+                pass
             self.integrated_paths.append(settings_path)
             self._log(f"  ✅ Integrated in-repo: {settings_path}")
 
@@ -469,6 +567,15 @@ You are working with a learner who builds projects with AI and must be confident
                 self._log(f"  ✅ Integrated in-repo: {mcp_path}")
             except Exception:
                 pass
+
+            # In-repo Copilot instructions: .github/copilot-instructions.md and .github/instructions/learnloop.instructions.md
+            in_repo_copilot = self.project_root / ".github" / "copilot-instructions.md"
+            self._write_rule_file(in_repo_copilot, self.CANONICAL_RULES.strip(), force)
+            self.integrated_paths.append(in_repo_copilot)
+
+            in_repo_inst = self.project_root / ".github" / "instructions" / "learnloop.instructions.md"
+            self._write_rule_file(in_repo_inst, copilot_rules, force)
+            self.integrated_paths.append(in_repo_inst)
             return True
 
         # Ghost Mode (Zero Workspace Pollution): write to global user profile
@@ -483,11 +590,33 @@ You are working with a learner who builds projects with AI and must be confident
         try:
             target_path.parent.mkdir(parents=True, exist_ok=True)
             self._integrate_json_config(target_path, "vscode", force)
+            self._integrate_vscode_copilot_settings(target_path)
             self.integrated_paths.append(target_path)
             self._log(f"  ✅ Integrated global user config (Ghost Mode): {target_path}")
             success = True
         except Exception as exc:
             self._log(f"  ⚠️ Could not write to VS Code user settings {target_path}: {exc}")
+
+        # Ghost Mode: Write native global VS Code Copilot instruction files
+        copilot_inst = self._get_vscode_copilot_instructions_path()
+        try:
+            copilot_inst.parent.mkdir(parents=True, exist_ok=True)
+            copilot_inst.write_text(copilot_rules, encoding="utf-8")
+            self.integrated_paths.append(copilot_inst)
+            self._log(f"  ✅ Integrated global Copilot instructions (Ghost Mode): {copilot_inst}")
+            success = True
+        except Exception as exc:
+            self._log(f"  ⚠️ Could not write Copilot instructions to {copilot_inst}: {exc}")
+
+        learnloop_inst = self._get_vscode_learnloop_instructions_path()
+        try:
+            learnloop_inst.parent.mkdir(parents=True, exist_ok=True)
+            learnloop_inst.write_text(copilot_rules, encoding="utf-8")
+            self.integrated_paths.append(learnloop_inst)
+            self._log(f"  ✅ Integrated global LearnLoop instructions: {learnloop_inst}")
+            success = True
+        except Exception as exc:
+            self._log(f"  ⚠️ Could not write LearnLoop instructions to {learnloop_inst}: {exc}")
 
         # Also configure Cline / Roo global MCP if those extensions are present
         for cline_p in self._get_vscode_cline_mcp_paths():
@@ -772,12 +901,42 @@ alwaysApply: true
                 for p in (self.project_root / ".vscode" / "settings.json", self.project_root / ".vscode" / "mcp.json"):
                     if self._uninstall_from_json(p):
                         cleaned_paths.append(p)
+                in_repo_copilot = self.project_root / ".github" / "copilot-instructions.md"
+                if self._strip_rule_file(in_repo_copilot):
+                    cleaned_paths.append(in_repo_copilot)
+                in_repo_inst = self.project_root / ".github" / "instructions" / "learnloop.instructions.md"
+                if in_repo_inst.exists():
+                    try:
+                        in_repo_inst.unlink()
+                        cleaned_paths.append(in_repo_inst)
+                    except Exception:
+                        pass
             for p in self._get_vscode_user_settings_paths():
-                if self._uninstall_from_json(p):
+                mcp_cleaned = self._uninstall_from_json(p)
+                locs_cleaned = self._uninstall_vscode_copilot_locations(p)
+                if mcp_cleaned or locs_cleaned:
                     cleaned_paths.append(p)
             for p in self._get_vscode_cline_mcp_paths():
                 if self._uninstall_from_json(p):
                     cleaned_paths.append(p)
+
+            copilot_inst = self._get_vscode_copilot_instructions_path()
+            if copilot_inst.exists():
+                try:
+                    copilot_inst.unlink()
+                    cleaned_paths.append(copilot_inst)
+                    if copilot_inst.parent.exists() and not any(copilot_inst.parent.iterdir()):
+                        copilot_inst.parent.rmdir()
+                except Exception:
+                    pass
+
+            learnloop_inst = self._get_vscode_learnloop_instructions_path()
+            if learnloop_inst.exists():
+                try:
+                    learnloop_inst.unlink()
+                    cleaned_paths.append(learnloop_inst)
+                except Exception:
+                    pass
 
         elif ide == "cursor":
             if self.in_repo:
